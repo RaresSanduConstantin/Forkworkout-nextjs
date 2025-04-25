@@ -30,7 +30,7 @@ React.useEffect(() => {
 
   return (
     <div className="flex flex-col items-center justify-center gap-5 bg-slate-50 mt-3">
-      <h1 className={`text-3xl`}>{honkFont("Your streak calendar")}</h1>
+      <h1 className={`text-3xl text-center`}>{honkFont("Your streak calendar")}</h1>
       <Calendar
   mode="single"
   selected={date}

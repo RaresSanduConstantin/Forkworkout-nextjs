@@ -9,6 +9,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import Image from "next/image";
 import ClockImage from "@/public/clock.png";
 import { DialogDescription, DialogTitle } from "@radix-ui/react-dialog";
+import Link from "next/link";
 
 
 type RepStatus = "pending" | "done" | "skipped";
@@ -133,6 +134,15 @@ useEffect(() => {
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-6">
+              <Button
+        type="button"
+        className=" top-5 right-5 z-50 rounded-full  shadow-lg px-5 py-3"
+        variant="ghost"
+      >
+        <Link href="/">
+          <span>← Go Back</span>
+        </Link>
+      </Button>
       <h1 className="text-4xl font-bold text-center break-all">
         {honkFont(workout.title)}
       </h1>

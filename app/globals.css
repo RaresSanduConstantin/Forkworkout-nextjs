@@ -39,6 +39,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-hot-pink: #f2337c;
+  --color-hot-yellow: #ffca2b;
 }
 
 :root {
@@ -132,5 +134,12 @@
 
   .animate-popbeat {
     animation: popbeat 1.5s ease-in-out infinite;
+  }
+}
+
+@layer utilities {
+  .outline-text {
+    -webkit-text-fill-color: transparent;       /* makes the fill transparent so gradient shows */
+    -webkit-text-stroke: 1px black;             /* black stroke around text */
   }
 }
