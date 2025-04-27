@@ -11,6 +11,10 @@ import ClockImage from "@/public/clock.png";
 import { DialogDescription, DialogTitle } from "@radix-ui/react-dialog";
 import Link from "next/link";
 
+const restStartSound = new Audio("/sounds/rest-start.mp3");
+const restEndSound = new Audio("/sounds/rest-end.mp3");
+
+
 
 type RepStatus = "pending" | "done" | "skipped";
 
@@ -46,6 +50,7 @@ useEffect(() => {
     if (!resting) return;
   
     if (countdown === 0) {
+    restEndSound.play();
       setResting(false);
       return;
     }
@@ -114,7 +119,7 @@ useEffect(() => {
   const handleSuccess = (exIdx: number, setIdx: number) => {
     markSet(exIdx, setIdx, "done")
     const restValue = restSeconds;
-    console.log("restValue!!!!!!", restValue);
+
     if(!restValue) {
       setRestSeconds(0);
         setCountdown(0);
@@ -127,6 +132,8 @@ useEffect(() => {
         setRestSeconds(seconds);
         setCountdown(seconds);
         setResting(true);
+
+        restStartSound.play(); 
         return
 
     }

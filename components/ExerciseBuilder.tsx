@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/form";
 
 
+
 type Props = {
   index: number;
   onRemove: () => void;
@@ -17,6 +18,8 @@ type Props = {
 };
 
 const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
+    const form = useFormContext();
+
   const { control } = useFormContext();
   const {
     fields: setFields,
@@ -61,7 +64,20 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
           <Button
             type="button"
             size="sm"
-            onClick={() => appendSet({ reps: 1, value: "" })}
+            onClick={() => {
+                // SAFELY get last filled set from form values, not setFields
+                const sets = form.getValues(`exercises.${index}.sets`) || [];
+                const lastSet = sets[sets.length - 1];
+            
+                if (lastSet) {
+                  appendSet({
+                    reps: lastSet.reps,
+                    value: lastSet.value,
+                  });
+                } else {
+                  appendSet({ reps: 1, value: "" });
+                }
+              }}
           >
             + Add Set
           </Button>
