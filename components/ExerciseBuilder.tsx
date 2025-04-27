@@ -9,16 +9,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-
-
 type Props = {
   index: number;
   onRemove: () => void;
-    exercisesLength: number;
+  exercisesLength: number;
 };
 
 const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
-    const form = useFormContext();
+  const form = useFormContext();
 
   const { control } = useFormContext();
   const {
@@ -33,7 +31,6 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
   return (
     <div className="p-4 rounded-md bg-slate-100 space-y-3 border-2 border-slate-300">
       <FormField
-        
         control={control}
         name={`exercises.${index}.name`}
         render={({ field }) => (
@@ -65,19 +62,19 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
             type="button"
             size="sm"
             onClick={() => {
-                // SAFELY get last filled set from form values, not setFields
-                const sets = form.getValues(`exercises.${index}.sets`) || [];
-                const lastSet = sets[sets.length - 1];
-            
-                if (lastSet) {
-                  appendSet({
-                    reps: lastSet.reps,
-                    value: lastSet.value,
-                  });
-                } else {
-                  appendSet({ reps: 1, value: "" });
-                }
-              }}
+              // SAFELY get last filled set from form values, not setFields
+              const sets = form.getValues(`exercises.${index}.sets`) || [];
+              const lastSet = sets[sets.length - 1];
+
+              if (lastSet) {
+                appendSet({
+                  reps: lastSet.reps,
+                  value: lastSet.value,
+                });
+              } else {
+                appendSet({ reps: 1, value: "" });
+              }
+            }}
           >
             + Add Set
           </Button>
@@ -92,15 +89,19 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
                 <FormItem className="w-1/2">
                   <FormLabel>Reps</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="Reps" {...field} onChange={(e) => field.onChange(Number(e.target.value))}/>
+                    <Input
+                      type="number"
+                      placeholder="Reps"
+                      {...field}
+                      value={field.value === undefined ? "" : field.value}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            
-         
             <FormField
               control={control}
               name={`exercises.${index}.sets.${setIndex}.value`}
