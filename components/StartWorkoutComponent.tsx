@@ -11,8 +11,6 @@ import ClockImage from "@/public/clock.png";
 import { DialogDescription, DialogTitle } from "@radix-ui/react-dialog";
 import Link from "next/link";
 
-import { Youtube } from "lucide-react";
-
 const restStartSound = new Audio("/sounds/rest-start.mp3");
 const restEndSound = new Audio("/sounds/rest-end.mp3");
 
@@ -162,7 +160,7 @@ const StartWorkoutComponent = () => {
               rel="noopener noreferrer"
               className="text-red-600 hover:text-red-800"
             >
-              <Youtube className="w-8 h-8" />
+              <Image src="/youtube.png" alt="YouTube" width={24} height={24}/>
             </Link>
           </div>
           {exercise.sets.map((set, setIdx) => {
