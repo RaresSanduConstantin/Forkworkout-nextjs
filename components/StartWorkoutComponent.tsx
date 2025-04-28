@@ -152,7 +152,7 @@ const StartWorkoutComponent = () => {
         <div key={exIdx} className="bg-slate-100 rounded-lg p-3 space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-lg break-all">{exercise.name}</h2>
-            <Link
+            {/* <Link
               href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
                 exercise.name + " exercise #shorts"
               )}`}
@@ -161,7 +161,7 @@ const StartWorkoutComponent = () => {
               className="text-red-600 hover:text-red-800"
             >
               <Image src="/youtube.png" alt="YouTube" width={24} height={24}/>
-            </Link>
+            </Link> */}
           </div>
           {exercise.sets.map((set, setIdx) => {
             const status = set.status;
