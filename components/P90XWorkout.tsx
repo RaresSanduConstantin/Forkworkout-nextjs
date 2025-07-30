@@ -11,7 +11,7 @@ interface P90XWorkoutProps {
 
 const P90XWorkout: React.FC<P90XWorkoutProps> = ({ workoutName = "P90X" }) => {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"phase1" | "phase2" | "phase3" | "videos">("phase1");
+  const [activeTab, setActiveTab] = useState<"phase1" | "phase2" | "phase3" | "recoveryWeek">("phase1");
 
   const handleFinish = () => {
     const date = new Date().toISOString();
@@ -135,6 +135,18 @@ const P90XWorkout: React.FC<P90XWorkoutProps> = ({ workoutName = "P90X" }) => {
         { day: 6, workouts: ["kenpo"], label: "Kenpo X" },
         { day: 7, workouts: ["stretch"], label: "Rest or X Stretch" },
       ]
+    },
+    recoveryWeek: {
+      name: "Recovery Week",
+      schedule: [
+        { day: 1, workouts: ["yoga"], label: "Yoga X" },
+        { day: 2, workouts: ["core"], label: "Core Synergistics" },
+        { day: 3, workouts: ["kenpo"], label: "Kenpo X" },
+        { day: 4, workouts: ["stretch"], label: "X Stretch" },
+        { day: 5, workouts: ["cardio"], label: "Cardio X" },
+        { day: 6, workouts: ["yoga"], label: "Yoga X" },
+        { day: 7, workouts: ["rest"], label: "Rest Day or X Stretch" },
+      ]
     }
   };
 
@@ -245,6 +257,9 @@ const P90XWorkout: React.FC<P90XWorkoutProps> = ({ workoutName = "P90X" }) => {
           <TabButton tabKey="phase3" isActive={activeTab === "phase3"}>
             Phase 3
           </TabButton>
+          <TabButton tabKey="recoveryWeek" isActive={activeTab === "recoveryWeek"}>
+            Recovery Week
+          </TabButton>
 
         </div>
       </div>
@@ -254,6 +269,7 @@ const P90XWorkout: React.FC<P90XWorkoutProps> = ({ workoutName = "P90X" }) => {
         {activeTab === "phase1" && renderPhaseTable(phases.phase1)}
         {activeTab === "phase2" && renderPhaseTable(phases.phase2)}
         {activeTab === "phase3" && renderPhaseTable(phases.phase3)}
+        {activeTab === "recoveryWeek" && renderPhaseTable(phases.recoveryWeek)}
       
       </div>
       {renderVideos()}
