@@ -66,7 +66,6 @@ const StartWorkoutComponent = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const found = workouts.find((w: any) => w.id === workoutId);
       if (found) {
-        console.log("found.restasdasdasdasda", found);
         setRestSeconds(found.rest);
         const session: WorkoutSession = {
           ...found,

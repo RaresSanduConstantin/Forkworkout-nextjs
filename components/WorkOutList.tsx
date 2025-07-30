@@ -52,6 +52,17 @@ const WorkoutList = () => {
     };
   return (
     <div className="flex flex-col items-center justify-center gap-5 bg-slate-50 mt-3 p-4 w-full max-w-xl mx-auto shadow">
+      <h1 className="text-3xl">{honkFont("Recomanded Workouts")}</h1>
+      <ul className="w-full flex flex-col gap-4">
+        <li className="flex justify-between items-center p-2 bg-white rounded-lg shadow-md">
+          <div/>
+          <span className="font-medium text-lg text-center">P90X</span>
+          <div className="flex gap-2">
+            <Button onClick={() => handleStart("1")}>Start</Button>
+          </div>
+        </li>
+      </ul>
+
       <h1 className="text-3xl">{honkFont("Your Workouts")}</h1>
       
       {workouts.length === 0 ? (
