@@ -8,6 +8,7 @@ import {
   FormControl,
   FormMessage,
 } from "@/components/ui/form";
+import { ExerciseCombobox } from "./ExerciseCombobox";
 
 type Props = {
   index: number;
@@ -48,7 +49,11 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
               </Button>
             </FormLabel>
             <FormControl>
-              <Input placeholder="e.g. Push-Up" {...field} />
+            <ExerciseCombobox
+                value={field.value || ""}
+                onChange={field.onChange}
+                placeholder="Search for an exercise..."
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
