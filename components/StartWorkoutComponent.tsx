@@ -245,7 +245,20 @@ const StartWorkoutComponent = () => {
   };
 
   if (!workout) {
-    return <div className="p-6 text-center">Loading workout...</div>;
+    // go back to home if no workout found
+    
+    return <div className="p-6 text-center h-full flex flex-col items-center justify-center mt-20 gap-5">
+
+      <h1 className="text-2xl font-semibold">{honkFont("No Workout Foundationd")}</h1>
+      <p className="mt-4 text-gray-600">Please go back and select a workout to start.</p>
+      <Button
+        variant="default"
+        onClick={() => router.push("/")}
+        className="mt-6"
+      >
+        Go Back Home
+      </Button>
+    </div>;
   }
 
   const handleSuccess = (exIdx: number, setIdx: number) => {
