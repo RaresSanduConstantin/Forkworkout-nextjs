@@ -198,6 +198,13 @@ const StartWorkoutComponent = () => {
     setWorkout(updated);
   };
 
+  const removeSet = (exIdx: number, setIdx: number) => {
+    if (!workout) return;
+    const updated = { ...workout };
+    updated.exercises[exIdx].sets.splice(setIdx, 1);
+    setWorkout(updated);
+  };
+
   const updateExerciseName = (exIdx: number, name: string) => {
     if (!workout) return;
     const updated = { ...workout };
@@ -346,7 +353,7 @@ const StartWorkoutComponent = () => {
               <div key={setIdx} className={containerClasses}>
                 <Button
                   variant="outline"
-                  onClick={() => markSet(exIdx, setIdx, "skipped")}
+                  onClick={() => removeSet(exIdx, setIdx)}
                   className="text-red-600 text-xs bg-accent"
                 >
                   ❌
