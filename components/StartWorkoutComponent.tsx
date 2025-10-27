@@ -520,7 +520,6 @@ const StartWorkoutComponent = () => {
                     `https://www.youtube.com/results?search_query=${encodeURIComponent(
                       selectedExercise + " exercise form #shorts"
                     )}`,
-                    "_blank"
                   )
                 }
                 className="w-full"
@@ -534,7 +533,6 @@ const StartWorkoutComponent = () => {
                     `https://www.tiktok.com/search?q=${encodeURIComponent(
                       selectedExercise + " exercise form"
                     )}`,
-                    "_blank"
                   )
                 }
                 className="w-full bg-gray-600 text-white hover:bg-gray-800"
