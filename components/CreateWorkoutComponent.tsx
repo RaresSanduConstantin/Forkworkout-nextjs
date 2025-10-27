@@ -135,6 +135,7 @@ const CreateWorkoutComponent = () => {
           </div>
 
           {/* Workout Title */}
+          <div>
           <FormField
             control={form.control}
             name="title"
@@ -148,6 +149,7 @@ const CreateWorkoutComponent = () => {
               </FormItem>
             )}
           />
+          </div>
 
           {/* Rest (optional) */}
           <FormField

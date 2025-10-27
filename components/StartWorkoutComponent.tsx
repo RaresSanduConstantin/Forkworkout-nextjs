@@ -520,6 +520,7 @@ const StartWorkoutComponent = () => {
                     `https://www.youtube.com/results?search_query=${encodeURIComponent(
                       selectedExercise + " exercise form #shorts"
                     )}`,
+                    '_self'
                   )
                 }
                 className="w-full"
