@@ -94,22 +94,26 @@ export function ExerciseCombobox({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between"
-        >
-          {value || placeholder}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+      <Button
+  variant="outline"
+  role="combobox"
+  aria-expanded={open}
+  className="w-full justify-between h-auto min-h-[40px]"
+  title={value} // Shows full text on hover
+>
+  <span className="text-left truncate flex-1 mr-2">
+    {value || placeholder}
+  </span>
+  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+</Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
+      <PopoverContent  className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0">
         <Command>
           <CommandInput 
             placeholder="Search exercises..." 
             value={value}
             onValueChange={onChange}
+            
           />
           <CommandList>
             {loading ? (
@@ -118,7 +122,7 @@ export function ExerciseCombobox({
               <CommandEmpty>No exercises found.</CommandEmpty>
             ) : (
               <CommandGroup>
-                {filteredExercises.map((exercise) => (
+                {filteredExercises.map((exercise, index) => (
                   <CommandItem
                     key={exercise.name}
                     value={exercise.name}
@@ -128,6 +132,10 @@ export function ExerciseCombobox({
                     }}
                     className="flex flex-col items-start"
                   >
+                    {/* break line between exercises */}
+                    {(index > 0) ? (
+                        <div className="w-full border-b border-gray-200 mb-2"></div>
+                    ) : null}
                     <div className="flex items-center w-full">
                       <Check
                         className={cn(
@@ -142,6 +150,7 @@ export function ExerciseCombobox({
                         </div>
                       </div>
                     </div>
+        
                   </CommandItem>
                 ))}
               </CommandGroup>

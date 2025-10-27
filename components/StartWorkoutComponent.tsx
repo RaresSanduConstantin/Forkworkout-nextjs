@@ -181,7 +181,7 @@ const StartWorkoutComponent = () => {
     if (!workout) return;
     const updated = { ...workout };
     updated.exercises.push({
-      name: `New Exercise ${updated.exercises.length + 1}`,
+      name: `Search for an exercise...`,
       sets: [{ reps: 1, value: "", status: "pending" }],
     });
     setWorkout(updated);
