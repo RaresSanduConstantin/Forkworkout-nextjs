@@ -1,14 +1,5 @@
-import CalendarComponent from "@/components/Calendar";
-import NavBar from "@/components/Navbar";
-import WorkoutList from "@/components/WorkOutList";
+import LandingPage from "@/components/landing/LandingPage";
 
 export default function Home() {
-
-  return (
-<main >
-    <NavBar />
-    <CalendarComponent />
-    <WorkoutList />
-</main>
-  );
+  return <LandingPage />;
 }

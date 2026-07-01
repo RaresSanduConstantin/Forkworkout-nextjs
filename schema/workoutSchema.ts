@@ -5,13 +5,15 @@ export const workoutSchema = z.object({
   rest: z.string().optional(),
   exercises: z.array(
     z.object({
+      id: z.string().optional(),
       name: z.string().min(1, "Exercise name is required").max(50, "Exercise name must be less than 50 characters"),
       sets: z.array(
         z.object({
+          id: z.string().optional(),
           reps: z.coerce.number({
             invalid_type_error: "",
             required_error: "",
-          }).min(1, "").max(100, "Reps must be between 1 and 100") ,
+          }).int("Whole reps only").min(1, "").max(100, "Reps must be between 1 and 100") ,
           value: z.string().min(1, "").max(20, "Max 20 chars"), // like "BW", "10kg", "1min"
         })
       ).min(1, "At least one set is required"),
@@ -20,3 +22,4 @@ export const workoutSchema = z.object({
 });
 
 export type WorkoutSchema = z.infer<typeof workoutSchema>;
+

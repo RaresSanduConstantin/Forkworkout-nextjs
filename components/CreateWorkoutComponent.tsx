@@ -2,6 +2,7 @@
 
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeft, Plus, Save } from "lucide-react";
 
 import {
   Form,
@@ -23,16 +24,24 @@ import {
 
 import { workoutSchema, WorkoutSchema } from "@/schema/workoutSchema";
 import ExerciseBuilder from "./ExerciseBuilder";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { BottomActionBar } from "@/components/layout/BottomActionBar";
 
 import { honkFont } from "@/lib/honkFont";
-import { motion } from "motion/react";
+import { motion, MotionConfig } from "motion/react";
 import React, { useEffect } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 
-import { useRouter } from "next/navigation";
-import { v4 as uuidv4 } from "uuid"; // for unique workout ID
+import { useRouter, useParams } from "next/navigation";
+import { v4 as uuidv4 } from "uuid";
 
-import { useParams } from "next/navigation";
+import { getWorkoutById, upsertWorkout } from "@/lib/storage/workout-storage";
+import { ROUTES } from "@/lib/routes";
+import type { Workout } from "@/lib/types";
+
+const newSet = () => ({ id: uuidv4(), reps: 1, value: "" });
+const newExercise = () => ({ id: uuidv4(), name: "", sets: [newSet()] });
 
 const CreateWorkoutComponent = () => {
   const params = useParams();
@@ -60,82 +69,72 @@ const CreateWorkoutComponent = () => {
 
   useEffect(() => {
     if (!hasInitialized.current && exerciseFields.length === 0) {
-      appendExercise({ name: "", sets: [{ reps: 1, value: "" }] });
+      appendExercise(newExercise());
       hasInitialized.current = true;
     }
   }, [exerciseFields, appendExercise]);
 
   useEffect(() => {
     if (workoutId) {
-      const stored = localStorage.getItem("workouts");
-      if (stored) {
-        const workouts = JSON.parse(stored);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const workout = workouts.find((w: any) => w.id === workoutId);
-
-        if (workout) {
-            console.log("workout", workout);
-          form.reset(workout);
-        }
+      const workout = getWorkoutById(workoutId);
+      if (workout) {
+        hasInitialized.current = true;
+        form.reset(workout);
       }
     }
   }, [workoutId, form]);
 
   const onSubmit = (data: WorkoutSchema) => {
-    const stored = localStorage.getItem("workouts");
-    const workouts = stored ? JSON.parse(stored) : [];
+    const now = new Date().toISOString();
 
     if (workoutId) {
-      // Editing existing
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updated = workouts.map((w: any) => {
-        if (w.id === workoutId) {
-            console.log("w", w);
-            console.log("data", data);
-
-            console.log({...data, ...w });
-          return { ...w, ...data };
-        } else {
-          return w;
-        }
-      });
-      localStorage.setItem("workouts", JSON.stringify(updated));
+      // Editing existing — preserve id/createdAt, refresh updatedAt.
+      const existing = getWorkoutById(workoutId);
+      const updated: Workout = {
+        ...(existing ?? { id: workoutId, exercises: [] }),
+        ...data,
+        id: workoutId,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+      upsertWorkout(updated);
     } else {
-      // Creating new
-      const newWorkout = {
+      const newWorkout: Workout = {
         id: uuidv4(),
         ...data,
+        createdAt: now,
+        updatedAt: now,
       };
-      const updated = [...workouts, newWorkout];
-      localStorage.setItem("workouts", JSON.stringify(updated));
+      upsertWorkout(newWorkout);
     }
 
-    router.push("/");
+    toast.success(workoutId ? "Workout updated" : "Workout saved");
+    router.push(ROUTES.dashboard);
+  };
+
+  const onInvalid = () => {
+    toast.error("Please fix the highlighted fields before saving.");
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto">
-      <Button
-        type="button"
-        className=" top-5 right-5 z-50 rounded-full  shadow-lg px-5 py-3"
-        variant="ghost"
-      >
-        <Link href="/">
-          <span>← Go Back</span>
+    <PageContainer hasBottomBar>
+      <Button asChild variant="ghost" size="sm" className="mb-2 gap-1 px-2">
+        <Link href={ROUTES.dashboard}>
+          <ArrowLeft className="size-4" />
+          Go Back
         </Link>
       </Button>
+
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="flex flex-row items-center justify-center gap-5 bg-slate-50 mt-3">
-            <h1 className="text-4xl font-bold text-center">
-              {workoutId
-                ? honkFont("Edit Workout")
-                : honkFont("Create Workout")}
-            </h1>
-          </div>
+        <form
+          onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+          className="space-y-6"
+        >
+          <h1 className="text-center text-4xl font-bold">
+            {workoutId ? honkFont("Edit Workout") : honkFont("Create Workout")}
+          </h1>
 
           {/* Workout Title */}
-          <div>
           <FormField
             control={form.control}
             name="title"
@@ -149,7 +148,6 @@ const CreateWorkoutComponent = () => {
               </FormItem>
             )}
           />
-          </div>
 
           {/* Rest (optional) */}
           <FormField
@@ -164,7 +162,7 @@ const CreateWorkoutComponent = () => {
                   defaultValue={field.value}
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Choose rest period..." />
                     </SelectTrigger>
                   </FormControl>
@@ -182,49 +180,54 @@ const CreateWorkoutComponent = () => {
             )}
           />
 
-          {/* Placeholder for exercises */}
+          {/* Exercises */}
+          <MotionConfig reducedMotion="user">
+            <div className="space-y-4">
+              {exerciseFields.map((exercise, index) => (
+                <motion.div
+                  key={exercise.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <ExerciseBuilder
+                    index={index}
+                    onRemove={() => removeExercise(index)}
+                    exercisesLength={exerciseFields.length}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </MotionConfig>
 
-          {exerciseFields.map((exercise, index) => (
-            <motion.div
-              key={exercise.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.25 }}
-            >
-              <ExerciseBuilder
-                index={index}
-                onRemove={() => removeExercise(index)}
-                exercisesLength={exerciseFields.length}
-              />
-            </motion.div>
-          ))}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2 border-dashed"
+            onClick={() => appendExercise(newExercise())}
+          >
+            <Plus className="size-4" />
+            Add Exercise
+          </Button>
 
-
-          <div className=" bottom-0 left-0 w-full flex justify-center gap-4 bg-slate-50 p-4 border-t-2 border-slate-300">
+          <BottomActionBar>
             <Button
               type="button"
-              className=" bottom-15 right-5 rounded-full bg-orange-400 text-white shadow-lg px-5 py-3"
-              onClick={() =>
-                appendExercise({
-                  name: "",
-                  sets: [{ reps: 1, value: "" }],
-                })
-              }
+              variant="outline"
+              className="flex-1"
+              onClick={() => router.push(ROUTES.dashboard)}
             >
-              ➕ Add Exercise
+              Cancel
             </Button>
-
-            <Button
-              type="submit"
-              className=" bottom-5 right-5 rounded-full bg-black text-white shadow-lg px-5 py-3"
-            >
-              💾<span>Save Workout</span>
+            <Button type="submit" className="flex-1 gap-2">
+              <Save className="size-4" />
+              Save Workout
             </Button>
-          </div>
+          </BottomActionBar>
         </form>
       </Form>
-    </div>
+    </PageContainer>
   );
 };
 

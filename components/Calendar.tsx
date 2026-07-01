@@ -2,46 +2,50 @@
 
 import React from "react";
 import { Calendar } from "./ui/calendar";
-import { honkFont } from "@/lib/honkFont";
+import { Card, CardContent } from "@/components/ui/card";
+import { getCompletedDayKeys } from "@/lib/storage/history-storage";
+import { dayKeyToDate } from "@/lib/date/day-key";
 
 const CalendarComponent = () => {
-  const [date, setDate] = React.useState<Date | undefined>(new Date());
+  const [month, setMonth] = React.useState<Date>(new Date());
+  const [markedDates, setMarkedDates] = React.useState<Date[]>([]);
 
-//   const handleDisable = (date: Date) => {
-//     const today = new Date();
-//     return date < today;
-//     };
-
-
-    const [markedDates, setMarkedDates] = React.useState<Date[]>([]);
-
-React.useEffect(() => {
-  const stored = localStorage.getItem("completedWorkouts");
-  if (stored) {
-    const parsed = JSON.parse(stored);
-
-    const dates: Date[] = parsed.map((entry: { date: string }) =>
-      new Date(entry.date)
-    );
-
-    setMarkedDates(dates);
-  }
-}, []);
+  React.useEffect(() => {
+    // Use stable local day keys so completed workouts land on the correct
+    // calendar day regardless of timezone.
+    setMarkedDates(getCompletedDayKeys().map(dayKeyToDate));
+  }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-5 bg-slate-50 mt-3">
-      <h1 className={`text-3xl text-center`}>{honkFont("Your streak calendar")}</h1>
-      <Calendar
-  mode="single"
-  selected={date}
-  onSelect={setDate}
-  className="rounded-md border"
-//   disabled={handleDisable}
-  weekStartsOn={1}
-  modifiers={{ completed: markedDates }}
-  modifiersClassNames={{ completed: "bg-gradient-to-r from-pink-400 via-yellow-300 to-orange-400 text-black font-bold animate-popbeat" }}
-/>
-    </div>
+    <Card>
+      <CardContent className="flex flex-col items-center gap-4 p-4">
+        <div className="w-full">
+          <h2 className="text-xl font-semibold">Streak calendar</h2>
+          <p className="text-sm text-muted-foreground">
+            Every day you finish a workout lights up.
+          </p>
+        </div>
+
+        <Calendar
+          mode="single"
+          month={month}
+          onMonthChange={setMonth}
+          weekStartsOn={1}
+          showOutsideDays
+          className="rounded-xl border p-3"
+          modifiers={{ completed: markedDates }}
+          modifiersClassNames={{
+            completed:
+              "rounded-md bg-gradient-to-br from-pink-500 to-orange-500 font-semibold text-white hover:opacity-90 aria-selected:opacity-100",
+          }}
+        />
+
+        <div className="flex w-full items-center gap-2 text-sm text-muted-foreground">
+          <span className="size-3 rounded-sm bg-gradient-to-br from-pink-500 to-orange-500" />
+          Completed workout
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
