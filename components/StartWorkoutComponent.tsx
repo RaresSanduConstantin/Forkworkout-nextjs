@@ -78,6 +78,8 @@ const StartWorkoutComponent = () => {
   const [exerciseDetails, setExerciseDetails] = useState<ExerciseDetails | null>(null);
   const [exercises, setExercises] = useState<ExerciseDetails[]>([]);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [addSetFor, setAddSetFor] = useState<number | null>(null);
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
 
   // Load exercise reference data.
   useEffect(() => {
@@ -227,19 +229,32 @@ const StartWorkoutComponent = () => {
     );
   };
 
-  const addSet = (exIdx: number) => {
+  const addSet = (exIdx: number, copyPrevious: boolean) => {
     setWorkout((prev) =>
       prev
         ? {
             ...prev,
-            exercises: prev.exercises.map((ex, i) =>
-              i !== exIdx
-                ? ex
-                : {
-                    ...ex,
-                    sets: [...ex.sets, { id: uuidv4(), reps: 1, value: "", unit: "kg", status: "pending" }],
-                  }
-            ),
+            exercises: prev.exercises.map((ex, i) => {
+              if (i !== exIdx) return ex;
+              const last = ex.sets[ex.sets.length - 1];
+              const nextSet =
+                copyPrevious && last
+                  ? {
+                      id: uuidv4(),
+                      reps: last.reps,
+                      value: last.value,
+                      unit: last.unit ?? "kg",
+                      status: "pending" as SetStatus,
+                    }
+                  : {
+                      id: uuidv4(),
+                      reps: 1,
+                      value: "",
+                      unit: "kg" as const,
+                      status: "pending" as SetStatus,
+                    };
+              return { ...ex, sets: [...ex.sets, nextSet] };
+            }),
           }
         : prev
     );
@@ -270,6 +285,11 @@ const StartWorkoutComponent = () => {
   };
 
   const handleComplete = (exIdx: number, setIdx: number) => {
+    // Toggle: tapping "Done" on an already-done set marks it pending again.
+    if (workout?.exercises[exIdx]?.sets[setIdx]?.status === "done") {
+      markSet(exIdx, setIdx, "pending");
+      return;
+    }
     markSet(exIdx, setIdx, "done");
     if (!restSeconds) return;
     setCountdown(restSeconds);
@@ -278,7 +298,12 @@ const StartWorkoutComponent = () => {
   };
 
   const handleSkip = (exIdx: number, setIdx: number) => {
-    markSet(exIdx, setIdx, "skipped");
+    // Toggle: tapping "Skip" on an already-skipped set clears it.
+    markSet(
+      exIdx,
+      setIdx,
+      workout?.exercises[exIdx]?.sets[setIdx]?.status === "skipped" ? "pending" : "skipped"
+    );
   };
 
   const handleFinish = () => {
@@ -327,6 +352,15 @@ const StartWorkoutComponent = () => {
     } else {
       clearActiveSession();
       router.push(ROUTES.dashboard);
+    }
+  };
+
+  const requestFinish = () => {
+    // Confirm if any sets are still unfinished (neither done nor skipped).
+    if (progress.total - progress.handled > 0) {
+      setShowFinishConfirm(true);
+    } else {
+      handleFinish();
     }
   };
 
@@ -381,21 +415,27 @@ const StartWorkoutComponent = () => {
                 onChange={(value) => updateExerciseName(exIdx, value)}
                 placeholder="Search for an exercise..."
               />
-              <div className="flex items-center justify-end gap-3">
-                <button
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
                   onClick={() => openInfoModal(exercise.name)}
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={`Info about ${exercise.name || "exercise"}`}
                 >
-                  <Info className="h-5 w-5" />
-                </button>
-                <button
+                  <Info className="size-4 text-primary" />
+                  How to do it!
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-red-600 hover:text-red-700"
                   onClick={() => openVideoModal(exercise.name)}
-                  className="text-red-600 hover:text-red-800"
-                  aria-label={`Watch videos for ${exercise.name || "exercise"}`}
                 >
-                  <Image src="/youtube.png" alt="" width={24} height={24} />
-                </button>
+                  <Image src="/youtube.png" alt="" width={18} height={18} />
+                  Videos
+                </Button>
               </div>
 
               {exercise.sets.map((set, setIdx) => {
@@ -487,7 +527,7 @@ const StartWorkoutComponent = () => {
 
               <Button
                 variant="outline"
-                onClick={() => addSet(exIdx)}
+                onClick={() => setAddSetFor(exIdx)}
                 className="w-full gap-1 border-dashed"
               >
                 <Plus className="size-4" />
@@ -704,11 +744,63 @@ const StartWorkoutComponent = () => {
         }}
       />
 
+      {/* Add set — copy previous or start fresh */}
+      <Dialog
+        open={addSetFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setAddSetFor(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Add a set</DialogTitle>
+            <DialogDescription>
+              Reuse the previous set&apos;s values, or start a fresh empty set?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={() => {
+                if (addSetFor !== null) addSet(addSetFor, true);
+                setAddSetFor(null);
+              }}
+            >
+              Copy previous set
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (addSetFor !== null) addSet(addSetFor, false);
+                setAddSetFor(null);
+              }}
+            >
+              New empty set
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Finish confirmation when sets are still unfinished */}
+      <ConfirmDialog
+        open={showFinishConfirm}
+        onOpenChange={setShowFinishConfirm}
+        title="Finish workout?"
+        description={`You still have ${progress.total - progress.handled} set${
+          progress.total - progress.handled === 1 ? "" : "s"
+        } left. Finish anyway?`}
+        confirmLabel="Finish anyway"
+        cancelLabel="Keep going"
+        onConfirm={() => {
+          setShowFinishConfirm(false);
+          handleFinish();
+        }}
+      />
+
       <BottomActionBar>
         <Button variant="outline" className="flex-1" onClick={requestExit}>
           Cancel
         </Button>
-        <Button className="flex-1" onClick={handleFinish}>
+        <Button className="flex-1" onClick={requestFinish}>
           Finish Workout
         </Button>
       </BottomActionBar>

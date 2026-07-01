@@ -1,6 +1,7 @@
+import * as React from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { ExerciseCombobox } from "./ExerciseCombobox";
+import { ExerciseInfoDialog } from "@/components/exercises/ExerciseInfoDialog";
 import { SET_UNITS, unitPlaceholder } from "@/lib/workout";
 import type { SetUnit } from "@/lib/types";
 
@@ -141,6 +143,8 @@ type Props = {
 const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
   const form = useFormContext();
   const { control } = form;
+  const [infoOpen, setInfoOpen] = React.useState(false);
+  const exerciseName = (useWatch({ control, name: `exercises.${index}.name` }) as string) || "";
   const {
     fields: setFields,
     append: appendSet,
@@ -180,8 +184,25 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
                 />
               </FormControl>
               <FormMessage />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1 gap-1.5"
+                disabled={!exerciseName}
+                onClick={() => setInfoOpen(true)}
+              >
+                <Info className="size-4 text-primary" />
+                How to do it!
+              </Button>
             </FormItem>
           )}
+        />
+
+        <ExerciseInfoDialog
+          exerciseName={exerciseName}
+          open={infoOpen}
+          onOpenChange={setInfoOpen}
         />
 
         <Separator />
