@@ -21,6 +21,7 @@ import { honkFont } from "@/lib/honkFont";
 import { addCompletedWorkout } from "@/lib/storage/history-storage";
 import { ROUTES } from "@/lib/routes";
 import { P90X_EXERCISES } from "@/lib/p90x";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { toast } from "sonner";
 
 interface P90XWorkoutProps {
@@ -105,6 +106,7 @@ function VideoRow({ exerciseKey }: { exerciseKey: string }) {
 const P90XWorkout: React.FC<P90XWorkoutProps> = ({ workoutName = "P90X" }) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<PhaseKey>("phase1");
+  useWakeLock(true);
 
   const handleFinish = () => {
     addCompletedWorkout({ workoutId: "1", title: workoutName });

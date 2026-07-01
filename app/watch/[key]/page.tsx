@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Maximize } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { P90X_EXERCISES, getEmbedUrl } from "@/lib/p90x";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 export default function WatchPage() {
   const params = useParams();
@@ -13,6 +14,7 @@ export default function WatchPage() {
   const key = params.key as string;
   const ex = P90X_EXERCISES[key];
   const containerRef = React.useRef<HTMLDivElement>(null);
+  useWakeLock(true);
 
   const enterFullscreen = async () => {
     const el = containerRef.current;

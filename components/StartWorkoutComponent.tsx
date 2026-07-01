@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
@@ -41,7 +41,8 @@ import {
   saveActiveSession,
   clearActiveSession,
 } from "@/lib/storage/session-storage";
-import { playSound, SOUNDS } from "@/lib/sound";
+import { SOUNDS } from "@/lib/sound";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, unitPlaceholder } from "@/lib/workout";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, SessionSet, SetStatus } from "@/lib/types";
@@ -80,6 +81,52 @@ const StartWorkoutComponent = () => {
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+
+  // Keep the phone screen awake during the workout.
+  useWakeLock(true);
+
+  // Persistent audio elements. The rest-END sound fires from a timer (no user
+  // gesture), which mobile browsers block — so we "unlock" it during the tap
+  // that starts the rest, then it can play when the countdown finishes.
+  const restStartAudioRef = useRef<HTMLAudioElement | null>(null);
+  const restEndAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    restStartAudioRef.current = new Audio(SOUNDS.restStart);
+    restEndAudioRef.current = new Audio(SOUNDS.restEnd);
+    restStartAudioRef.current.preload = "auto";
+    restEndAudioRef.current.preload = "auto";
+  }, []);
+
+  const playAudio = (el: HTMLAudioElement | null) => {
+    if (!el) return;
+    try {
+      el.currentTime = 0;
+      void el.play().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Play muted within a user gesture to unlock the element for later autoplay.
+  const unlockAudio = (el: HTMLAudioElement | null) => {
+    if (!el) return;
+    try {
+      el.muted = true;
+      void el
+        .play()
+        .then(() => {
+          el.pause();
+          el.currentTime = 0;
+          el.muted = false;
+        })
+        .catch(() => {
+          el.muted = false;
+        });
+    } catch {
+      el.muted = false;
+    }
+  };
 
   // Load exercise reference data.
   useEffect(() => {
@@ -134,7 +181,7 @@ const StartWorkoutComponent = () => {
     if (!resting) return;
     if (countdown <= 0) {
       setResting(false);
-      playSound(SOUNDS.restEnd);
+      playAudio(restEndAudioRef.current);
       return;
     }
     const timer = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
@@ -294,7 +341,10 @@ const StartWorkoutComponent = () => {
     if (!restSeconds) return;
     setCountdown(restSeconds);
     setResting(true);
-    playSound(SOUNDS.restStart);
+    // This runs from a user tap, so play the start sound and unlock the end
+    // sound so it can autoplay when the rest timer finishes.
+    playAudio(restStartAudioRef.current);
+    unlockAudio(restEndAudioRef.current);
   };
 
   const handleSkip = (exIdx: number, setIdx: number) => {
