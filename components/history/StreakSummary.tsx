@@ -29,7 +29,7 @@ export function StreakSummary() {
   }, []);
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <StatCard label="Day streak" value={streak} icon={<Flame className="size-5" />} />
       <StatCard
         label="This week"

@@ -3,11 +3,10 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Flag, PlayCircle } from "lucide-react";
+import { ArrowLeft, Flag, Play, PlayCircle } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Accordion,
@@ -21,6 +20,7 @@ import { BottomActionBar } from "@/components/layout/BottomActionBar";
 import { honkFont } from "@/lib/honkFont";
 import { addCompletedWorkout } from "@/lib/storage/history-storage";
 import { ROUTES } from "@/lib/routes";
+import { P90X_EXERCISES } from "@/lib/p90x";
 import { toast } from "sonner";
 
 interface P90XWorkoutProps {
@@ -28,23 +28,6 @@ interface P90XWorkoutProps {
 }
 
 type PhaseKey = "phase1" | "phase2" | "phase3" | "recoveryWeek";
-
-type Exercise = { name: string; videoUrl: string };
-
-const EXERCISES: Record<string, Exercise> = {
-  "1": { name: "Chest and Back", videoUrl: "https://drive.google.com/file/d/1oq-3-kDNLwYNXP26SCWVQhe2Gz6vmgCz/view?usp=sharing" },
-  "2": { name: "Plyometrics", videoUrl: "https://drive.google.com/file/d/1S-ZRjxO9d9Heu-V686f9jXt--NnfBCly/view?usp=sharing" },
-  "3": { name: "Shoulders and Arms", videoUrl: "https://drive.google.com/file/d/11gm5yEcIVfo2EJpzaVDUdSYaHDakfTOt/view?usp=sharing" },
-  "4": { name: "Yoga X", videoUrl: "https://drive.google.com/file/d/1ztrHX-i2k4rQDu-ShYFZbSBn1iKdxG6c/view?usp=sharing" },
-  "5": { name: "Legs and Back", videoUrl: "https://drive.google.com/file/d/1A30ZC6gghBSENauJkgx5F-_N3bhvlakn/view?usp=sharing" },
-  "6": { name: "Kenpo X", videoUrl: "https://drive.google.com/file/d/1VX3H0zFsQDGyeV9JetIQH5hmA84zorTJ/view?usp=sharing" },
-  "7": { name: "Core Synergistics", videoUrl: "https://drive.google.com/file/d/1tiDE4eeuatiRyLleb5aegeVvDlGZngE8/view?usp=sharing" },
-  "8": { name: "X Stretch", videoUrl: "https://drive.google.com/file/d/1iridqEvh_lgHrkUvgvrwhphqlUoBIP_8/view?usp=sharing" },
-  "9": { name: "Chest, Shoulders, and Triceps", videoUrl: "https://drive.google.com/file/d/1sMQMmw1dVP1CFI5WqdogdGa15xJg10vM/view?usp=sharing" },
-  "10": { name: "Back and Biceps", videoUrl: "https://drive.google.com/file/d/11aoFEDClPmvjjVb6D0demCy7WSnHlZOf/view?usp=sharing" },
-  "11": { name: "Cardio X", videoUrl: "https://drive.google.com/file/d/1bI002fGDXzps7JQAopmK6IPVjHd7ezND/view?usp=sharing" },
-  "12": { name: "Ab Ripper X", videoUrl: "https://drive.google.com/file/d/1xykiAfHSoBIPHHiCcPSPfTTUNUF4Lnxv/view?usp=sharing" },
-};
 
 type Day = { day: number; label: string; videos: string[]; rest?: boolean };
 
@@ -99,36 +82,23 @@ const PHASES: Record<PhaseKey, { name: string; schedule: Day[] }> = {
   },
 };
 
-const getEmbedUrl = (shareUrl: string) => {
-  const fileId = shareUrl.match(/\/d\/([^/]+)/)?.[1];
-  return fileId ? `https://drive.google.com/file/d/${fileId}/preview` : shareUrl;
-};
-
-function VideoBlock({ exerciseKey }: { exerciseKey: string }) {
-  const ex = EXERCISES[exerciseKey];
+// A tappable row that opens the exercise video on its own full-screen page.
+function VideoRow({ exerciseKey }: { exerciseKey: string }) {
+  const ex = P90X_EXERCISES[exerciseKey];
   if (!ex) return null;
   return (
-    <div className="space-y-2">
-      <h4 className="text-sm font-semibold">{ex.name}</h4>
-      <AspectRatio ratio={16 / 9} className="overflow-hidden rounded-md bg-muted">
-        <iframe
-          src={getEmbedUrl(ex.videoUrl)}
-          className="h-full w-full border-0"
-          allow="autoplay; fullscreen"
-          title={ex.name}
-          loading="lazy"
-          allowFullScreen
-        />
-      </AspectRatio>
-      <a
-        href={ex.videoUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-      >
-        Open in Google Drive <ExternalLink className="size-3" />
-      </a>
-    </div>
+    <Link
+      href={`/watch/${exerciseKey}`}
+      className="group flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-accent"
+    >
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-sm">
+        <Play className="size-5 fill-current" />
+      </span>
+      <span className="flex-1 text-sm font-medium">{ex.name}</span>
+      <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground">
+        Watch
+      </span>
+    </Link>
   );
 }
 
@@ -148,7 +118,7 @@ const P90XWorkout: React.FC<P90XWorkoutProps> = ({ workoutName = "P90X" }) => {
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">{phase.name}</h2>
         <p className="text-sm text-muted-foreground">
-          Tap any day to watch its workout videos.
+          Tap a day, then a workout to watch it full-screen.
         </p>
         <Accordion type="single" collapsible className="w-full">
           {phase.schedule.map((d) => (
@@ -168,9 +138,9 @@ const P90XWorkout: React.FC<P90XWorkoutProps> = ({ workoutName = "P90X" }) => {
                   )}
                 </span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-4 pt-1">
+              <AccordionContent className="space-y-2 pt-1">
                 {d.videos.map((key) => (
-                  <VideoBlock key={key} exerciseKey={key} />
+                  <VideoRow key={key} exerciseKey={key} />
                 ))}
               </AccordionContent>
             </AccordionItem>

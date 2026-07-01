@@ -14,7 +14,8 @@ export const workoutSchema = z.object({
             invalid_type_error: "",
             required_error: "",
           }).int("Whole reps only").min(1, "").max(100, "Reps must be between 1 and 100") ,
-          value: z.string().min(1, "").max(20, "Max 20 chars"), // like "BW", "10kg", "1min"
+          unit: z.enum(["kg", "bw", "time"]),
+          value: z.string().min(1, "").max(20, "Max 20 chars"), // number for kg, "BW", or a time like "45s"
         })
       ).min(1, "At least one set is required"),
     })

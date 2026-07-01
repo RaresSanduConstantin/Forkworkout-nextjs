@@ -2,10 +2,17 @@
 // These describe the shapes persisted in LocalStorage. Existing user data may
 // predate optional fields, so keep newly added fields optional for back-compat.
 
+// How a set's load is measured:
+// - "kg":  weight in kilograms (value holds the number, e.g. "60")
+// - "bw":  bodyweight (value is "BW")
+// - "time": duration (value holds a string, e.g. "45s", "1min")
+export type SetUnit = "kg" | "bw" | "time";
+
 export type WorkoutSet = {
   id?: string;
   reps: number;
-  value: string; // overloaded weight/time/BW, e.g. "10kg", "1min", "BW"
+  value: string; // meaning depends on `unit` (see SetUnit)
+  unit?: SetUnit;
 };
 
 export type Exercise = {
@@ -32,6 +39,7 @@ export type CompletedWorkout = {
   title: string;
   date: string; // ISO timestamp
   dayKey?: string; // local YYYY-MM-DD
+  volume?: number; // total kg lifted in the session (reps × weight over done sets)
 };
 
 // Live workout session state (persisted so a refresh can resume progress).
@@ -41,6 +49,7 @@ export type SessionSet = {
   id?: string;
   reps: number;
   value: string;
+  unit?: SetUnit;
   status: SetStatus;
 };
 
@@ -56,3 +65,4 @@ export type ActiveSession = {
   exercises: SessionExercise[];
   startedAt: string;
 };
+

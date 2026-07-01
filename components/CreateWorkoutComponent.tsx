@@ -40,7 +40,7 @@ import { getWorkoutById, upsertWorkout } from "@/lib/storage/workout-storage";
 import { ROUTES } from "@/lib/routes";
 import type { Workout } from "@/lib/types";
 
-const newSet = () => ({ id: uuidv4(), reps: 1, value: "" });
+const newSet = () => ({ id: uuidv4(), reps: 1, value: "", unit: "kg" as const });
 const newExercise = () => ({ id: uuidv4(), name: "", sets: [newSet()] });
 
 const CreateWorkoutComponent = () => {

@@ -1,5 +1,6 @@
 import type { Workout } from "@/lib/types";
 import { v4 as uuidv4 } from "uuid";
+import { normalizeUnitValue } from "@/lib/workout";
 import { STORAGE_KEYS } from "./keys";
 import { readJson, writeJson } from "./safe-storage";
 
@@ -31,10 +32,17 @@ function normalizeWorkout(raw: unknown): Workout | null {
             typeof set.reps === "number"
               ? set.reps
               : Number.parseInt(String(set.reps), 10) || 0;
+          const rawValue =
+            typeof set.value === "string" ? set.value : String(set.value ?? "");
+          const { unit, value } = normalizeUnitValue(
+            rawValue,
+            typeof set.unit === "string" ? set.unit : undefined
+          );
           return {
             id: typeof set.id === "string" ? set.id : uuidv4(),
             reps,
-            value: typeof set.value === "string" ? set.value : String(set.value ?? ""),
+            value,
+            unit,
           };
         }),
       };

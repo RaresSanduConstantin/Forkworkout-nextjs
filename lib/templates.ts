@@ -1,4 +1,4 @@
-import type { Workout } from "./types";
+import type { SetUnit, Workout } from "./types";
 import { v4 as uuidv4 } from "uuid";
 
 // A ready-made workout users can add to their list with one tap. Exercise names
@@ -10,12 +10,16 @@ export type WorkoutTemplate = {
   emoji: string;
   description: string;
   rest: string;
-  exercises: { name: string; sets: { reps: number; value: string }[] }[];
+  exercises: { name: string; sets: { reps: number; value: string; unit: SetUnit }[] }[];
 };
 
-// Helper: N identical sets.
-const sets = (count: number, reps: number, value: string) =>
-  Array.from({ length: count }, () => ({ reps, value }));
+// Helpers: N identical sets of a given unit.
+const kg = (count: number, reps: number, weight: string) =>
+  Array.from({ length: count }, () => ({ reps, value: weight, unit: "kg" as SetUnit }));
+const bw = (count: number, reps: number) =>
+  Array.from({ length: count }, () => ({ reps, value: "BW", unit: "bw" as SetUnit }));
+const time = (count: number, duration: string) =>
+  Array.from({ length: count }, () => ({ reps: 1, value: duration, unit: "time" as SetUnit }));
 
 export const STARTER_TEMPLATES: WorkoutTemplate[] = [
   {
@@ -25,10 +29,10 @@ export const STARTER_TEMPLATES: WorkoutTemplate[] = [
     description: "Chest, shoulders & triceps",
     rest: "",
     exercises: [
-      { name: "Barbell Bench Press - Medium Grip", sets: sets(4, 8, "60kg") },
-      { name: "Barbell Incline Bench Press - Medium Grip", sets: sets(3, 10, "40kg") },
-      { name: "Pushups", sets: sets(3, 15, "BW") },
-      { name: "Triceps Pushdown", sets: sets(3, 12, "25kg") },
+      { name: "Barbell Bench Press - Medium Grip", sets: kg(4, 8, "60") },
+      { name: "Barbell Incline Bench Press - Medium Grip", sets: kg(3, 10, "40") },
+      { name: "Pushups", sets: bw(3, 15) },
+      { name: "Triceps Pushdown", sets: kg(3, 12, "25") },
     ],
   },
   {
@@ -38,10 +42,10 @@ export const STARTER_TEMPLATES: WorkoutTemplate[] = [
     description: "Back & biceps",
     rest: "",
     exercises: [
-      { name: "Pullups", sets: sets(4, 8, "BW") },
-      { name: "Barbell Deadlift", sets: sets(3, 5, "80kg") },
-      { name: "Full Range-Of-Motion Lat Pulldown", sets: sets(3, 12, "45kg") },
-      { name: "Alternate Hammer Curl", sets: sets(3, 12, "12kg") },
+      { name: "Pullups", sets: bw(4, 8) },
+      { name: "Barbell Deadlift", sets: kg(3, 5, "80") },
+      { name: "Full Range-Of-Motion Lat Pulldown", sets: kg(3, 12, "45") },
+      { name: "Alternate Hammer Curl", sets: kg(3, 12, "12") },
     ],
   },
   {
@@ -51,10 +55,10 @@ export const STARTER_TEMPLATES: WorkoutTemplate[] = [
     description: "Quads, hamstrings & calves",
     rest: "",
     exercises: [
-      { name: "Barbell Full Squat", sets: sets(4, 8, "70kg") },
-      { name: "Leg Press", sets: sets(3, 12, "120kg") },
-      { name: "Barbell Walking Lunge", sets: sets(3, 10, "30kg") },
-      { name: "Barbell Seated Calf Raise", sets: sets(3, 15, "40kg") },
+      { name: "Barbell Full Squat", sets: kg(4, 8, "70") },
+      { name: "Leg Press", sets: kg(3, 12, "120") },
+      { name: "Barbell Walking Lunge", sets: kg(3, 10, "30") },
+      { name: "Barbell Seated Calf Raise", sets: kg(3, 15, "40") },
     ],
   },
   {
@@ -64,10 +68,10 @@ export const STARTER_TEMPLATES: WorkoutTemplate[] = [
     description: "Conditioning & core",
     rest: "",
     exercises: [
-      { name: "Jogging, Treadmill", sets: sets(1, 1, "10min") },
-      { name: "Battling Ropes", sets: sets(3, 1, "45s") },
-      { name: "Bicycling, Stationary", sets: sets(1, 1, "15min") },
-      { name: "Plank", sets: sets(3, 1, "60s") },
+      { name: "Jogging, Treadmill", sets: time(1, "10min") },
+      { name: "Battling Ropes", sets: time(3, "45s") },
+      { name: "Bicycling, Stationary", sets: time(1, "15min") },
+      { name: "Plank", sets: time(3, "60s") },
     ],
   },
 ];
@@ -84,7 +88,8 @@ export function instantiateTemplate(template: WorkoutTemplate): Workout {
     exercises: template.exercises.map((ex) => ({
       id: uuidv4(),
       name: ex.name,
-      sets: ex.sets.map((s) => ({ id: uuidv4(), reps: s.reps, value: s.value })),
+      sets: ex.sets.map((s) => ({ id: uuidv4(), reps: s.reps, value: s.value, unit: s.unit })),
     })),
   };
 }
+

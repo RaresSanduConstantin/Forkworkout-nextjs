@@ -33,6 +33,7 @@ function normalizeCompleted(raw: unknown): CompletedWorkout | null {
     title,
     date,
     dayKey,
+    volume: typeof c.volume === "number" && c.volume > 0 ? c.volume : undefined,
   };
 }
 
@@ -50,6 +51,7 @@ export function addCompletedWorkout(entry: {
   workoutId: string;
   title: string;
   date?: string;
+  volume?: number;
 }): boolean {
   const now = entry.date ? new Date(entry.date) : new Date();
   const completed: CompletedWorkout = {
@@ -57,6 +59,7 @@ export function addCompletedWorkout(entry: {
     title: entry.title,
     date: now.toISOString(),
     dayKey: toDayKey(now),
+    volume: entry.volume && entry.volume > 0 ? Math.round(entry.volume) : undefined,
   };
   const existing = getCompletedWorkouts();
   existing.push(completed);
@@ -70,4 +73,16 @@ export function getCompletedDayKeys(): string[] {
     if (c.dayKey) keys.add(c.dayKey);
   }
   return [...keys];
+}
+
+/**
+ * Removes a single completed-workout entry (matched by its ISO `date`, which is
+ * unique per completion). Removes only the first match.
+ */
+export function deleteCompletedWorkout(date: string): boolean {
+  const all = getCompletedWorkouts();
+  const idx = all.findIndex((c) => c.date === date);
+  if (idx === -1) return false;
+  all.splice(idx, 1);
+  return writeJson(STORAGE_KEYS.completedWorkouts, all);
 }

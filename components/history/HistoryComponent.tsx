@@ -3,26 +3,44 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Dumbbell } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import CalendarComponent from "@/components/Calendar";
 import { StreakSummary } from "@/components/history/StreakSummary";
+import { VolumeChart } from "@/components/history/VolumeChart";
 import { HistoryList } from "@/components/history/HistoryList";
-import { getCompletedWorkouts } from "@/lib/storage/history-storage";
+import {
+  getCompletedWorkouts,
+  deleteCompletedWorkout,
+} from "@/lib/storage/history-storage";
 import { ROUTES } from "@/lib/routes";
 import type { CompletedWorkout } from "@/lib/types";
 
 const HistoryComponent = () => {
   const [entries, setEntries] = React.useState<CompletedWorkout[]>([]);
   const [loaded, setLoaded] = React.useState(false);
+  const [pendingDelete, setPendingDelete] = React.useState<CompletedWorkout | null>(null);
+  // Bumped on mutations to force storage-reading children (calendar, streak) to refresh.
+  const [version, setVersion] = React.useState(0);
 
   React.useEffect(() => {
     setEntries(getCompletedWorkouts());
     setLoaded(true);
   }, []);
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    deleteCompletedWorkout(pendingDelete.date);
+    setEntries(getCompletedWorkouts());
+    setVersion((v) => v + 1);
+    toast.success("Removed from history");
+    setPendingDelete(null);
+  };
 
   return (
     <PageContainer>
@@ -39,9 +57,11 @@ const HistoryComponent = () => {
       />
 
       <div className="space-y-8">
-        <StreakSummary />
+        <StreakSummary key={`streak-${version}`} />
 
-        <CalendarComponent />
+        <VolumeChart entries={entries} />
+
+        <CalendarComponent key={`cal-${version}`} />
 
         <section className="space-y-3">
           <div className="flex items-center gap-2">
@@ -61,10 +81,22 @@ const HistoryComponent = () => {
               }
             />
           ) : (
-            <HistoryList entries={entries} />
+            <HistoryList entries={entries} onDelete={setPendingDelete} />
           )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title="Remove this workout from history?"
+        description="This deletes the completed-workout record and updates your streak. It cannot be undone."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={confirmDelete}
+      />
     </PageContainer>
   );
 };

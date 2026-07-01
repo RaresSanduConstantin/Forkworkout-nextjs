@@ -42,6 +42,7 @@ import {
   clearActiveSession,
 } from "@/lib/storage/session-storage";
 import { playSound, SOUNDS } from "@/lib/sound";
+import { inferUnit, setVolumeKg, unitPlaceholder } from "@/lib/workout";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, SessionSet, SetStatus } from "@/lib/types";
 import { toast } from "sonner";
@@ -112,6 +113,7 @@ const StartWorkoutComponent = () => {
             id: s.id ?? uuidv4(),
             reps: s.reps,
             value: s.value,
+            unit: s.unit ?? inferUnit(s.value),
             status: "pending" as SetStatus,
           })),
         })),
@@ -217,7 +219,7 @@ const StartWorkoutComponent = () => {
               {
                 id: uuidv4(),
                 name: "",
-                sets: [{ id: uuidv4(), reps: 1, value: "", status: "pending" }],
+                sets: [{ id: uuidv4(), reps: 1, value: "", unit: "kg", status: "pending" }],
               },
             ],
           }
@@ -235,7 +237,7 @@ const StartWorkoutComponent = () => {
                 ? ex
                 : {
                     ...ex,
-                    sets: [...ex.sets, { id: uuidv4(), reps: 1, value: "", status: "pending" }],
+                    sets: [...ex.sets, { id: uuidv4(), reps: 1, value: "", unit: "kg", status: "pending" }],
                   }
             ),
           }
@@ -285,9 +287,20 @@ const StartWorkoutComponent = () => {
       return;
     }
 
-    addCompletedWorkout({ workoutId: workout.workoutId, title: workout.title });
+    // Total kg lifted this session = sum of reps × weight over completed kg sets.
+    const volume = workout.exercises.reduce(
+      (sum, ex) =>
+        sum +
+        ex.sets.reduce(
+          (s, set) => s + (set.status === "done" ? setVolumeKg(set.reps, set.value, set.unit) : 0),
+          0
+        ),
+      0
+    );
 
-    // Persist edited reps/values back onto the saved workout (strip statuses).
+    addCompletedWorkout({ workoutId: workout.workoutId, title: workout.title, volume });
+
+    // Persist edited reps/values/units back onto the saved workout (strip statuses).
     const workouts = getWorkouts();
     const idx = workouts.findIndex((w) => w.id === workoutId);
     if (idx !== -1) {
@@ -296,7 +309,7 @@ const StartWorkoutComponent = () => {
         exercises: workout.exercises.map((ex) => ({
           id: ex.id,
           name: ex.name,
-          sets: ex.sets.map((set) => ({ id: set.id, reps: set.reps, value: set.value })),
+          sets: ex.sets.map((set) => ({ id: set.id, reps: set.reps, value: set.value, unit: set.unit })),
         })),
         updatedAt: new Date().toISOString(),
       };
@@ -393,6 +406,8 @@ const StartWorkoutComponent = () => {
                     ? "border-border bg-muted opacity-70"
                     : "border-border bg-card";
 
+                const unit = set.unit ?? inferUnit(set.value);
+
                 return (
                   <div
                     key={set.id ?? setIdx}
@@ -414,14 +429,27 @@ const StartWorkoutComponent = () => {
                         aria-label={`Reps for set ${setIdx + 1}`}
                       />
                       <span className="text-sm text-muted-foreground">reps</span>
-                      <Input
-                        type="text"
-                        value={set.value}
-                        onChange={(e) => updateSetValue(exIdx, setIdx, e.target.value)}
-                        className="h-9 flex-1"
-                        placeholder="10kg / 1min / BW"
-                        aria-label={`Weight or time for set ${setIdx + 1}`}
-                      />
+                      {unit === "bw" ? (
+                        <div className="flex flex-1 justify-start">
+                          <Badge variant="secondary">Bodyweight</Badge>
+                        </div>
+                      ) : (
+                        <div className="flex flex-1 items-center gap-1.5">
+                          <Input
+                            type={unit === "kg" ? "number" : "text"}
+                            inputMode={unit === "kg" ? "decimal" : "text"}
+                            min={unit === "kg" ? 0 : undefined}
+                            value={set.value}
+                            onChange={(e) => updateSetValue(exIdx, setIdx, e.target.value)}
+                            className="h-9 flex-1"
+                            placeholder={unitPlaceholder(unit)}
+                            aria-label={unit === "kg" ? "Weight in kg" : "Duration"}
+                          />
+                          {unit === "kg" && (
+                            <span className="text-sm text-muted-foreground">kg</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Dumbbell, Flame, Plus, Trophy } from "lucide-react";
+import { CalendarDays, Dumbbell, Flame, Plus, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { WorkoutCard } from "@/components/workouts/WorkoutCard";
 import { StarterWorkouts } from "@/components/workouts/StarterWorkouts";
 import { getWorkouts, deleteWorkout, upsertWorkout } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
+import { clearAllData } from "@/lib/storage/reset";
 import { computeStreak } from "@/lib/date/streak";
 import { instantiateTemplate, type WorkoutTemplate } from "@/lib/templates";
 import { ROUTES } from "@/lib/routes";
@@ -27,6 +28,7 @@ const WorkoutList = () => {
   const [streak, setStreak] = useState(0);
   const [totalCompleted, setTotalCompleted] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Workout | null>(null);
+  const [showClearAll, setShowClearAll] = useState(false);
 
   useEffect(() => {
     setWorkouts(getWorkouts());
@@ -55,6 +57,15 @@ const WorkoutList = () => {
     setWorkouts((prev) => prev.filter((w) => w.id !== pendingDelete.id));
     toast.success(`Deleted “${pendingDelete.title || "workout"}”`);
     setPendingDelete(null);
+  };
+
+  const handleClearAll = () => {
+    clearAllData();
+    setWorkouts([]);
+    setStreak(0);
+    setTotalCompleted(0);
+    setShowClearAll(false);
+    toast.success("All your data has been deleted from this device");
   };
 
   return (
@@ -146,6 +157,25 @@ const WorkoutList = () => {
         </Card>
       </section>
 
+      {/* Danger zone */}
+      <section className="space-y-3 border-t border-border pt-6">
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground">Your data</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            ForkWorkout stores everything locally on this device. You can wipe it
+            all at any time.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          className="w-full gap-2 text-destructive hover:text-destructive"
+          onClick={() => setShowClearAll(true)}
+        >
+          <Trash2 className="size-4" />
+          Delete your data
+        </Button>
+      </section>
+
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
@@ -156,6 +186,16 @@ const WorkoutList = () => {
         confirmLabel="Delete"
         destructive
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        open={showClearAll}
+        onOpenChange={setShowClearAll}
+        title="Delete all your data?"
+        description="This permanently removes every workout, your completed-workout history, and any in-progress session from this device. This cannot be undone."
+        confirmLabel="Delete everything"
+        destructive
+        onConfirm={handleClearAll}
       />
     </div>
   );
