@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, Check, Dumbbell, ExternalLink, Info, ListChecks, Plus, SkipForward, Target } from "lucide-react";
+import { ArrowLeft, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { ExerciseCombobox } from "./ExerciseCombobox";
@@ -43,9 +50,9 @@ import {
 } from "@/lib/storage/session-storage";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { inferUnit, setVolumeKg, unitPlaceholder } from "@/lib/workout";
+import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { ROUTES } from "@/lib/routes";
-import type { ActiveSession, SessionSet, SetStatus } from "@/lib/types";
+import type { ActiveSession, SessionSet, SetStatus, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
 // Type for exercise details from JSON
@@ -60,6 +67,16 @@ type ExerciseDetails = {
   instructions: string[];
   category: string;
 };
+
+/** Trigger text for the per-exercise rest dropdown. When the exercise has no
+ *  override, show the effective workout default so the user knows the value. */
+function restTriggerLabel(rest: string | undefined, defaultSec: number): string {
+  if (rest === undefined || rest === "") {
+    return `Rest Timer: Default (${restDurationLabel(defaultSec)})`;
+  }
+  const sec = parseInt(rest, 10) || 0;
+  return `Rest Timer: ${restDurationLabel(sec)}`;
+}
 
 const StartWorkoutComponent = () => {
   const params = useParams();
@@ -84,6 +101,10 @@ const StartWorkoutComponent = () => {
 
   // Keep the phone screen awake during the workout.
   useWakeLock(true);
+
+  // Remembers each set's value per unit, so cycling units (Kg → Time → … → Kg)
+  // restores the previously entered value instead of wiping it.
+  const unitValueMemory = useRef<Record<string, Partial<Record<SetUnit, string>>>>({});
 
   // Persistent audio elements. The rest-END sound fires from a timer (no user
   // gesture), which mobile browsers block — so we "unlock" it during the tap
@@ -158,6 +179,7 @@ const StartWorkoutComponent = () => {
         exercises: found.exercises.map((ex) => ({
           id: ex.id ?? uuidv4(),
           name: ex.name,
+          rest: ex.rest,
           sets: ex.sets.map((s) => ({
             id: s.id ?? uuidv4(),
             reps: s.reps,
@@ -203,6 +225,25 @@ const StartWorkoutComponent = () => {
     const handled = done + skipped;
     return { done, skipped, handled, total, percent: total ? (handled / total) * 100 : 0 };
   }, [workout]);
+
+  // Estimated total workout time (shared with the generator so they agree).
+  const estimateSec = useMemo(() => {
+    if (!workout) return 0;
+    return estimateWorkoutSeconds(workout.exercises, restSeconds ? String(restSeconds) : "");
+  }, [workout, restSeconds]);
+
+  // Live elapsed time since the session started.
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const startedAt = workout?.startedAt;
+  useEffect(() => {
+    if (!startedAt) return;
+    const startedMs = new Date(startedAt).getTime();
+    if (!Number.isFinite(startedMs)) return;
+    const tick = () => setElapsedSec(Math.max(0, Math.round((Date.now() - startedMs) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
 
   const openVideoModal = (exerciseName: string) => {
     setSelectedExercise(exerciseName);
@@ -257,6 +298,52 @@ const StartWorkoutComponent = () => {
 
   const updateSetValue = (exIdx: number, setIdx: number, value: string) =>
     updateSet(exIdx, setIdx, (s) => ({ ...s, value }));
+
+  // Units are per-exercise in the session table: cycle & apply to every set.
+  const UNIT_CYCLE: SetUnit[] = ["kg", "bw", "time", "km"];
+  const unitLabel = (u: SetUnit) =>
+    u === "kg" ? "Kg" : u === "bw" ? "BW" : u === "time" ? "Time" : "Km";
+
+  const cycleExerciseUnit = (exIdx: number) => {
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      const cur = prev.exercises[exIdx]?.sets[0]?.unit ?? "kg";
+      const next = UNIT_CYCLE[(UNIT_CYCLE.indexOf(cur) + 1) % UNIT_CYCLE.length];
+      return {
+        ...prev,
+        exercises: prev.exercises.map((ex, i) => {
+          if (i !== exIdx) return ex;
+          return {
+            ...ex,
+            sets: ex.sets.map((s, j) => {
+              const key = s.id ?? `${exIdx}:${j}`;
+              // Stash the current value under the old unit before switching.
+              const mem = (unitValueMemory.current[key] ??= {});
+              mem[cur] = s.value;
+              const value =
+                next === "bw" ? "BW" : mem[next] !== undefined ? mem[next]! : "";
+              return { ...s, unit: next, value };
+            }),
+          };
+        }),
+      };
+    });
+  };
+
+  // Per-exercise rest override for the live session. undefined = use the
+  // workout default; "0" = off; else seconds. Changed via a dropdown per card.
+  const setExerciseRest = (exIdx: number, rest: string | undefined) => {
+    setWorkout((prev) =>
+      prev
+        ? {
+            ...prev,
+            exercises: prev.exercises.map((ex, i) =>
+              i === exIdx ? { ...ex, rest } : ex
+            ),
+          }
+        : prev
+    );
+  };
 
   const addExercise = () => {
     setWorkout((prev) =>
@@ -332,28 +419,30 @@ const StartWorkoutComponent = () => {
   };
 
   const handleComplete = (exIdx: number, setIdx: number) => {
-    // Toggle: tapping "Done" on an already-done set marks it pending again.
-    if (workout?.exercises[exIdx]?.sets[setIdx]?.status === "done") {
-      markSet(exIdx, setIdx, "pending");
+    const set = workout?.exercises[exIdx]?.sets[setIdx];
+    // Tap cycles Done -> Skipped -> Done. Marking Done starts the rest timer.
+    if (set?.status === "done") {
+      markSet(exIdx, setIdx, "skipped");
+      return;
+    }
+    // Require a value before completing (bodyweight sets are exempt).
+    const unit = set?.unit ?? inferUnit(set?.value ?? "");
+    if (unit !== "bw" && !(set?.value ?? "").trim()) {
+      toast.error("Enter a value first before marking this set done.");
       return;
     }
     markSet(exIdx, setIdx, "done");
-    if (!restSeconds) return;
-    setCountdown(restSeconds);
+    const eff = effectiveRestSeconds(
+      workout?.exercises[exIdx]?.rest,
+      restSeconds ? String(restSeconds) : ""
+    );
+    if (!eff) return;
+    setCountdown(eff);
     setResting(true);
     // This runs from a user tap, so play the start sound and unlock the end
     // sound so it can autoplay when the rest timer finishes.
     playAudio(restStartAudioRef.current);
     unlockAudio(restEndAudioRef.current);
-  };
-
-  const handleSkip = (exIdx: number, setIdx: number) => {
-    // Toggle: tapping "Skip" on an already-skipped set clears it.
-    markSet(
-      exIdx,
-      setIdx,
-      workout?.exercises[exIdx]?.sets[setIdx]?.status === "skipped" ? "pending" : "skipped"
-    );
   };
 
   const handleFinish = () => {
@@ -373,7 +462,38 @@ const StartWorkoutComponent = () => {
       0
     );
 
-    addCompletedWorkout({ workoutId: workout.workoutId, title: workout.title, volume });
+    // Total reps over completed sets.
+    const totalReps = workout.exercises.reduce(
+      (sum, ex) =>
+        sum + ex.sets.reduce((s, set) => s + (set.status === "done" ? set.reps : 0), 0),
+      0
+    );
+
+    // Elapsed session time.
+    const startedMs = new Date(workout.startedAt).getTime();
+    const durationSec = Number.isFinite(startedMs)
+      ? Math.max(0, Math.round((Date.now() - startedMs) / 1000))
+      : undefined;
+
+    // Snapshot of what was performed (for the history detail view).
+    const snapshot = workout.exercises.map((ex) => ({
+      name: ex.name,
+      sets: ex.sets.map((set) => ({
+        reps: set.reps,
+        value: set.value,
+        unit: set.unit,
+        status: set.status,
+      })),
+    }));
+
+    addCompletedWorkout({
+      workoutId: workout.workoutId,
+      title: workout.title,
+      volume,
+      totalReps,
+      durationSec,
+      exercises: snapshot,
+    });
 
     // Persist edited reps/values/units back onto the saved workout (strip statuses).
     const workouts = getWorkouts();
@@ -384,6 +504,7 @@ const StartWorkoutComponent = () => {
         exercises: workout.exercises.map((ex) => ({
           id: ex.id,
           name: ex.name,
+          rest: ex.rest,
           sets: ex.sets.map((set) => ({ id: set.id, reps: set.reps, value: set.value, unit: set.unit })),
         })),
         updatedAt: new Date().toISOString(),
@@ -446,11 +567,12 @@ const StartWorkoutComponent = () => {
       {/* Progress (sticky so it stays visible while scrolling exercises) */}
       <div className="sticky top-0 z-30 -mx-4 mt-4 border-b border-border/60 bg-slate-50/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-slate-50/75">
         <div className="mb-1.5 flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            {progress.handled} / {progress.total} sets
+          <span className="tabular-nums">
+            ⏱ {formatClock(elapsedSec)}
+            <span className="text-muted-foreground/70"> / {formatEstimate(estimateSec)}</span>
           </span>
           <span>
-            {progress.done} done · {progress.skipped} skipped
+            {progress.handled} / {progress.total} sets
           </span>
         </div>
         <Progress value={progress.percent} aria-label="Workout progress" />
@@ -464,6 +586,14 @@ const StartWorkoutComponent = () => {
                 value={exercise.name}
                 onChange={(value) => updateExerciseName(exIdx, value)}
                 placeholder="Search for an exercise..."
+                recommendForName={
+                  exercise.name ||
+                  workout.exercises
+                    .slice(0, exIdx)
+                    .reverse()
+                    .find((e) => e.name)?.name ||
+                  ""
+                }
               />
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -486,94 +616,149 @@ const StartWorkoutComponent = () => {
                   <Image src="/youtube.png" alt="" width={18} height={18} />
                   Videos
                 </Button>
+                <Select
+                  value={exercise.rest === undefined || exercise.rest === "" ? "default" : exercise.rest}
+                  onValueChange={(v) =>
+                    setExerciseRest(exIdx, v === "default" ? undefined : v)
+                  }
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="w-auto gap-1.5"
+                    aria-label="Rest timer for this exercise"
+                  >
+                    <Timer className="size-4 text-primary" />
+                    <SelectValue>{restTriggerLabel(exercise.rest, restSeconds)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {EXERCISE_REST_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              {exercise.sets.map((set, setIdx) => {
-                const statusStyles =
-                  set.status === "done"
-                    ? "border-lime-500/60 bg-lime-50"
-                    : set.status === "skipped"
-                    ? "border-border bg-muted opacity-70"
-                    : "border-border bg-card";
-
-                const unit = set.unit ?? inferUnit(set.value);
-
+              {(() => {
+                const exUnit =
+                  exercise.sets[0]?.unit ?? inferUnit(exercise.sets[0]?.value ?? "");
                 return (
-                  <div
-                    key={set.id ?? setIdx}
-                    className={`space-y-2 rounded-lg border p-3 ${statusStyles}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 shrink-0 text-center text-xs font-medium text-muted-foreground">
-                        {setIdx + 1}
-                      </span>
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        value={set.reps}
-                        onChange={(e) =>
-                          updateSetReps(exIdx, setIdx, parseInt(e.target.value) || 0)
-                        }
-                        className="h-9 w-16 text-center"
-                        aria-label={`Reps for set ${setIdx + 1}`}
-                      />
-                      <span className="text-sm text-muted-foreground">reps</span>
-                      {unit === "bw" ? (
-                        <div className="flex flex-1 justify-start">
-                          <Badge variant="secondary">Bodyweight</Badge>
-                        </div>
-                      ) : (
-                        <div className="flex flex-1 items-center gap-1.5">
-                          <Input
-                            type={unit === "kg" ? "number" : "text"}
-                            inputMode={unit === "kg" ? "decimal" : "text"}
-                            min={unit === "kg" ? 0 : undefined}
-                            value={set.value}
-                            onChange={(e) => updateSetValue(exIdx, setIdx, e.target.value)}
-                            className="h-9 flex-1"
-                            placeholder={unitPlaceholder(unit)}
-                            aria-label={unit === "kg" ? "Weight in kg" : "Duration"}
-                          />
-                          {unit === "kg" && (
-                            <span className="text-sm text-muted-foreground">kg</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={set.status === "done" ? "default" : "outline"}
-                        size="sm"
-                        className="flex-1 gap-1"
-                        onClick={() => handleComplete(exIdx, setIdx)}
-                      >
-                        <Check className="size-4" />
-                        Done
-                      </Button>
-                      <Button
-                        variant={set.status === "skipped" ? "secondary" : "ghost"}
-                        size="sm"
-                        className="flex-1 gap-1"
-                        onClick={() => handleSkip(exIdx, setIdx)}
-                      >
-                        <SkipForward className="size-4" />
-                        Skip
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => removeSet(exIdx, setIdx)}
-                        disabled={exercise.sets.length === 1}
-                        aria-label={`Remove set ${setIdx + 1}`}
-                      >
-                        ✕
-                      </Button>
-                    </div>
+                  <div className="overflow-hidden rounded-lg border">
+                    <table className="w-full table-fixed text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
+                          <th className="w-10 px-1 py-2 text-center font-medium">Set</th>
+                          <th className="px-1 py-2 text-center font-medium">Reps</th>
+                          <th className="px-1 py-1 text-center font-medium">
+                            <button
+                              type="button"
+                              onClick={() => cycleExerciseUnit(exIdx)}
+                              className="mx-auto inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-accent"
+                              aria-label="Change unit"
+                            >
+                              {unitLabel(exUnit)}
+                              <ChevronsUpDown className="size-3 opacity-60" />
+                            </button>
+                          </th>
+                          <th className="w-14 px-1 py-2 text-center font-medium">Done</th>
+                          <th className="w-9 px-1 py-2" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {exercise.sets.map((set, setIdx) => {
+                          const rowStyle =
+                            set.status === "done"
+                              ? "bg-lime-50"
+                              : set.status === "skipped"
+                              ? "bg-muted opacity-70"
+                              : "";
+                          return (
+                            <tr
+                              key={set.id ?? setIdx}
+                              className={`border-b last:border-b-0 ${rowStyle}`}
+                            >
+                              <td className="px-1 py-1.5 text-center text-muted-foreground">
+                                {setIdx + 1}
+                              </td>
+                              <td className="px-1 py-1.5">
+                                <Input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={1}
+                                  value={set.reps}
+                                  onChange={(e) =>
+                                    updateSetReps(exIdx, setIdx, parseInt(e.target.value) || 0)
+                                  }
+                                  className="h-8 w-full text-center"
+                                  aria-label={`Reps for set ${setIdx + 1}`}
+                                />
+                              </td>
+                              <td className="px-1 py-1.5">
+                                {exUnit === "bw" ? (
+                                  <div className="text-center text-muted-foreground">BW</div>
+                                ) : (
+                                  <Input
+                                    type={exUnit === "time" ? "text" : "number"}
+                                    inputMode={exUnit === "time" ? "text" : "decimal"}
+                                    min={exUnit === "time" ? undefined : 0}
+                                    value={set.value}
+                                    onChange={(e) =>
+                                      updateSetValue(exIdx, setIdx, e.target.value)
+                                    }
+                                    className="h-8 w-full text-center"
+                                    placeholder={unitPlaceholder(exUnit)}
+                                    aria-label="Value"
+                                  />
+                                )}
+                              </td>
+                              <td className="px-1 py-1.5 text-center">
+                                <Button
+                                  variant={
+                                    set.status === "done"
+                                      ? "default"
+                                      : set.status === "skipped"
+                                      ? "secondary"
+                                      : "outline"
+                                  }
+                                  size="icon-sm"
+                                  className="mx-auto"
+                                  onClick={() => handleComplete(exIdx, setIdx)}
+                                  aria-label={
+                                    set.status === "done"
+                                      ? "Set done — tap to skip"
+                                      : set.status === "skipped"
+                                      ? "Set skipped — tap to mark done"
+                                      : "Mark set done"
+                                  }
+                                >
+                                  {set.status === "skipped" ? (
+                                    <SkipForward className="size-4" />
+                                  ) : (
+                                    <Check className="size-4" />
+                                  )}
+                                </Button>
+                              </td>
+                              <td className="px-1 py-1.5 text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="mx-auto text-muted-foreground hover:text-destructive"
+                                  onClick={() => removeSet(exIdx, setIdx)}
+                                  disabled={exercise.sets.length === 1}
+                                  aria-label={`Delete set ${setIdx + 1}`}
+                                >
+                                  <X className="size-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 );
-              })}
+              })()}
 
               <Button
                 variant="outline"
@@ -767,8 +952,26 @@ const StartWorkoutComponent = () => {
           <div className="font-mono text-6xl font-bold text-primary tabular-nums">
             {countdown}s
           </div>
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1"
+              onClick={() => setCountdown((c) => Math.max(0, c - 10))}
+            >
+              −10s
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1"
+              onClick={() => setCountdown((c) => c + 10)}
+            >
+              +10s
+            </Button>
+          </div>
           <Button
-            variant="outline"
+            variant="ghost"
             className="w-full"
             onClick={() => {
               setResting(false);

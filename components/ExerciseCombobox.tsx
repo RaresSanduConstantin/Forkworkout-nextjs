@@ -17,143 +17,174 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-
-// Type for exercise data
-type Exercise = {
-  name: string;
-  force: string;
-  level: string;
-  mechanic: string | null;
-  equipment: string;
-  primaryMuscles: string[];
-  secondaryMuscles: string[];
-  instructions: string[];
-  category: string;
-};
+import {
+  loadExerciseLibrary,
+  getCachedLibrary,
+  groupsForExerciseName,
+  partitionByGroups,
+  type LibraryExercise,
+} from "@/lib/exercises";
 
 interface ExerciseComboboxProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** When set, exercises sharing this exercise's muscle groups are recommended first. */
+  recommendForName?: string;
 }
 
-export function ExerciseCombobox({ 
-  value, 
-  onChange, 
-  placeholder = "Search exercises..." 
+function ExerciseItem({
+  exercise,
+  selected,
+  onSelect,
+}: {
+  exercise: LibraryExercise;
+  selected: boolean;
+  onSelect: (name: string) => void;
+}) {
+  return (
+    <CommandItem
+      value={exercise.name}
+      onSelect={() => onSelect(exercise.name)}
+      className="flex items-start gap-2"
+    >
+      <Check className={cn("mt-0.5 h-4 w-4 shrink-0", selected ? "opacity-100" : "opacity-0")} />
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">{exercise.name}</div>
+        <div className="text-xs text-muted-foreground">
+          {[exercise.primaryMuscles?.join(", "), exercise.equipment, exercise.level]
+            .filter(Boolean)
+            .join(" • ")}
+        </div>
+      </div>
+    </CommandItem>
+  );
+}
+
+export function ExerciseCombobox({
+  value,
+  onChange,
+  placeholder = "Search exercises...",
+  recommendForName,
 }: ExerciseComboboxProps) {
   const [open, setOpen] = React.useState(false);
-  const [exercises, setExercises] = React.useState<Exercise[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
+  const [loading, setLoading] = React.useState(library.length === 0);
+  const [search, setSearch] = React.useState("");
 
-  // Load exercises from JSON file
   React.useEffect(() => {
-    const loadExercises = async () => {
-      try {
-        // Place your exercises.json file in the public folder
-        const response = await fetch('/json/exercises.json');
-        const data = await response.json();
-        setExercises(data.exercises || []);
-      } catch (error) {
-        console.error('Failed to load exercises:', error);
-      } finally {
+    let active = true;
+    loadExerciseLibrary().then((lib) => {
+      if (active) {
+        setLibrary(lib);
         setLoading(false);
       }
+    });
+    return () => {
+      active = false;
     };
-
-    loadExercises();
   }, []);
 
-  // Filter exercises based on search
-  const filteredExercises = React.useMemo(() => {
-    if (!value) return exercises.slice(0,100); // Show first 50 by default
-    
-    const searchValue = value.toLowerCase();
-    
-    return exercises
-      .filter((exercise) => {
-        // Check exercise name
-        const nameMatch = exercise.name?.toLowerCase().includes(searchValue);
-        
-        // Check primary muscles
-        const muscleMatch = exercise.primaryMuscles?.some(muscle => 
-          muscle?.toLowerCase().includes(searchValue)
-        );
-        
-        // Check equipment (with null check)
-        const equipmentMatch = exercise.equipment?.toLowerCase().includes(searchValue);
-        
-        // Check category
-        const categoryMatch = exercise.category?.toLowerCase().includes(searchValue);
-        
-        return nameMatch || muscleMatch || equipmentMatch || categoryMatch;
-      })
-      .slice(0, 50); // Limit to 20 results
-  }, [exercises, value]);
+  // Start each open with a clean search so the recommended list is visible.
+  React.useEffect(() => {
+    if (open) setSearch("");
+  }, [open]);
+
+  const targetGroups = React.useMemo(
+    () => (recommendForName ? groupsForExerciseName(library, recommendForName) : []),
+    [library, recommendForName]
+  );
+
+  const matches = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return library;
+    return library.filter(
+      (ex) =>
+        ex.name?.toLowerCase().includes(q) ||
+        ex.primaryMuscles?.some((m) => m?.toLowerCase().includes(q)) ||
+        ex.equipment?.toLowerCase().includes(q) ||
+        ex.category?.toLowerCase().includes(q)
+    );
+  }, [library, search]);
+
+  const { recommended, rest } = React.useMemo(
+    () => partitionByGroups(matches, targetGroups),
+    [matches, targetGroups]
+  );
+
+  const recTop = recommended.slice(0, 30);
+  const restTop = rest.slice(0, 50);
+
+  const trimmed = search.trim();
+  const showCustom =
+    trimmed.length > 0 &&
+    !library.some((e) => e.name.toLowerCase() === trimmed.toLowerCase());
+
+  const select = (name: string) => {
+    onChange(name);
+    setOpen(false);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-      <Button
-  variant="outline"
-  role="combobox"
-  aria-expanded={open}
-  className="w-full justify-between h-auto min-h-[40px]"
-  title={value} // Shows full text on hover
->
-  <span className="text-left truncate flex-1 mr-2">
-    {value || placeholder}
-  </span>
-  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-</Button>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="h-auto min-h-[40px] w-full justify-between"
+          title={value}
+        >
+          <span className="mr-2 flex-1 truncate text-left">{value || placeholder}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
       </PopoverTrigger>
-      <PopoverContent  className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0">
-        <Command>
-          <CommandInput 
-            placeholder="Search exercises..." 
-            value={value}
-            onValueChange={onChange}
-            
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search exercises..."
+            value={search}
+            onValueChange={setSearch}
           />
           <CommandList>
             {loading ? (
               <CommandEmpty>Loading exercises...</CommandEmpty>
-            ) : filteredExercises.length === 0 ? (
+            ) : recTop.length === 0 && restTop.length === 0 && !showCustom ? (
               <CommandEmpty>No exercises found.</CommandEmpty>
             ) : (
-              <CommandGroup>
-                {filteredExercises.map((exercise, index) => (
-                  <CommandItem
-                    key={exercise.name}
-                    value={exercise.name}
-                    onSelect={(currentValue) => {
-                      onChange(currentValue);
-                      setOpen(false);
-                    }}
-                    className="flex flex-col items-start"
-                  >
-                    {/* break line between exercises */}
-                    {(index > 0) ? (
-                        <div className="w-full border-b border-gray-200 mb-2"></div>
-                    ) : null}
-                    <div className="flex items-center w-full">
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          value === exercise.name ? "opacity-100" : "opacity-0"
-                        )}
+              <>
+                {showCustom && (
+                  <CommandGroup heading="Custom">
+                    <CommandItem value={`__custom__${trimmed}`} onSelect={() => select(trimmed)}>
+                      Use “{trimmed}”
+                    </CommandItem>
+                  </CommandGroup>
+                )}
+                {recTop.length > 0 && (
+                  <CommandGroup heading="Recommended">
+                    {recTop.map((ex) => (
+                      <ExerciseItem
+                        key={`rec-${ex.name}`}
+                        exercise={ex}
+                        selected={value === ex.name}
+                        onSelect={select}
                       />
-                      <div className="flex-1">
-                        <div className="font-medium">{exercise.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {exercise.primaryMuscles.join(", ")} • {exercise.equipment} • {exercise.level}
-                        </div>
-                      </div>
-                    </div>
-        
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+                    ))}
+                  </CommandGroup>
+                )}
+                {restTop.length > 0 && (
+                  <CommandGroup heading={recTop.length > 0 ? "All exercises" : undefined}>
+                    {restTop.map((ex) => (
+                      <ExerciseItem
+                        key={`all-${ex.name}`}
+                        exercise={ex}
+                        selected={value === ex.name}
+                        onSelect={select}
+                      />
+                    ))}
+                  </CommandGroup>
+                )}
+              </>
             )}
           </CommandList>
         </Command>

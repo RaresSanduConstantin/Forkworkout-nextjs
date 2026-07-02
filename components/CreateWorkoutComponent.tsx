@@ -2,7 +2,6 @@
 
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Plus, Save } from "lucide-react";
 
 import {
   Form,
@@ -26,17 +25,20 @@ import { workoutSchema, WorkoutSchema } from "@/schema/workoutSchema";
 import ExerciseBuilder from "./ExerciseBuilder";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { BottomActionBar } from "@/components/layout/BottomActionBar";
+import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
 
 import { honkFont } from "@/lib/honkFont";
 import { motion, MotionConfig } from "motion/react";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { ArrowLeft, Plus, Save, Sparkles } from "lucide-react";
 
 import { useRouter, useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
 import { getWorkoutById, upsertWorkout } from "@/lib/storage/workout-storage";
+import { WORKOUT_REST_OPTIONS } from "@/lib/workout";
 import { ROUTES } from "@/lib/routes";
 import type { Workout } from "@/lib/types";
 
@@ -66,6 +68,13 @@ const CreateWorkoutComponent = () => {
   });
 
   const hasInitialized = React.useRef(false);
+  const [showWizard, setShowWizard] = useState(false);
+
+  const handleGenerated = (workout: Workout) => {
+    hasInitialized.current = true;
+    form.reset(workout);
+    toast.success("Draft created — review and save it");
+  };
 
   useEffect(() => {
     if (!hasInitialized.current && exerciseFields.length === 0) {
@@ -134,6 +143,18 @@ const CreateWorkoutComponent = () => {
             {workoutId ? honkFont("Edit Workout") : honkFont("Create Workout")}
           </h1>
 
+          {!workoutId && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full gap-2"
+              onClick={() => setShowWizard(true)}
+            >
+              <Sparkles className="size-4" />
+              Help me create a workout
+            </Button>
+          )}
+
           {/* Workout Title */}
           <FormField
             control={form.control}
@@ -166,13 +187,12 @@ const CreateWorkoutComponent = () => {
                       <SelectValue placeholder="Choose rest period..." />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="20">20s</SelectItem>
-                    <SelectItem value="30">30s</SelectItem>
-                    <SelectItem value="45">45s</SelectItem>
-                    <SelectItem value="60">1 min</SelectItem>
-                    <SelectItem value="90">90s</SelectItem>
-                    <SelectItem value="120">2 min</SelectItem>
+                  <SelectContent className="max-h-72">
+                    {WORKOUT_REST_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -227,6 +247,8 @@ const CreateWorkoutComponent = () => {
           </BottomActionBar>
         </form>
       </Form>
+
+      <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
     </PageContainer>
   );
 };

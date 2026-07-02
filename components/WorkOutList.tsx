@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Dumbbell, Flame, Plus, Trash2, Trophy } from "lucide-react";
+import { CalendarDays, Dumbbell, Flame, Plus, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import { StatCard } from "@/components/shared/StatCard";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { WorkoutCard } from "@/components/workouts/WorkoutCard";
 import { StarterWorkouts } from "@/components/workouts/StarterWorkouts";
-import { getWorkouts, deleteWorkout, upsertWorkout } from "@/lib/storage/workout-storage";
+import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
+import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import { clearAllData } from "@/lib/storage/reset";
 import { computeStreak } from "@/lib/date/streak";
@@ -29,6 +30,7 @@ const WorkoutList = () => {
   const [totalCompleted, setTotalCompleted] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Workout | null>(null);
   const [showClearAll, setShowClearAll] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
     setWorkouts(getWorkouts());
@@ -38,6 +40,14 @@ const WorkoutList = () => {
 
   const handleEdit = (id: string) => router.push(ROUTES.editWorkout(id));
   const handleStart = (id: string) => router.push(ROUTES.startWorkout(id));
+
+  const handleCopy = (id: string) => {
+    const copy = duplicateWorkout(id);
+    if (copy) {
+      setWorkouts((prev) => [...prev, copy]);
+      toast.success(`Copied to “${copy.title}”`);
+    }
+  };
 
   const handleAddTemplate = (template: WorkoutTemplate) => {
     const workout = instantiateTemplate(template);
@@ -66,6 +76,13 @@ const WorkoutList = () => {
     setTotalCompleted(0);
     setShowClearAll(false);
     toast.success("All your data has been deleted from this device");
+  };
+
+  const handleGenerated = (workout: Workout) => {
+    upsertWorkout(workout);
+    setWorkouts((prev) => [...prev, workout]);
+    toast.success(`Created “${workout.title}” — tweak it to fit you`);
+    router.push(ROUTES.editWorkout(workout.id));
   };
 
   return (
@@ -100,7 +117,13 @@ const WorkoutList = () => {
 
       {/* Your workouts */}
       <section className="space-y-4">
-        <h2 className="text-3xl">{honkFont("Your Workouts")}</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-3xl">{honkFont("Your Workouts")}</h2>
+          <Button variant="secondary" className="gap-2" onClick={() => setShowWizard(true)}>
+            <Sparkles className="size-4" />
+            Help me create
+          </Button>
+        </div>
 
         {workouts.length === 0 ? (
           <EmptyState
@@ -108,10 +131,16 @@ const WorkoutList = () => {
             title="No workouts yet"
             description="Create your first routine and ForkWorkout will save it on this device — no account needed."
             action={
-              <Button className="gap-2" onClick={() => router.push(ROUTES.newWorkout)}>
-                <Plus className="size-4" />
-                Create your first workout
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button className="gap-2" onClick={() => router.push(ROUTES.newWorkout)}>
+                  <Plus className="size-4" />
+                  Create your first workout
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={() => setShowWizard(true)}>
+                  <Sparkles className="size-4" />
+                  Help me create one
+                </Button>
+              </div>
             }
           />
         ) : (
@@ -123,6 +152,7 @@ const WorkoutList = () => {
                   onStart={handleStart}
                   onEdit={handleEdit}
                   onDelete={() => setPendingDelete(workout)}
+                  onCopy={handleCopy}
                 />
               </li>
             ))}
@@ -197,6 +227,8 @@ const WorkoutList = () => {
         destructive
         onConfirm={handleClearAll}
       />
+
+      <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
     </div>
   );
 };

@@ -6,7 +6,8 @@
 // - "kg":  weight in kilograms (value holds the number, e.g. "60")
 // - "bw":  bodyweight (value is "BW")
 // - "time": duration (value holds a string, e.g. "45s", "1min")
-export type SetUnit = "kg" | "bw" | "time";
+// - "km":  distance in kilometres (value holds the number, e.g. "5")
+export type SetUnit = "kg" | "bw" | "time" | "km";
 
 export type WorkoutSet = {
   id?: string;
@@ -19,6 +20,7 @@ export type Exercise = {
   id?: string;
   name: string;
   sets: WorkoutSet[];
+  rest?: string; // per-exercise rest override (seconds as string); falls back to Workout.rest
 };
 
 export type Workout = {
@@ -34,12 +36,27 @@ export type Workout = {
 // `title` is the canonical name field; legacy P90X entries used `workoutName`.
 // `dayKey` (YYYY-MM-DD, local) is added going forward for correct calendar
 // grouping; older entries only have the ISO `date`.
+export type CompletedSet = {
+  reps: number;
+  value: string;
+  unit?: SetUnit;
+  status: SetStatus;
+};
+
+export type CompletedExercise = {
+  name: string;
+  sets: CompletedSet[];
+};
+
 export type CompletedWorkout = {
   workoutId: string;
   title: string;
   date: string; // ISO timestamp
   dayKey?: string; // local YYYY-MM-DD
   volume?: number; // total kg lifted in the session (reps × weight over done sets)
+  durationSec?: number; // how long the session took
+  totalReps?: number; // Σ reps of completed (done) sets
+  exercises?: CompletedExercise[]; // snapshot of what was performed
 };
 
 // Live workout session state (persisted so a refresh can resume progress).
@@ -57,6 +74,7 @@ export type SessionExercise = {
   id?: string;
   name: string;
   sets: SessionSet[];
+  rest?: string; // per-exercise rest override
 };
 
 export type ActiveSession = {

@@ -24,38 +24,11 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 
-export type ExerciseDetails = {
-  name: string;
-  force: string;
-  level: string;
-  mechanic: string | null;
-  equipment: string;
-  primaryMuscles: string[];
-  secondaryMuscles: string[];
-  instructions: string[];
-  category: string;
-};
-
-// Module-level cache so the exercise library JSON is fetched at most once.
-let libraryCache: ExerciseDetails[] | null = null;
-let libraryInflight: Promise<ExerciseDetails[]> | null = null;
-
-function loadLibrary(): Promise<ExerciseDetails[]> {
-  if (libraryCache) return Promise.resolve(libraryCache);
-  if (!libraryInflight) {
-    libraryInflight = fetch("/json/exercises.json")
-      .then((r) => r.json())
-      .then((d) => {
-        libraryCache = (d.exercises || []) as ExerciseDetails[];
-        return libraryCache;
-      })
-      .catch(() => {
-        libraryCache = [];
-        return libraryCache;
-      });
-  }
-  return libraryInflight;
-}
+import {
+  loadExerciseLibrary,
+  getCachedLibrary,
+  type LibraryExercise,
+} from "@/lib/exercises";
 
 const formatNameForUrl = (name: string) =>
   name.replace(/[\/\s]+/g, "_").replace(/^_+|_+$/g, "");
@@ -82,12 +55,12 @@ export function ExerciseInfoDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [library, setLibrary] = React.useState<ExerciseDetails[]>(libraryCache ?? []);
+  const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
 
   React.useEffect(() => {
     if (!open) return;
     let active = true;
-    loadLibrary().then((lib) => {
+    loadExerciseLibrary().then((lib) => {
       if (active) setLibrary(lib);
     });
     return () => {

@@ -26,6 +26,7 @@ function normalizeWorkout(raw: unknown): Workout | null {
       return {
         id: typeof e.id === "string" ? e.id : uuidv4(),
         name: typeof e.name === "string" ? e.name : "",
+        rest: typeof e.rest === "string" ? e.rest : undefined,
         sets: sets.map((s) => {
           const set = (s ?? {}) as Record<string, unknown>;
           const reps =
@@ -84,4 +85,24 @@ export function upsertWorkout(workout: Workout): boolean {
 /** Removes a workout by id and persists the result. */
 export function deleteWorkout(id: string): boolean {
   return saveWorkouts(getWorkouts().filter((w) => w.id !== id));
+}
+
+/** Clones a workout (new ids, "Copy of …" title) and persists it. */
+export function duplicateWorkout(id: string): Workout | null {
+  const src = getWorkoutById(id);
+  if (!src) return null;
+  const now = new Date().toISOString();
+  const copy: Workout = {
+    ...src,
+    id: uuidv4(),
+    title: `Copy of ${src.title || "workout"}`.slice(0, 50),
+    createdAt: now,
+    updatedAt: now,
+    exercises: src.exercises.map((ex) => ({
+      ...ex,
+      id: uuidv4(),
+      sets: ex.sets.map((s) => ({ ...s, id: uuidv4() })),
+    })),
+  };
+  return upsertWorkout(copy) ? copy : null;
 }

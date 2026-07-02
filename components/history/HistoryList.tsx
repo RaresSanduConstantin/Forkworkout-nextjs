@@ -3,11 +3,18 @@
 import * as React from "react";
 import { format, isToday, isYesterday } from "date-fns";
 import { Trash2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import type { CompletedWorkout } from "@/lib/types";
 import { dayKeyToDate } from "@/lib/date/day-key";
+import { formatClock, formatSetValue } from "@/lib/workout";
 
 type DayGroup = {
   dayKey: string;
@@ -21,7 +28,82 @@ function labelForDate(date: Date) {
   return format(date, "EEE, MMM d, yyyy");
 }
 
-/** Grouped list of completed workouts, most recent first. */
+function EntryCard({
+  entry,
+  onDelete,
+}: {
+  entry: CompletedWorkout;
+  onDelete: (entry: CompletedWorkout) => void;
+}) {
+  const meta = [
+    entry.durationSec ? formatClock(entry.durationSec) : null,
+    entry.volume ? `${entry.volume.toLocaleString()} kg` : null,
+    entry.exercises ? `${entry.exercises.length} exercises` : null,
+  ].filter(Boolean);
+
+  return (
+    <Card className="overflow-hidden py-0">
+      <Accordion type="single" collapsible>
+        <AccordionItem value={entry.date} className="border-0">
+          <div className="flex items-center">
+            <AccordionTrigger className="flex-1 px-3 py-3 hover:no-underline">
+              <div className="flex min-w-0 flex-1 flex-col items-start pr-2 text-left">
+                <span className="break-words font-medium">{entry.title}</span>
+                {meta.length > 0 && (
+                  <span className="text-xs text-muted-foreground">{meta.join(" · ")}</span>
+                )}
+              </div>
+            </AccordionTrigger>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="mr-2 shrink-0 text-muted-foreground hover:text-destructive"
+              aria-label={`Delete ${entry.title} from history`}
+              onClick={() => onDelete(entry)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+          <AccordionContent className="px-3 pb-3">
+            {entry.exercises && entry.exercises.length > 0 ? (
+              <ul className="space-y-3">
+                {entry.exercises.map((ex, exIdx) => (
+                  <li key={exIdx}>
+                    <div className="mb-1 text-sm font-medium">{ex.name || "Exercise"}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ex.sets.map((s, sIdx) => (
+                        <Badge
+                          key={sIdx}
+                          variant={
+                            s.status === "done"
+                              ? "default"
+                              : s.status === "skipped"
+                              ? "outline"
+                              : "secondary"
+                          }
+                          className="font-normal"
+                        >
+                          {s.reps} × {formatSetValue(s.value, s.unit)}
+                          {s.status === "skipped" ? " (skipped)" : ""}
+                        </Badge>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Exercise details weren&apos;t recorded for this workout.
+              </p>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </Card>
+  );
+}
+
+/** Grouped list of completed workouts, most recent first. Each expands to detail. */
 export function HistoryList({
   entries,
   onDelete,
@@ -52,30 +134,7 @@ export function HistoryList({
           <ul className="space-y-2">
             {group.entries.map((entry, i) => (
               <li key={`${group.dayKey}-${i}`}>
-                <Card>
-                  <CardContent className="flex items-center justify-between gap-2 p-3">
-                    <span className="min-w-0 break-words font-medium">
-                      {entry.title}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {entry.volume ? (
-                        <span className="text-xs text-muted-foreground">
-                          {entry.volume.toLocaleString()} kg
-                        </span>
-                      ) : null}
-                      <Badge variant="secondary">Completed</Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        aria-label={`Delete ${entry.title} from history`}
-                        onClick={() => onDelete(entry)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <EntryCard entry={entry} onDelete={onDelete} />
               </li>
             ))}
           </ul>

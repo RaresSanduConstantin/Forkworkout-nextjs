@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Dumbbell, Layers, Pencil, Play, Trash2 } from "lucide-react";
+import { Copy, Dumbbell, Layers, Pencil, Play, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,11 +13,13 @@ export function WorkoutCard({
   onStart,
   onEdit,
   onDelete,
+  onCopy,
 }: {
   workout: Workout;
   onStart: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onCopy: (id: string) => void;
 }) {
   const exerciseCount = workout.exercises.length;
   const setCount = workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
@@ -29,15 +31,26 @@ export function WorkoutCard({
           <h3 className="min-w-0 break-words text-lg font-semibold">
             {workout.title || "Untitled workout"}
           </h3>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-destructive"
-            aria-label={`Delete ${workout.title || "workout"}`}
-            onClick={() => onDelete(workout.id)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <div className="flex shrink-0 items-center">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={`Copy ${workout.title || "workout"}`}
+              onClick={() => onCopy(workout.id)}
+            >
+              <Copy className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
+              aria-label={`Delete ${workout.title || "workout"}`}
+              onClick={() => onDelete(workout.id)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">

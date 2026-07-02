@@ -1,12 +1,19 @@
 import * as React from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
-import { Trash2, Plus, Info } from "lucide-react";
+import { Trash2, Plus, Info, Timer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   FormField,
   FormItem,
@@ -16,7 +23,7 @@ import {
 } from "@/components/ui/form";
 import { ExerciseCombobox } from "./ExerciseCombobox";
 import { ExerciseInfoDialog } from "@/components/exercises/ExerciseInfoDialog";
-import { SET_UNITS, unitPlaceholder } from "@/lib/workout";
+import { SET_UNITS, unitPlaceholder, formatRestLabel, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import type { SetUnit } from "@/lib/types";
 
 const newSet = () => ({ id: uuidv4(), reps: 1, value: "", unit: "kg" as SetUnit });
@@ -95,7 +102,7 @@ function SetRow({
         onValueChange={handleUnit}
         variant="outline"
         size="sm"
-        className="grid grid-cols-3"
+        className="grid grid-cols-4"
       >
         {SET_UNITS.map((u) => (
           <ToggleGroupItem
@@ -145,6 +152,7 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
   const { control } = form;
   const [infoOpen, setInfoOpen] = React.useState(false);
   const exerciseName = (useWatch({ control, name: `exercises.${index}.name` }) as string) || "";
+  const restValue = useWatch({ control, name: `exercises.${index}.rest` }) as string | undefined;
   const {
     fields: setFields,
     append: appendSet,
@@ -181,20 +189,49 @@ const ExerciseBuilder = ({ index, onRemove, exercisesLength }: Props) => {
                   value={field.value || ""}
                   onChange={field.onChange}
                   placeholder="Search for an exercise..."
+                  recommendForName={exerciseName}
                 />
               </FormControl>
               <FormMessage />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-1 gap-1.5"
-                disabled={!exerciseName}
-                onClick={() => setInfoOpen(true)}
-              >
-                <Info className="size-4 text-primary" />
-                How to do it!
-              </Button>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={!exerciseName}
+                  onClick={() => setInfoOpen(true)}
+                >
+                  <Info className="size-4 text-primary" />
+                  How to do it!
+                </Button>
+                <Select
+                  value={restValue === undefined || restValue === "" ? "default" : restValue}
+                  onValueChange={(v) =>
+                    form.setValue(
+                      `exercises.${index}.rest`,
+                      v === "default" ? undefined : v,
+                      { shouldDirty: true }
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="w-auto gap-1.5"
+                    aria-label="Rest timer for this exercise"
+                  >
+                    <Timer className="size-4 text-primary" />
+                    <SelectValue>{formatRestLabel(restValue)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {EXERCISE_REST_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </FormItem>
           )}
         />

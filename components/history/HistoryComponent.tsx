@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Dumbbell } from "lucide-react";
+import { ArrowLeft, CalendarDays, Download, Dumbbell, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   getCompletedWorkouts,
   deleteCompletedWorkout,
 } from "@/lib/storage/history-storage";
+import { downloadExport, mergeImport } from "@/lib/storage/transfer";
 import { ROUTES } from "@/lib/routes";
 import type { CompletedWorkout } from "@/lib/types";
 
@@ -27,19 +28,42 @@ const HistoryComponent = () => {
   const [pendingDelete, setPendingDelete] = React.useState<CompletedWorkout | null>(null);
   // Bumped on mutations to force storage-reading children (calendar, streak) to refresh.
   const [version, setVersion] = React.useState(0);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setEntries(getCompletedWorkouts());
     setLoaded(true);
   }, []);
 
+  const refresh = () => {
+    setEntries(getCompletedWorkouts());
+    setVersion((v) => v + 1);
+  };
+
   const confirmDelete = () => {
     if (!pendingDelete) return;
     deleteCompletedWorkout(pendingDelete.date);
-    setEntries(getCompletedWorkouts());
-    setVersion((v) => v + 1);
+    refresh();
     toast.success("Removed from history");
     setPendingDelete(null);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-importing the same file
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const { workoutsAdded, historyAdded } = mergeImport(text);
+      refresh();
+      toast.success(
+        `Imported ${workoutsAdded} workout${workoutsAdded === 1 ? "" : "s"} and ${historyAdded} history entr${
+          historyAdded === 1 ? "y" : "ies"
+        }`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Import failed");
+    }
   };
 
   return (
@@ -55,6 +79,28 @@ const HistoryComponent = () => {
         title="History"
         description="Your completed workouts and streak, saved on this device."
       />
+
+      <div className="mb-6 flex gap-2">
+        <Button variant="outline" className="flex-1 gap-2" onClick={downloadExport}>
+          <Download className="size-4" />
+          Export data
+        </Button>
+        <Button
+          variant="outline"
+          className="flex-1 gap-2"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload className="size-4" />
+          Import data
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={handleImportFile}
+        />
+      </div>
 
       <div className="space-y-8">
         <StreakSummary key={`streak-${version}`} />

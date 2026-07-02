@@ -1,4 +1,4 @@
-import type { CompletedWorkout } from "@/lib/types";
+import type { CompletedExercise, CompletedWorkout } from "@/lib/types";
 import { STORAGE_KEYS } from "./keys";
 import { readJson, writeJson } from "./safe-storage";
 import { toDayKey } from "@/lib/date/day-key";
@@ -34,6 +34,12 @@ function normalizeCompleted(raw: unknown): CompletedWorkout | null {
     date,
     dayKey,
     volume: typeof c.volume === "number" && c.volume > 0 ? c.volume : undefined,
+    durationSec:
+      typeof c.durationSec === "number" && c.durationSec > 0 ? c.durationSec : undefined,
+    totalReps: typeof c.totalReps === "number" && c.totalReps > 0 ? c.totalReps : undefined,
+    exercises: Array.isArray(c.exercises)
+      ? (c.exercises as CompletedExercise[])
+      : undefined,
   };
 }
 
@@ -52,6 +58,9 @@ export function addCompletedWorkout(entry: {
   title: string;
   date?: string;
   volume?: number;
+  durationSec?: number;
+  totalReps?: number;
+  exercises?: CompletedExercise[];
 }): boolean {
   const now = entry.date ? new Date(entry.date) : new Date();
   const completed: CompletedWorkout = {
@@ -60,6 +69,10 @@ export function addCompletedWorkout(entry: {
     date: now.toISOString(),
     dayKey: toDayKey(now),
     volume: entry.volume && entry.volume > 0 ? Math.round(entry.volume) : undefined,
+    durationSec:
+      entry.durationSec && entry.durationSec > 0 ? Math.round(entry.durationSec) : undefined,
+    totalReps: entry.totalReps && entry.totalReps > 0 ? entry.totalReps : undefined,
+    exercises: entry.exercises && entry.exercises.length > 0 ? entry.exercises : undefined,
   };
   const existing = getCompletedWorkouts();
   existing.push(completed);
