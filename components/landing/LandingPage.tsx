@@ -6,9 +6,12 @@ import {
   Dumbbell,
   Flame,
   ListChecks,
-  Timer,
   ShieldCheck,
-  Search,
+  TrendingUp,
+  LineChart,
+  PlayCircle,
+  Scale,
+  Smartphone,
 } from "lucide-react";
 
 import ForkWorkoutImg from "@/public/Forkworkout.png";
@@ -23,17 +26,32 @@ const FEATURES = [
   {
     icon: Dumbbell,
     title: "Build workouts fast",
-    body: "Create routines with exercises, sets, reps, and weight or time — in seconds.",
+    body: "Routines with sets, reps and weight/time — plus warm-ups, drop sets and supersets.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Progressive overload",
+    body: "See last time's weights, your PRs and an estimated 1RM as you lift — with a nudge to add weight.",
+  },
+  {
+    icon: LineChart,
+    title: "Per-exercise progress",
+    body: "Tap any exercise to see its weight, 1RM and volume trend over time.",
   },
   {
     icon: ListChecks,
     title: "Track sets live",
-    body: "Mark each set done or skipped as you go, with clear progress at a glance.",
+    body: "Mark sets done or skipped, log RPE and notes, with a built-in rest timer and sound cue.",
   },
   {
-    icon: Timer,
-    title: "Rest timer built in",
-    body: "Automatic countdown between sets with a sound cue, skippable anytime.",
+    icon: PlayCircle,
+    title: "Form video demos",
+    body: "Watch a quick demo for hundreds of exercises, right inside your session.",
+  },
+  {
+    icon: Scale,
+    title: "Body metrics",
+    body: "Log bodyweight and measurements and watch them trend alongside your training.",
   },
   {
     icon: CalendarCheck,
@@ -41,21 +59,21 @@ const FEATURES = [
     body: "Completed days light up your calendar so you keep showing up.",
   },
   {
-    icon: Search,
-    title: "Exercise library",
-    body: "Search hundreds of exercises with instructions, muscles, and demos.",
+    icon: Smartphone,
+    title: "Installable & offline",
+    body: "Add it to your home screen and use it at the gym even with no signal.",
   },
   {
     icon: ShieldCheck,
     title: "Local-first & private",
-    body: "Everything is saved on your device. No account, no cloud, no tracking.",
+    body: "Saved on your device with backups and export/import. No account, no cloud, no tracking.",
   },
 ];
 
 const STEPS = [
-  { n: 1, title: "Create a workout", body: "Add exercises and sets with helpful suggestions." },
-  { n: 2, title: "Start your session", body: "Complete or skip sets while the rest timer keeps pace." },
-  { n: 3, title: "Keep your streak", body: "Finish up and watch your calendar and streak grow." },
+  { n: 1, title: "Create a workout", body: "Add exercises and sets — or let the guided builder plan one for you." },
+  { n: 2, title: "Start your session", body: "Log sets with last-time hints while the rest timer keeps pace." },
+  { n: 3, title: "Track your progress", body: "Watch PRs, charts, streaks and bodyweight trends grow over time." },
 ];
 
 function PhonePreview() {
@@ -131,9 +149,9 @@ export default function LandingPage() {
               </span>
             </h1>
             <p className="mx-auto max-w-md text-lg text-muted-foreground md:mx-0">
-              ForkWorkout is a fast, mobile-first workout tracker for creating
-              routines, completing sets, timing rests, and keeping your streak
-              alive — no account required.
+              ForkWorkout is a fast, mobile-first workout tracker: build routines,
+              log sets with last-time hints, track PRs and progress charts, and keep
+              your streak alive — installable, works offline, no account required.
             </p>
             <div className="flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
               <Button asChild size="lg" className="gap-2">
@@ -243,22 +261,7 @@ export default function LandingPage() {
         </Card>
       </section>
 
-      {/* Programs teaser */}
-      <section className="mx-auto max-w-5xl px-4 py-8">
-        <Card>
-          <CardContent className="flex flex-col items-center justify-between gap-4 p-6 sm:flex-row">
-            <div className="text-center sm:text-left">
-              <h3 className="text-xl font-semibold">Prefer a ready-made plan?</h3>
-              <p className="text-sm text-muted-foreground">
-                Kick off with a built-in program like P90X and start today.
-              </p>
-            </div>
-            <Button asChild variant="outline">
-              <Link href={ROUTES.startWorkout("1")}>Try P90X</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
+      {/* Programs teaser removed — starter showcase above covers ready-made routines */}
 
       {/* Final CTA */}
       <section className="mx-auto max-w-5xl px-4 py-16 text-center">
