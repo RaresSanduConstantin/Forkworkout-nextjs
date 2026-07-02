@@ -3,6 +3,7 @@
 export const STORAGE_KEYS = {
   workouts: "workouts",
   completedWorkouts: "completedWorkouts",
+  bodyMetrics: "forkworkout:body-metrics",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

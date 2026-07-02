@@ -10,6 +10,7 @@ export function clearAllData(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEYS.workouts);
     window.localStorage.removeItem(STORAGE_KEYS.completedWorkouts);
+    window.localStorage.removeItem(STORAGE_KEYS.bodyMetrics);
   } catch {
     /* ignore storage access errors */
   }

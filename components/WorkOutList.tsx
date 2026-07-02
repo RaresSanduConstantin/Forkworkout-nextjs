@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Dumbbell, Flame, Plus, Sparkles, Trash2, Trophy } from "lucide-react";
+import { CalendarDays, Dumbbell, Flame, Plus, Scale, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -111,6 +111,12 @@ const WorkoutList = () => {
           <Link href={ROUTES.history}>
             <CalendarDays className="size-4" />
             View calendar &amp; history
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="w-full gap-2">
+          <Link href={ROUTES.body}>
+            <Scale className="size-4" />
+            Body metrics
           </Link>
         </Button>
       </div>

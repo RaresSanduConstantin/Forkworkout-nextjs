@@ -71,7 +71,6 @@ export type CompletedWorkout = {
 
 // Live workout session state (persisted so a refresh can resume progress).
 export type SetStatus = "pending" | "done" | "skipped";
-
 export type SessionSet = {
   id?: string;
   reps: number;
@@ -95,5 +94,23 @@ export type ActiveSession = {
   title: string;
   exercises: SessionExercise[];
   startedAt: string;
+};
+
+// Body-metrics log entry (bodyweight + optional measurements in cm).
+export type BodyMeasurements = {
+  waist?: number;
+  chest?: number;
+  arms?: number;
+  thighs?: number;
+  hips?: number;
+};
+
+export type BodyMetricEntry = {
+  id: string;
+  date: string; // ISO timestamp
+  dayKey?: string; // local YYYY-MM-DD
+  weightKg?: number;
+  measurements?: BodyMeasurements;
+  note?: string;
 };
 

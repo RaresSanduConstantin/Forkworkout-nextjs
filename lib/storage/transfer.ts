@@ -1,6 +1,7 @@
-import type { CompletedWorkout, Workout } from "@/lib/types";
+import type { BodyMetricEntry, CompletedWorkout, Workout } from "@/lib/types";
 import { getWorkouts, saveWorkouts } from "./workout-storage";
 import { getCompletedWorkouts } from "./history-storage";
+import { getBodyMetrics } from "./body-storage";
 import { STORAGE_KEYS } from "./keys";
 import { writeJson } from "./safe-storage";
 
@@ -9,6 +10,7 @@ export type ExportBundle = {
   exportedAt: string;
   workouts: Workout[];
   completedWorkouts: CompletedWorkout[];
+  bodyMetrics: BodyMetricEntry[];
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -18,6 +20,7 @@ export function buildExport(): ExportBundle {
     exportedAt: new Date().toISOString(),
     workouts: getWorkouts(),
     completedWorkouts: getCompletedWorkouts(),
+    bodyMetrics: getBodyMetrics(),
   };
 }
 
@@ -41,7 +44,11 @@ export function downloadExport(): void {
  * completed entries with new timestamps, skipping exact duplicates. Throws on
  * invalid JSON. Returns how many items were added.
  */
-export function mergeImport(text: string): { workoutsAdded: number; historyAdded: number } {
+export function mergeImport(text: string): {
+  workoutsAdded: number;
+  historyAdded: number;
+  bodyAdded: number;
+} {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -53,6 +60,7 @@ export function mergeImport(text: string): { workoutsAdded: number; historyAdded
   const importedHistory = Array.isArray(bundle.completedWorkouts)
     ? bundle.completedWorkouts
     : [];
+  const importedBody = Array.isArray(bundle.bodyMetrics) ? bundle.bodyMetrics : [];
 
   // Merge workouts by id.
   const workouts = getWorkouts();
@@ -80,5 +88,18 @@ export function mergeImport(text: string): { workoutsAdded: number; historyAdded
   }
   writeJson(STORAGE_KEYS.completedWorkouts, history);
 
-  return { workoutsAdded, historyAdded };
+  // Merge body metrics by id.
+  const body = getBodyMetrics();
+  const bodyIds = new Set(body.map((b) => b.id));
+  let bodyAdded = 0;
+  for (const b of importedBody) {
+    if (b && typeof b.id === "string" && !bodyIds.has(b.id)) {
+      body.push(b);
+      bodyIds.add(b.id);
+      bodyAdded += 1;
+    }
+  }
+  writeJson(STORAGE_KEYS.bodyMetrics, body);
+
+  return { workoutsAdded, historyAdded, bodyAdded };
 }
