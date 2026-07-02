@@ -11,6 +11,8 @@ export function clearAllData(): void {
     window.localStorage.removeItem(STORAGE_KEYS.workouts);
     window.localStorage.removeItem(STORAGE_KEYS.completedWorkouts);
     window.localStorage.removeItem(STORAGE_KEYS.bodyMetrics);
+    window.localStorage.removeItem(STORAGE_KEYS.autoBackup);
+    window.localStorage.removeItem(STORAGE_KEYS.schemaVersion);
   } catch {
     /* ignore storage access errors */
   }

@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Download, Dumbbell, Upload } from "lucide-react";
+import { format } from "date-fns";
+import { ArrowLeft, CalendarDays, Download, Dumbbell, History, ShieldCheck, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,12 @@ import {
   deleteCompletedWorkout,
 } from "@/lib/storage/history-storage";
 import { downloadExport, mergeImport } from "@/lib/storage/transfer";
+import {
+  getAutoBackup,
+  autoBackupHasData,
+  restoreAutoBackup,
+  type AutoBackup,
+} from "@/lib/storage/migrations";
 import { ROUTES } from "@/lib/routes";
 import type { CompletedWorkout } from "@/lib/types";
 
@@ -26,17 +33,21 @@ const HistoryComponent = () => {
   const [entries, setEntries] = React.useState<CompletedWorkout[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [pendingDelete, setPendingDelete] = React.useState<CompletedWorkout | null>(null);
+  const [backup, setBackup] = React.useState<AutoBackup | null>(null);
+  const [showRestore, setShowRestore] = React.useState(false);
   // Bumped on mutations to force storage-reading children (calendar, streak) to refresh.
   const [version, setVersion] = React.useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setEntries(getCompletedWorkouts());
+    setBackup(getAutoBackup());
     setLoaded(true);
   }, []);
 
   const refresh = () => {
     setEntries(getCompletedWorkouts());
+    setBackup(getAutoBackup());
     setVersion((v) => v + 1);
   };
 
@@ -102,6 +113,24 @@ const HistoryComponent = () => {
         />
       </div>
 
+      {backup && autoBackupHasData(backup) && (
+        <div className="mb-6 flex flex-col gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            <ShieldCheck className="mr-1 inline size-4 text-primary" />
+            Auto-backup saved {format(new Date(backup.savedAt), "MMM d, HH:mm")}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setShowRestore(true)}
+          >
+            <History className="size-4" />
+            Restore backup
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-8">
         <StreakSummary key={`streak-${version}`} />
 
@@ -142,6 +171,24 @@ const HistoryComponent = () => {
         confirmLabel="Remove"
         destructive
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        open={showRestore}
+        onOpenChange={setShowRestore}
+        title="Restore the last backup?"
+        description="This replaces your current workouts, history and body metrics with the auto-backup snapshot. Consider exporting your current data first — this can't be undone."
+        confirmLabel="Restore"
+        destructive
+        onConfirm={() => {
+          setShowRestore(false);
+          if (restoreAutoBackup()) {
+            refresh();
+            toast.success("Backup restored");
+          } else {
+            toast.error("No backup available");
+          }
+        }}
       />
     </PageContainer>
   );
