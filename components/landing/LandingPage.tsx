@@ -22,6 +22,7 @@ import ForkWorkoutImg from "@/public/Forkworkout.png";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InstallButton } from "@/components/InstallButton";
 import { honkFont } from "@/lib/honkFont";
 import { ROUTES } from "@/lib/routes";
 import { STARTER_TEMPLATES } from "@/lib/templates";
@@ -228,6 +229,9 @@ export default function LandingPage() {
             ForkWorkout is a web app you can add to your home screen — it opens full-screen
             and works offline, just like a native app. No app store needed.
           </p>
+          <div className="mt-5 flex justify-center">
+            <InstallButton />
+          </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Card className="h-full">
