@@ -109,7 +109,8 @@ const CreateWorkoutComponent = () => {
     const now = new Date().toISOString();
 
     if (workoutId) {
-      // Editing existing — preserve id/createdAt, refresh updatedAt.
+      // Editing existing — preserve id/createdAt, refresh updatedAt. Editing a
+      // shared workout makes it your own, so drop the shared marker.
       const existing = getWorkoutById(workoutId);
       const updated: Workout = {
         ...(existing ?? { id: workoutId, exercises: [] }),
@@ -117,6 +118,8 @@ const CreateWorkoutComponent = () => {
         id: workoutId,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
+        shared: undefined,
+        sharedMessage: undefined,
       };
       upsertWorkout(updated);
     } else {

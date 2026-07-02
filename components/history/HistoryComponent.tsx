@@ -134,9 +134,9 @@ const HistoryComponent = () => {
       <div className="space-y-8">
         <StreakSummary key={`streak-${version}`} />
 
-        <VolumeChart entries={entries} />
-
         <CalendarComponent key={`cal-${version}`} />
+
+        <VolumeChart entries={entries} />
 
         <section className="space-y-3">
           <div className="flex items-center gap-2">

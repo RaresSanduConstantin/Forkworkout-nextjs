@@ -96,6 +96,24 @@ export function upsertWorkout(workout: Workout): boolean {
   return saveWorkouts(workouts);
 }
 
+/**
+ * Returns a title that doesn't collide with existing ones, disambiguating
+ * duplicates as "Title (Copy 1)", "Title (Copy 2)", … (e.g. for shared imports).
+ */
+export function uniqueWorkoutTitle(desired: string, existingTitles: string[]): string {
+  const taken = new Set(existingTitles);
+  const clean = (desired || "Workout").trim();
+  if (!taken.has(clean)) return clean;
+  const base = clean.replace(/\s*\(Copy \d+\)\s*$/i, "").trim() || "Workout";
+  let n = 1;
+  let candidate = `${base} (Copy ${n})`;
+  while (taken.has(candidate)) {
+    n += 1;
+    candidate = `${base} (Copy ${n})`;
+  }
+  return candidate;
+}
+
 /** Removes a workout by id and persists the result. */
 export function deleteWorkout(id: string): boolean {
   return saveWorkouts(getWorkouts().filter((w) => w.id !== id));
@@ -112,6 +130,8 @@ export function duplicateWorkout(id: string): Workout | null {
     title: `Copy of ${src.title || "workout"}`.slice(0, 50),
     createdAt: now,
     updatedAt: now,
+    shared: undefined,
+    sharedMessage: undefined,
     exercises: src.exercises.map((ex) => ({
       ...ex,
       id: uuidv4(),

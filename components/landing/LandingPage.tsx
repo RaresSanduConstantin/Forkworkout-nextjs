@@ -12,6 +12,10 @@ import {
   PlayCircle,
   Scale,
   Smartphone,
+  Apple,
+  Share,
+  SquarePlus,
+  MoreVertical,
 } from "lucide-react";
 
 import ForkWorkoutImg from "@/public/Forkworkout.png";
@@ -213,6 +217,78 @@ export default function LandingPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      </section>
+
+      {/* Install on your phone */}
+      <section className="mx-auto max-w-5xl px-4 py-12">
+        <div className="mb-8 text-center">
+          <h2 className="text-3xl font-bold">Install it on your phone</h2>
+          <p className="mt-2 text-muted-foreground">
+            ForkWorkout is a web app you can add to your home screen — it opens full-screen
+            and works offline, just like a native app. No app store needed.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card className="h-full">
+            <CardContent className="space-y-3 p-5">
+              <div className="flex items-center gap-2">
+                <Apple className="size-5" />
+                <h3 className="font-semibold">iPhone &amp; iPad (Safari)</h3>
+              </div>
+              <ol className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">1.</span>
+                  <span>
+                    Open forkworkout in <strong>Safari</strong>.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">2.</span>
+                  <span className="inline-flex flex-wrap items-center gap-1">
+                    Tap the <Share className="inline size-4" /> <strong>Share</strong> button
+                    at the bottom.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">3.</span>
+                  <span className="inline-flex flex-wrap items-center gap-1">
+                    Choose <SquarePlus className="inline size-4" />{" "}
+                    <strong>Add to Home Screen</strong>, then <strong>Add</strong>.
+                  </span>
+                </li>
+              </ol>
+            </CardContent>
+          </Card>
+          <Card className="h-full">
+            <CardContent className="space-y-3 p-5">
+              <div className="flex items-center gap-2">
+                <Smartphone className="size-5" />
+                <h3 className="font-semibold">Android (Chrome)</h3>
+              </div>
+              <ol className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">1.</span>
+                  <span>
+                    Open forkworkout in <strong>Chrome</strong>.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">2.</span>
+                  <span className="inline-flex flex-wrap items-center gap-1">
+                    Tap the <MoreVertical className="inline size-4" /> <strong>menu</strong>{" "}
+                    (top-right).
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">3.</span>
+                  <span>
+                    Tap <strong>Install app</strong> (or <strong>Add to Home screen</strong>).
+                  </span>
+                </li>
+              </ol>
+            </CardContent>
+          </Card>
         </div>
       </section>
 

@@ -22,7 +22,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { WorkoutCard } from "@/components/workouts/WorkoutCard";
 import { StarterWorkouts } from "@/components/workouts/StarterWorkouts";
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
-import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout } from "@/lib/storage/workout-storage";
+import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import { buildShareUrl, decodeWorkout } from "@/lib/storage/share";
 import { clearAllData } from "@/lib/storage/reset";
@@ -113,9 +113,14 @@ const WorkoutList = () => {
 
   const confirmImport = () => {
     if (!pendingImport) return;
-    upsertWorkout(pendingImport);
-    setWorkouts((prev) => [...prev, pendingImport]);
-    toast.success(`Added “${pendingImport.title}” to your workouts`);
+    const title = uniqueWorkoutTitle(
+      pendingImport.title,
+      workouts.map((w) => w.title)
+    );
+    const imported = { ...pendingImport, title };
+    upsertWorkout(imported);
+    setWorkouts((prev) => [...prev, imported]);
+    toast.success(`Added “${imported.title}” to your workouts`);
     setPendingImport(null);
   };
 
