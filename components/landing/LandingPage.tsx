@@ -76,9 +76,21 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: 1, title: "Create a workout", body: "Add exercises and sets — or let the guided builder plan one for you." },
-  { n: 2, title: "Start your session", body: "Log sets with last-time hints while the rest timer keeps pace." },
-  { n: 3, title: "Track your progress", body: "Watch PRs, charts, streaks and bodyweight trends grow over time." },
+  {
+    n: 1,
+    title: "Create a workout",
+    body: "Add exercises and sets — or let the guided builder plan one for you.",
+  },
+  {
+    n: 2,
+    title: "Start your session",
+    body: "Log sets with last-time hints while the rest timer keeps pace.",
+  },
+  {
+    n: 3,
+    title: "Track your progress",
+    body: "Watch PRs, charts, streaks and bodyweight trends grow over time.",
+  },
 ];
 
 function PhonePreview() {
@@ -130,7 +142,13 @@ export default function LandingPage() {
     <main className="min-h-dvh bg-slate-50 text-slate-900 force-light">
       {/* Header */}
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-        <Image src={ForkWorkoutImg} alt="ForkWorkout" width={110} height={44} priority />
+        <Image
+          src={ForkWorkoutImg}
+          alt="ForkWorkout"
+          width={110}
+          height={44}
+          priority
+        />
         <Button asChild variant="outline">
           <Link href={ROUTES.dashboard}>Open app</Link>
         </Button>
@@ -154,9 +172,10 @@ export default function LandingPage() {
               </span>
             </h1>
             <p className="mx-auto max-w-md text-lg text-muted-foreground md:mx-0">
-              ForkWorkout is a fast, mobile-first workout tracker: build routines,
-              log sets with last-time hints, track PRs and progress charts, and keep
-              your streak alive — installable, works offline, no account required.
+              ForkWorkout is a fast, mobile-first workout tracker: build
+              routines, log sets with last-time hints, track PRs and progress
+              charts, and keep your streak alive — installable, works offline,
+              no account required.
             </p>
             <div className="flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
               <Button asChild size="lg" className="gap-2">
@@ -180,7 +199,9 @@ export default function LandingPage() {
       {/* Features */}
       <section className="mx-auto max-w-5xl px-4 py-12">
         <div className="mb-8 text-center">
-          <h2 className="text-3xl font-bold">Everything you need, nothing you don&apos;t</h2>
+          <h2 className="text-3xl font-bold">
+            Everything you need, nothing you don&apos;t
+          </h2>
           <p className="mt-2 text-muted-foreground">
             A focused tracker that stays out of your way during a workout.
           </p>
@@ -204,7 +225,9 @@ export default function LandingPage() {
       <section id="how-it-works" className="mx-auto max-w-5xl px-4 py-12">
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-bold">How it works</h2>
-          <p className="mt-2 text-muted-foreground">Three steps from zero to a tracked workout.</p>
+          <p className="mt-2 text-muted-foreground">
+            Three steps from zero to a tracked workout.
+          </p>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           {STEPS.map((step) => (
@@ -226,44 +249,15 @@ export default function LandingPage() {
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-bold">Install it on your phone</h2>
           <p className="mt-2 text-muted-foreground">
-            ForkWorkout is a web app you can add to your home screen — it opens full-screen
-            and works offline, just like a native app. No app store needed.
+            ForkWorkout is a web app you can add to your home screen — it opens
+            full-screen and works offline, just like a native app. No app store
+            needed.
           </p>
           <div className="mt-5 flex justify-center">
             <InstallButton />
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="h-full">
-            <CardContent className="space-y-3 p-5">
-              <div className="flex items-center gap-2">
-                <Apple className="size-5" />
-                <h3 className="font-semibold">iPhone &amp; iPad (Safari)</h3>
-              </div>
-              <ol className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">1.</span>
-                  <span>
-                    Open forkworkout in <strong>Safari</strong>.
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">2.</span>
-                  <span className="inline-flex flex-wrap items-center gap-1">
-                    Tap the <Share className="inline size-4" /> <strong>Share</strong> button
-                    at the bottom.
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">3.</span>
-                  <span className="inline-flex flex-wrap items-center gap-1">
-                    Choose <SquarePlus className="inline size-4" />{" "}
-                    <strong>Add to Home Screen</strong>, then <strong>Add</strong>.
-                  </span>
-                </li>
-              </ol>
-            </CardContent>
-          </Card>
           <Card className="h-full">
             <CardContent className="space-y-3 p-5">
               <div className="flex items-center gap-2">
@@ -280,14 +274,46 @@ export default function LandingPage() {
                 <li className="flex gap-2">
                   <span className="font-semibold text-foreground">2.</span>
                   <span className="inline-flex flex-wrap items-center gap-1">
-                    Tap the <MoreVertical className="inline size-4" /> <strong>menu</strong>{" "}
-                    (top-right).
+                    Tap the <MoreVertical className="inline size-4" />{" "}
+                    <strong>menu</strong> (top-right).
                   </span>
                 </li>
                 <li className="flex gap-2">
                   <span className="font-semibold text-foreground">3.</span>
                   <span>
-                    Tap <strong>Install app</strong> (or <strong>Add to Home screen</strong>).
+                    Tap <strong>Install app</strong> (or{" "}
+                    <strong>Add to Home screen</strong>).
+                  </span>
+                </li>
+              </ol>
+            </CardContent>
+          </Card>
+          <Card className="h-full">
+            <CardContent className="space-y-3 p-5">
+              <div className="flex items-center gap-2">
+                <Apple className="size-5" />
+                <h3 className="font-semibold">iPhone &amp; iPad (Safari)</h3>
+              </div>
+              <ol className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">1.</span>
+                  <span>
+                    Open forkworkout in <strong>Safari</strong>.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">2.</span>
+                  <span className="inline-flex flex-wrap items-center gap-1">
+                    Tap the <Share className="inline size-4" />{" "}
+                    <strong>Share</strong> button at the bottom.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">3.</span>
+                  <span className="inline-flex flex-wrap items-center gap-1">
+                    Choose <SquarePlus className="inline size-4" />{" "}
+                    <strong>Add to Home Screen</strong>, then{" "}
+                    <strong>Add</strong>.
                   </span>
                 </li>
               </ol>
@@ -299,7 +325,9 @@ export default function LandingPage() {
       {/* Starter workouts showcase */}
       <section className="mx-auto max-w-5xl px-4 py-12">
         <div className="mb-8 text-center">
-          <h2 className="text-3xl font-bold">Start with a ready-made routine</h2>
+          <h2 className="text-3xl font-bold">
+            Start with a ready-made routine
+          </h2>
           <p className="mt-2 text-muted-foreground">
             Add a proven split in one tap, then tweak it to fit you.
           </p>
@@ -312,8 +340,12 @@ export default function LandingPage() {
                   {template.emoji}
                 </span>
                 <h3 className="font-semibold">{template.title}</h3>
-                <p className="text-sm text-muted-foreground">{template.description}</p>
-                <Badge variant="secondary">{template.exercises.length} exercises</Badge>
+                <p className="text-sm text-muted-foreground">
+                  {template.description}
+                </p>
+                <Badge variant="secondary">
+                  {template.exercises.length} exercises
+                </Badge>
               </CardContent>
             </Card>
           ))}
@@ -334,8 +366,9 @@ export default function LandingPage() {
             <Flame className="size-8" />
             <h2 className="text-2xl font-bold">Your data stays yours</h2>
             <p className="max-w-xl text-white/90">
-              ForkWorkout saves everything locally in your browser. No sign-up, no
-              servers, no ads. Clear your device and it&apos;s gone — that simple.
+              ForkWorkout saves everything locally in your browser. No sign-up,
+              no servers, no ads. Clear your device and it&apos;s gone — that
+              simple.
             </p>
           </CardContent>
         </Card>
@@ -349,8 +382,8 @@ export default function LandingPage() {
           {honkFont("Ready to move?")}
         </h2>
         <p className="mx-auto mt-3 max-w-md text-muted-foreground">
-          Create your first workout in under a minute. It&apos;s free and stays on
-          your device.
+          Create your first workout in under a minute. It&apos;s free and stays
+          on your device.
         </p>
         <Button asChild size="lg" className="mt-6 gap-2">
           <Link href={ROUTES.newWorkout}>
