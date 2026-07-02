@@ -7,7 +7,6 @@ import { CalendarDays, Dumbbell, Flame, Plus, Scale, Sparkles, Trash2, Trophy } 
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StatCard } from "@/components/shared/StatCard";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -175,22 +174,6 @@ const WorkoutList = () => {
           </p>
         </div>
         <StarterWorkouts onAdd={handleAddTemplate} />
-      </section>
-
-      {/* Programs */}
-      <section className="space-y-4">
-        <h2 className="text-3xl">{honkFont("Programs")}</h2>
-        <Card>
-          <CardContent className="flex items-center justify-between gap-3 p-4">
-            <div>
-              <p className="text-lg font-semibold">P90X</p>
-              <p className="text-sm text-muted-foreground">
-                A classic 90-day program template
-              </p>
-            </div>
-            <Button onClick={() => handleStart("1")}>Start</Button>
-          </CardContent>
-        </Card>
       </section>
 
       {/* Danger zone */}
