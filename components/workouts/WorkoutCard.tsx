@@ -30,9 +30,17 @@ export function WorkoutCard({
     <Card className="overflow-hidden">
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="min-w-0 break-words text-lg font-semibold">
-            {workout.title || "Untitled workout"}
-          </h3>
+          <div className="min-w-0">
+            <h3 className="min-w-0 break-words text-lg font-semibold">
+              {workout.title || "Untitled workout"}
+            </h3>
+            {workout.shared && (
+              <Badge variant="secondary" className="mt-1 gap-1">
+                <Share2 className="size-3" />
+                Shared
+              </Badge>
+            )}
+          </div>
           <div className="flex shrink-0 items-center">
             <Button
               variant="ghost"

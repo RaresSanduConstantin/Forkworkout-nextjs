@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Download, Dumbbell, Flame, Plus, Scale, Sparkles, Trash2, Trophy } from "lucide-react";
+import { CalendarDays, Download, Dumbbell, Flame, Plus, Scale, Share2, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,8 @@ const WorkoutList = () => {
   const [showClearAll, setShowClearAll] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [pendingImport, setPendingImport] = useState<Workout | null>(null);
+  const [shareTarget, setShareTarget] = useState<Workout | null>(null);
+  const [shareMessage, setShareMessage] = useState("");
 
   useEffect(() => {
     setWorkouts(getWorkouts());
@@ -69,17 +72,26 @@ const WorkoutList = () => {
     }
   };
 
-  const handleShare = async (id: string) => {
+  const handleShare = (id: string) => {
     const workout = workouts.find((w) => w.id === id);
     if (!workout) return;
-    const url = buildShareUrl(workout, window.location.origin);
+    setShareMessage("");
+    setShareTarget(workout);
+  };
+
+  const doShare = async () => {
+    if (!shareTarget) return;
+    const url = buildShareUrl(shareTarget, window.location.origin, shareMessage);
     if (!url) {
       toast.error("This workout is too large to share by link — use Export instead.");
       return;
     }
+    setShareTarget(null);
     const shareData = {
-      title: workout.title || "ForkWorkout",
-      text: `Check out my “${workout.title || "workout"}” on ForkWorkout`,
+      title: shareTarget.title || "ForkWorkout",
+      text: shareMessage.trim()
+        ? shareMessage.trim()
+        : `Check out my “${shareTarget.title || "workout"}” on ForkWorkout`,
       url,
     };
     try {
@@ -88,7 +100,7 @@ const WorkoutList = () => {
         return;
       }
     } catch {
-      // user cancelled or share failed — fall through to clipboard
+      // user cancelled or share failed — don't fall back to clipboard
       return;
     }
     try {
@@ -279,6 +291,52 @@ const WorkoutList = () => {
 
       <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
 
+      {/* Share a workout — add an optional message, then send the link */}
+      <Dialog
+        open={shareTarget !== null}
+        onOpenChange={(open) => !open && setShareTarget(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Share this workout?</DialogTitle>
+            <DialogDescription>
+              Send a link to another ForkWorkout user — they can import it in one tap.
+            </DialogDescription>
+          </DialogHeader>
+          {shareTarget && (
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="font-semibold">{shareTarget.title}</p>
+              <p className="text-sm text-muted-foreground">
+                {shareTarget.exercises.length} exercise
+                {shareTarget.exercises.length === 1 ? "" : "s"}
+              </p>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label htmlFor="share-msg" className="text-sm font-medium">
+              Add a message to them (optional)
+            </label>
+            <Textarea
+              id="share-msg"
+              value={shareMessage}
+              onChange={(e) => setShareMessage(e.target.value)}
+              placeholder="e.g. Try this leg day — brutal but worth it 🔥"
+              rows={3}
+              maxLength={280}
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShareTarget(null)}>
+              Cancel
+            </Button>
+            <Button className="flex-1 gap-1" onClick={doShare}>
+              <Share2 className="size-4" />
+              Share
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Import a shared workout */}
       <Dialog
         open={pendingImport !== null}
@@ -292,18 +350,25 @@ const WorkoutList = () => {
             </DialogDescription>
           </DialogHeader>
           {pendingImport && (
-            <div className="rounded-lg border bg-muted/40 p-3">
-              <p className="font-semibold">{pendingImport.title}</p>
-              <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                {pendingImport.exercises.slice(0, 6).map((ex, i) => (
-                  <li key={i} className="truncate">
-                    • {ex.name} · {ex.sets.length} set{ex.sets.length === 1 ? "" : "s"}
-                  </li>
-                ))}
-                {pendingImport.exercises.length > 6 && (
-                  <li>+{pendingImport.exercises.length - 6} more…</li>
-                )}
-              </ul>
+            <div className="space-y-3">
+              {pendingImport.sharedMessage && (
+                <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm italic text-foreground">
+                  “{pendingImport.sharedMessage}”
+                </p>
+              )}
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <p className="font-semibold">{pendingImport.title}</p>
+                <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                  {pendingImport.exercises.slice(0, 6).map((ex, i) => (
+                    <li key={i} className="truncate">
+                      • {ex.name} · {ex.sets.length} set{ex.sets.length === 1 ? "" : "s"}
+                    </li>
+                  ))}
+                  {pendingImport.exercises.length > 6 && (
+                    <li>+{pendingImport.exercises.length - 6} more…</li>
+                  )}
+                </ul>
+              </div>
             </div>
           )}
           <DialogFooter className="gap-2 sm:gap-2">

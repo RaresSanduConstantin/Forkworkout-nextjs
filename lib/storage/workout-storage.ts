@@ -20,6 +20,11 @@ function normalizeWorkout(raw: unknown): Workout | null {
     rest: typeof w.rest === "string" ? w.rest : undefined,
     createdAt: typeof w.createdAt === "string" ? w.createdAt : undefined,
     updatedAt: typeof w.updatedAt === "string" ? w.updatedAt : undefined,
+    shared: w.shared === true ? true : undefined,
+    sharedMessage:
+      typeof w.sharedMessage === "string" && w.sharedMessage.trim()
+        ? w.sharedMessage
+        : undefined,
     exercises: exercises.map((ex) => {
       const e = (ex ?? {}) as Record<string, unknown>;
       const sets = Array.isArray(e.sets) ? e.sets : [];

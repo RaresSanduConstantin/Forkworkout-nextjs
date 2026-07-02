@@ -36,6 +36,8 @@ export type Workout = {
   exercises: Exercise[];
   createdAt?: string;
   updatedAt?: string;
+  shared?: boolean; // imported from a share link
+  sharedMessage?: string; // optional message from whoever shared it
 };
 
 // A completed workout entry as stored in the `completedWorkouts` key.

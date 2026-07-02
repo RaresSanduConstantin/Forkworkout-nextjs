@@ -9,21 +9,29 @@ import type { SetType, SetUnit, Workout } from "@/lib/types";
 // Versioned, id-free payload embedded in the link.
 type ShareSet = { reps: number; value: string; unit?: SetUnit; type?: SetType };
 type ShareExercise = { name: string; rest?: string; superset?: string; sets: ShareSet[] };
-type SharePayload = { v: 1; title: string; rest?: string; exercises: ShareExercise[] };
+type SharePayload = {
+  v: 1;
+  title: string;
+  rest?: string;
+  msg?: string; // optional message from the sharer
+  exercises: ShareExercise[];
+};
 
 // Keep links comfortably within browser/URL limits. Normal workouts are tiny;
 // this guards against pathologically large ones.
 const MAX_ENCODED_LENGTH = 8000;
+const MAX_MESSAGE_LENGTH = 280;
 
 const UNITS: SetUnit[] = ["kg", "bw", "time", "km"];
 const TYPES: SetType[] = ["warmup", "working", "drop", "failure"];
 
 /** Builds the compact, id-free payload for a workout. */
-function toPayload(workout: Workout): SharePayload {
+function toPayload(workout: Workout, message?: string): SharePayload {
   return {
     v: 1,
     title: workout.title,
     rest: workout.rest || undefined,
+    msg: message && message.trim() ? message.trim().slice(0, MAX_MESSAGE_LENGTH) : undefined,
     exercises: workout.exercises.map((ex) => ({
       name: ex.name,
       rest: ex.rest,
@@ -38,15 +46,15 @@ function toPayload(workout: Workout): SharePayload {
   };
 }
 
-/** Encodes a workout to a URL-safe compressed string, or null if too large. */
-export function encodeWorkout(workout: Workout): string | null {
-  const encoded = compressToEncodedURIComponent(JSON.stringify(toPayload(workout)));
+/** Encodes a workout (+ optional message) to a URL-safe string, or null if too large. */
+export function encodeWorkout(workout: Workout, message?: string): string | null {
+  const encoded = compressToEncodedURIComponent(JSON.stringify(toPayload(workout, message)));
   return encoded.length > MAX_ENCODED_LENGTH ? null : encoded;
 }
 
 /** A share link that opens the app's dashboard and offers to import. */
-export function buildShareUrl(workout: Workout, origin: string): string | null {
-  const encoded = encodeWorkout(workout);
+export function buildShareUrl(workout: Workout, origin: string, message?: string): string | null {
+  const encoded = encodeWorkout(workout, message);
   if (!encoded) return null;
   return `${origin}/app#import=${encoded}`;
 }
@@ -94,12 +102,15 @@ export function decodeWorkout(encoded: string): Workout | null {
 
   if (exercises.length === 0) return null;
 
+  const rawMsg = typeof p.msg === "string" ? p.msg.trim() : "";
   return {
     id: uuidv4(),
     title: typeof p.title === "string" && p.title.trim() ? p.title : "Shared workout",
     rest: typeof p.rest === "string" ? p.rest : undefined,
     createdAt: now,
     updatedAt: now,
+    shared: true,
+    sharedMessage: rawMsg ? rawMsg.slice(0, 280) : undefined,
     exercises,
   };
 }
