@@ -595,7 +595,7 @@ const StartWorkoutComponent = () => {
       </h1>
 
       {/* Progress (sticky so it stays visible while scrolling exercises) */}
-      <div className="sticky top-0 z-30 -mx-4 mt-4 border-b border-border/60 bg-slate-50/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-slate-50/75">
+      <div className="sticky top-0 z-30 -mx-4 mt-4 border-b border-border/60 bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75">
         <div className="mb-1.5 flex items-center justify-between text-sm text-muted-foreground">
           <span className="tabular-nums">
             ⏱ {formatClock(elapsedSec)}
@@ -709,7 +709,7 @@ const StartWorkoutComponent = () => {
                         {exercise.sets.map((set, setIdx) => {
                           const rowStyle =
                             set.status === "done"
-                              ? "bg-lime-50"
+                              ? "bg-lime-50 dark:bg-lime-500/15"
                               : set.status === "skipped"
                               ? "bg-muted opacity-70"
                               : "";

@@ -122,7 +122,7 @@ function PhonePreview() {
 
 export default function LandingPage() {
   return (
-    <main className="min-h-dvh bg-slate-50 text-slate-900">
+    <main className="min-h-dvh bg-slate-50 text-slate-900 force-light">
       {/* Header */}
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
         <Image src={ForkWorkoutImg} alt="ForkWorkout" width={110} height={44} priority />
