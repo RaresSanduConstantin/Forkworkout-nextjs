@@ -51,6 +51,7 @@ import {
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, EXERCISE_REST_OPTIONS } from "@/lib/workout";
+import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, SessionSet, SetStatus, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
@@ -249,6 +250,9 @@ const StartWorkoutComponent = () => {
     setSelectedExercise(exerciseName);
     setShowVideoModal(true);
   };
+
+  // Curated in-modal demo video for the selected exercise (null → search fallback).
+  const demoVideoId = getExerciseVideoId(selectedExercise);
 
   const openInfoModal = (exerciseName: string) => {
     const exercise = exercises.find(
@@ -889,46 +893,81 @@ const StartWorkoutComponent = () => {
 
       {/* Video Modal */}
       <Dialog open={showVideoModal} onOpenChange={setShowVideoModal}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-lg">
           <DialogHeader className="text-left">
             <DialogTitle>Watch a demo</DialogTitle>
             <DialogDescription>
-              Reels &amp; form tips for {selectedExercise || "this exercise"}. Opens in a new tab.
+              {demoVideoId
+                ? `A quick form demo for ${selectedExercise || "this exercise"}.`
+                : `Reels & form tips for ${selectedExercise || "this exercise"}. Opens in a new tab.`}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2">
-            <Button
-              className="w-full justify-between bg-red-600 text-white hover:bg-red-700"
-              onClick={() =>
-                window.open(
-                  `https://www.youtube.com/results?search_query=${encodeURIComponent(
-                    selectedExercise + " exercise form #shorts"
-                  )}`,
-                  "_blank",
-                  "noopener,noreferrer"
-                )
-              }
-            >
-              <span className="flex items-center gap-2">🎥 YouTube Shorts</span>
-              <ExternalLink className="size-4" />
-            </Button>
-            <Button
-              className="w-full justify-between bg-neutral-900 text-white hover:bg-neutral-800"
-              onClick={() =>
-                window.open(
-                  `https://www.tiktok.com/search?q=${encodeURIComponent(
-                    selectedExercise + " exercise form"
-                  )}`,
-                  "_blank",
-                  "noopener,noreferrer"
-                )
-              }
-            >
-              <span className="flex items-center gap-2">🎵 TikTok</span>
-              <ExternalLink className="size-4" />
-            </Button>
-          </div>
+          {demoVideoId ? (
+            <div className="space-y-3">
+              <AspectRatio ratio={16 / 9} className="overflow-hidden rounded-lg bg-black">
+                {/* Keyed by id + open so it only mounts (and stops) with the dialog. */}
+                <iframe
+                  key={`${demoVideoId}-${showVideoModal}`}
+                  className="h-full w-full"
+                  src={`https://www.youtube-nocookie.com/embed/${demoVideoId}?rel=0&modestbranding=1`}
+                  title={`${selectedExercise} demo`}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </AspectRatio>
+              <Button
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() =>
+                  window.open(
+                    `https://www.youtube.com/results?search_query=${encodeURIComponent(
+                      selectedExercise + " exercise form"
+                    )}`,
+                    "_blank",
+                    "noopener,noreferrer"
+                  )
+                }
+              >
+                <span className="flex items-center gap-2">🔎 Search more on YouTube</span>
+                <ExternalLink className="size-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Button
+                className="w-full justify-between bg-red-600 text-white hover:bg-red-700"
+                onClick={() =>
+                  window.open(
+                    `https://www.youtube.com/results?search_query=${encodeURIComponent(
+                      selectedExercise + " exercise form #shorts"
+                    )}`,
+                    "_blank",
+                    "noopener,noreferrer"
+                  )
+                }
+              >
+                <span className="flex items-center gap-2">🎥 YouTube Shorts</span>
+                <ExternalLink className="size-4" />
+              </Button>
+              <Button
+                className="w-full justify-between bg-neutral-900 text-white hover:bg-neutral-800"
+                onClick={() =>
+                  window.open(
+                    `https://www.tiktok.com/search?q=${encodeURIComponent(
+                      selectedExercise + " exercise form"
+                    )}`,
+                    "_blank",
+                    "noopener,noreferrer"
+                  )
+                }
+              >
+                <span className="flex items-center gap-2">🎵 TikTok</span>
+                <ExternalLink className="size-4" />
+              </Button>
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="outline" className="w-full" onClick={() => setShowVideoModal(false)}>
