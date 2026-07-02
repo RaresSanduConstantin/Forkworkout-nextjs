@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/accordion";
 import type { CompletedWorkout } from "@/lib/types";
 import { dayKeyToDate } from "@/lib/date/day-key";
-import { formatClock, formatSetValue } from "@/lib/workout";
+import { formatClock, formatSetValue, setTypeShort } from "@/lib/workout";
 import { ExerciseProgressDialog } from "@/components/history/ExerciseProgressDialog";
 
 type DayGroup = {
@@ -42,6 +42,7 @@ function EntryCard({
     entry.durationSec ? formatClock(entry.durationSec) : null,
     entry.volume ? `${entry.volume.toLocaleString()} kg` : null,
     entry.exercises ? `${entry.exercises.length} exercises` : null,
+    entry.rpe ? `RPE ${entry.rpe}` : null,
   ].filter(Boolean);
 
   return (
@@ -98,6 +99,7 @@ function EntryCard({
                           className="font-normal"
                         >
                           {s.reps} × {formatSetValue(s.value, s.unit)}
+                          {setTypeShort(s.type) ? ` · ${setTypeShort(s.type)}` : ""}
                           {s.status === "skipped" ? " (skipped)" : ""}
                         </Badge>
                       ))}
@@ -108,6 +110,11 @@ function EntryCard({
             ) : (
               <p className="text-sm text-muted-foreground">
                 Exercise details weren&apos;t recorded for this workout.
+              </p>
+            )}
+            {entry.notes && (
+              <p className="mt-3 rounded-md bg-muted/60 px-3 py-2 text-sm italic text-muted-foreground">
+                “{entry.notes}”
               </p>
             )}
           </AccordionContent>

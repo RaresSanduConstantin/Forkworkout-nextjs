@@ -37,7 +37,8 @@ export type ExerciseSessionStat = {
 };
 
 function summarizeExercise(sets: CompletedSet[], date: string, dayKey?: string): ExerciseSessionStat {
-  const done = sets.filter((s) => s.status === "done");
+  // Warm-up sets don't count toward performance stats.
+  const done = sets.filter((s) => s.status === "done" && s.type !== "warmup");
   let topWeightKg = 0,
     topWeightReps = 0,
     bestOneRepMax = 0,

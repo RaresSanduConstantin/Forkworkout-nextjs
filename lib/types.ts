@@ -9,11 +9,16 @@
 // - "km":  distance in kilometres (value holds the number, e.g. "5")
 export type SetUnit = "kg" | "bw" | "time" | "km";
 
+// How a set counts toward stats. Undefined = "working" (the default). Warmup
+// sets are excluded from volume, PRs, 1RM and rep totals.
+export type SetType = "warmup" | "working" | "drop" | "failure";
+
 export type WorkoutSet = {
   id?: string;
   reps: number;
   value: string; // meaning depends on `unit` (see SetUnit)
   unit?: SetUnit;
+  type?: SetType;
 };
 
 export type Exercise = {
@@ -21,6 +26,7 @@ export type Exercise = {
   name: string;
   sets: WorkoutSet[];
   rest?: string; // per-exercise rest override (seconds as string); falls back to Workout.rest
+  superset?: string; // optional superset group label (e.g. "A"); shared label = grouped
 };
 
 export type Workout = {
@@ -41,6 +47,8 @@ export type CompletedSet = {
   value: string;
   unit?: SetUnit;
   status: SetStatus;
+  type?: SetType;
+  rpe?: number; // optional rate of perceived exertion (1–10)
 };
 
 export type CompletedExercise = {
@@ -57,6 +65,8 @@ export type CompletedWorkout = {
   durationSec?: number; // how long the session took
   totalReps?: number; // Σ reps of completed (done) sets
   exercises?: CompletedExercise[]; // snapshot of what was performed
+  notes?: string; // free-text session notes ("felt heavy")
+  rpe?: number; // overall session RPE (1–10)
 };
 
 // Live workout session state (persisted so a refresh can resume progress).
@@ -68,6 +78,8 @@ export type SessionSet = {
   value: string;
   unit?: SetUnit;
   status: SetStatus;
+  type?: SetType;
+  rpe?: number;
 };
 
 export type SessionExercise = {
@@ -75,6 +87,7 @@ export type SessionExercise = {
   name: string;
   sets: SessionSet[];
   rest?: string; // per-exercise rest override
+  superset?: string; // optional superset group label
 };
 
 export type ActiveSession = {

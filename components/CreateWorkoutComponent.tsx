@@ -62,10 +62,22 @@ const CreateWorkoutComponent = () => {
     fields: exerciseFields,
     append: appendExercise,
     remove: removeExercise,
+    move: moveExercise,
+    insert: insertExercise,
   } = useFieldArray({
     control: form.control,
     name: "exercises",
   });
+
+  // Duplicate an exercise (with fresh ids) directly below the original.
+  const duplicateExercise = (index: number) => {
+    const ex = form.getValues(`exercises.${index}`);
+    insertExercise(index + 1, {
+      ...ex,
+      id: uuidv4(),
+      sets: (ex.sets ?? []).map((s) => ({ ...s, id: uuidv4() })),
+    });
+  };
 
   const hasInitialized = React.useRef(false);
   const [showWizard, setShowWizard] = useState(false);
@@ -215,6 +227,13 @@ const CreateWorkoutComponent = () => {
                     index={index}
                     onRemove={() => removeExercise(index)}
                     exercisesLength={exerciseFields.length}
+                    onMoveUp={index > 0 ? () => moveExercise(index, index - 1) : undefined}
+                    onMoveDown={
+                      index < exerciseFields.length - 1
+                        ? () => moveExercise(index, index + 1)
+                        : undefined
+                    }
+                    onDuplicate={() => duplicateExercise(index)}
                   />
                 </motion.div>
               ))}

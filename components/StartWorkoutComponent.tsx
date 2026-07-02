@@ -8,6 +8,7 @@ import { ArrowLeft, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, ListChe
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -50,7 +51,7 @@ import {
 } from "@/lib/storage/session-storage";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, EXERCISE_REST_OPTIONS } from "@/lib/workout";
+import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { ROUTES } from "@/lib/routes";
@@ -101,6 +102,8 @@ const StartWorkoutComponent = () => {
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [finishNotes, setFinishNotes] = useState("");
+  const [finishRpe, setFinishRpe] = useState<number | null>(null);
 
   // Keep the phone screen awake during the workout.
   useWakeLock(true);
@@ -185,11 +188,13 @@ const StartWorkoutComponent = () => {
           id: ex.id ?? uuidv4(),
           name: ex.name,
           rest: ex.rest,
+          superset: ex.superset,
           sets: ex.sets.map((s) => ({
             id: s.id ?? uuidv4(),
             reps: s.reps,
             value: s.value,
             unit: s.unit ?? inferUnit(s.value),
+            type: s.type,
             status: "pending" as SetStatus,
           })),
         })),
@@ -386,6 +391,7 @@ const StartWorkoutComponent = () => {
                       reps: last.reps,
                       value: last.value,
                       unit: last.unit ?? "kg",
+                      type: last.type,
                       status: "pending" as SetStatus,
                     }
                   : {
@@ -459,21 +465,30 @@ const StartWorkoutComponent = () => {
       return;
     }
 
-    // Total kg lifted this session = sum of reps × weight over completed kg sets.
+    // Total kg lifted this session = reps × weight over completed working sets
+    // (warm-ups excluded).
     const volume = workout.exercises.reduce(
       (sum, ex) =>
         sum +
         ex.sets.reduce(
-          (s, set) => s + (set.status === "done" ? setVolumeKg(set.reps, set.value, set.unit) : 0),
+          (s, set) =>
+            s +
+            (set.status === "done" && set.type !== "warmup"
+              ? setVolumeKg(set.reps, set.value, set.unit)
+              : 0),
           0
         ),
       0
     );
 
-    // Total reps over completed sets.
+    // Total reps over completed working sets (warm-ups excluded).
     const totalReps = workout.exercises.reduce(
       (sum, ex) =>
-        sum + ex.sets.reduce((s, set) => s + (set.status === "done" ? set.reps : 0), 0),
+        sum +
+        ex.sets.reduce(
+          (s, set) => s + (set.status === "done" && set.type !== "warmup" ? set.reps : 0),
+          0
+        ),
       0
     );
 
@@ -491,6 +506,8 @@ const StartWorkoutComponent = () => {
         value: set.value,
         unit: set.unit,
         status: set.status,
+        type: set.type,
+        rpe: set.rpe,
       })),
     }));
 
@@ -501,6 +518,8 @@ const StartWorkoutComponent = () => {
       totalReps,
       durationSec,
       exercises: snapshot,
+      notes: finishNotes.trim() || undefined,
+      rpe: finishRpe ?? undefined,
     });
 
     // Persist edited reps/values/units back onto the saved workout (strip statuses).
@@ -513,7 +532,14 @@ const StartWorkoutComponent = () => {
           id: ex.id,
           name: ex.name,
           rest: ex.rest,
-          sets: ex.sets.map((set) => ({ id: set.id, reps: set.reps, value: set.value, unit: set.unit })),
+          superset: ex.superset,
+          sets: ex.sets.map((set) => ({
+            id: set.id,
+            reps: set.reps,
+            value: set.value,
+            unit: set.unit,
+            type: set.type,
+          })),
         })),
         updatedAt: new Date().toISOString(),
       };
@@ -535,12 +561,8 @@ const StartWorkoutComponent = () => {
   };
 
   const requestFinish = () => {
-    // Confirm if any sets are still unfinished (neither done nor skipped).
-    if (progress.total - progress.handled > 0) {
-      setShowFinishConfirm(true);
-    } else {
-      handleFinish();
-    }
+    // Always open the finish dialog so notes / RPE can be logged.
+    setShowFinishConfirm(true);
   };
 
   if (loaded && !workout) {
@@ -590,6 +612,12 @@ const StartWorkoutComponent = () => {
         {workout.exercises.map((exercise, exIdx) => (
           <Card key={exercise.id ?? exIdx}>
             <CardContent className="space-y-3 p-4">
+              {exercise.superset && (
+                <Badge variant="secondary" className="gap-1">
+                  <ListChecks className="size-3" />
+                  Superset {exercise.superset}
+                </Badge>
+              )}
               <ExerciseCombobox
                 value={exercise.name}
                 onChange={(value) => updateExerciseName(exIdx, value)}
@@ -691,7 +719,14 @@ const StartWorkoutComponent = () => {
                               className={`border-b last:border-b-0 ${rowStyle}`}
                             >
                               <td className="px-1 py-1.5 text-center text-muted-foreground">
-                                {setIdx + 1}
+                                <div className="flex flex-col items-center leading-tight">
+                                  <span>{setIdx + 1}</span>
+                                  {setTypeShort(set.type) && (
+                                    <span className="text-[10px] font-medium uppercase text-amber-600">
+                                      {setTypeShort(set.type)}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-1 py-1.5">
                                 <Input
@@ -1080,21 +1115,63 @@ const StartWorkoutComponent = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Finish confirmation when sets are still unfinished */}
-      <ConfirmDialog
-        open={showFinishConfirm}
-        onOpenChange={setShowFinishConfirm}
-        title="Finish workout?"
-        description={`You still have ${progress.total - progress.handled} set${
-          progress.total - progress.handled === 1 ? "" : "s"
-        } left. Finish anyway?`}
-        confirmLabel="Finish anyway"
-        cancelLabel="Keep going"
-        onConfirm={() => {
-          setShowFinishConfirm(false);
-          handleFinish();
-        }}
-      />
+      {/* Finish dialog — log session notes + RPE (and warn on unfinished sets) */}
+      <Dialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Finish workout?</DialogTitle>
+            <DialogDescription>
+              {progress.total - progress.handled > 0
+                ? `You still have ${progress.total - progress.handled} set${
+                    progress.total - progress.handled === 1 ? "" : "s"
+                  } left. Log it anyway?`
+                : "Nice work! Add a note or how it felt (optional)."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">How did it feel? (RPE)</span>
+              <div className="flex flex-wrap gap-1.5">
+                {[6, 7, 8, 9, 10].map((n) => (
+                  <Button
+                    key={n}
+                    type="button"
+                    size="sm"
+                    variant={finishRpe === n ? "default" : "outline"}
+                    className="w-10"
+                    onClick={() => setFinishRpe((cur) => (cur === n ? null : n))}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <Textarea
+              value={finishNotes}
+              onChange={(e) => setFinishNotes(e.target.value)}
+              placeholder="Notes — e.g. felt heavy, left knee tight…"
+              rows={3}
+              maxLength={500}
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowFinishConfirm(false)}>
+              Keep going
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setShowFinishConfirm(false);
+                handleFinish();
+              }}
+            >
+              Finish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BottomActionBar>
         <Button variant="outline" className="flex-1" onClick={requestExit}>

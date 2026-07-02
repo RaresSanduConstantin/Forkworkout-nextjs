@@ -40,6 +40,8 @@ function normalizeCompleted(raw: unknown): CompletedWorkout | null {
     exercises: Array.isArray(c.exercises)
       ? (c.exercises as CompletedExercise[])
       : undefined,
+    notes: typeof c.notes === "string" && c.notes.trim() ? c.notes : undefined,
+    rpe: typeof c.rpe === "number" && c.rpe > 0 ? c.rpe : undefined,
   };
 }
 
@@ -61,6 +63,8 @@ export function addCompletedWorkout(entry: {
   durationSec?: number;
   totalReps?: number;
   exercises?: CompletedExercise[];
+  notes?: string;
+  rpe?: number;
 }): boolean {
   const now = entry.date ? new Date(entry.date) : new Date();
   const completed: CompletedWorkout = {
@@ -73,6 +77,8 @@ export function addCompletedWorkout(entry: {
       entry.durationSec && entry.durationSec > 0 ? Math.round(entry.durationSec) : undefined,
     totalReps: entry.totalReps && entry.totalReps > 0 ? entry.totalReps : undefined,
     exercises: entry.exercises && entry.exercises.length > 0 ? entry.exercises : undefined,
+    notes: entry.notes && entry.notes.trim() ? entry.notes.trim() : undefined,
+    rpe: entry.rpe && entry.rpe > 0 ? entry.rpe : undefined,
   };
   const existing = getCompletedWorkouts();
   existing.push(completed);

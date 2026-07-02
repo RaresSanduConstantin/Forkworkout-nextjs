@@ -1,4 +1,4 @@
-import type { Workout } from "@/lib/types";
+import type { SetType, Workout } from "@/lib/types";
 import { v4 as uuidv4 } from "uuid";
 import { normalizeUnitValue } from "@/lib/workout";
 import { STORAGE_KEYS } from "./keys";
@@ -27,6 +27,7 @@ function normalizeWorkout(raw: unknown): Workout | null {
         id: typeof e.id === "string" ? e.id : uuidv4(),
         name: typeof e.name === "string" ? e.name : "",
         rest: typeof e.rest === "string" ? e.rest : undefined,
+        superset: typeof e.superset === "string" && e.superset ? e.superset : undefined,
         sets: sets.map((s) => {
           const set = (s ?? {}) as Record<string, unknown>;
           const reps =
@@ -39,11 +40,19 @@ function normalizeWorkout(raw: unknown): Workout | null {
             rawValue,
             typeof set.unit === "string" ? set.unit : undefined
           );
+          const validType =
+            set.type === "warmup" ||
+            set.type === "working" ||
+            set.type === "drop" ||
+            set.type === "failure"
+              ? (set.type as SetType)
+              : undefined;
           return {
             id: typeof set.id === "string" ? set.id : uuidv4(),
             reps,
             value,
             unit,
+            type: validType,
           };
         }),
       };

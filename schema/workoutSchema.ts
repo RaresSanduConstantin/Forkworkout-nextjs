@@ -8,6 +8,7 @@ export const workoutSchema = z.object({
       id: z.string().optional(),
       name: z.string().min(1, "Exercise name is required").max(100, "Exercise name must be less than 100 characters"),
       rest: z.string().optional(),
+      superset: z.string().optional(),
       sets: z.array(
         z.object({
           id: z.string().optional(),
@@ -16,6 +17,7 @@ export const workoutSchema = z.object({
             required_error: "",
           }).int("Whole reps only").min(1, "").max(100, "Reps must be between 1 and 100") ,
           unit: z.enum(["kg", "bw", "time", "km"]),
+          type: z.enum(["warmup", "working", "drop", "failure"]).optional(),
           value: z.string().min(1, "").max(20, "Max 20 chars"), // number for kg/km, "BW", or a time like "45s"
         })
       ).min(1, "At least one set is required"),

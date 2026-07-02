@@ -1,4 +1,4 @@
-import type { SetUnit } from "./types";
+import type { SetType, SetUnit } from "./types";
 
 export const SET_UNITS: { value: SetUnit; label: string }[] = [
   { value: "kg", label: "Kg" },
@@ -6,6 +6,26 @@ export const SET_UNITS: { value: SetUnit; label: string }[] = [
   { value: "time", label: "Time" },
   { value: "km", label: "Km" },
 ];
+
+// Set types. "working" is the default (undefined is treated as working). Warm-up
+// sets are excluded from volume, rep totals, PRs and 1RM estimates.
+export const SET_TYPES: { value: SetType; label: string; short: string }[] = [
+  { value: "working", label: "Working set", short: "Work" },
+  { value: "warmup", label: "Warm-up", short: "Warm" },
+  { value: "drop", label: "Drop set", short: "Drop" },
+  { value: "failure", label: "To failure", short: "Fail" },
+];
+
+/** Short badge label for a set type; empty for a plain working set. */
+export function setTypeShort(type?: SetType): string {
+  if (!type || type === "working") return "";
+  return SET_TYPES.find((t) => t.value === type)?.short ?? "";
+}
+
+/** Whether a set counts toward volume / reps / PRs (everything but warm-ups). */
+export function setCountsForStats(type?: SetType): boolean {
+  return type !== "warmup";
+}
 
 /**
  * Infers a set's unit from an existing unit or a legacy free-text value.
