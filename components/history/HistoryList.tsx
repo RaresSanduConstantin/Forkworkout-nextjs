@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format, isToday, isYesterday } from "date-fns";
-import { Trash2 } from "lucide-react";
+import { Trash2, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
 import type { CompletedWorkout } from "@/lib/types";
 import { dayKeyToDate } from "@/lib/date/day-key";
 import { formatClock, formatSetValue } from "@/lib/workout";
+import { ExerciseProgressDialog } from "@/components/history/ExerciseProgressDialog";
 
 type DayGroup = {
   dayKey: string;
@@ -31,9 +32,11 @@ function labelForDate(date: Date) {
 function EntryCard({
   entry,
   onDelete,
+  onSelectExercise,
 }: {
   entry: CompletedWorkout;
   onDelete: (entry: CompletedWorkout) => void;
+  onSelectExercise: (name: string) => void;
 }) {
   const meta = [
     entry.durationSec ? formatClock(entry.durationSec) : null,
@@ -69,7 +72,18 @@ function EntryCard({
               <ul className="space-y-3">
                 {entry.exercises.map((ex, exIdx) => (
                   <li key={exIdx}>
-                    <div className="mb-1 text-sm font-medium">{ex.name || "Exercise"}</div>
+                    {ex.name ? (
+                      <button
+                        type="button"
+                        onClick={() => onSelectExercise(ex.name)}
+                        className="mb-1 inline-flex items-center gap-1 text-sm font-medium underline-offset-2 hover:underline"
+                      >
+                        {ex.name}
+                        <TrendingUp className="size-3.5 text-primary" aria-hidden />
+                      </button>
+                    ) : (
+                      <div className="mb-1 text-sm font-medium">Exercise</div>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {ex.sets.map((s, sIdx) => (
                         <Badge
@@ -124,6 +138,8 @@ export function HistoryList({
       .sort((a, b) => b.date.getTime() - a.date.getTime());
   }, [entries]);
 
+  const [selectedExercise, setSelectedExercise] = React.useState<string | null>(null);
+
   return (
     <div className="space-y-4">
       {groups.map((group) => (
@@ -134,12 +150,20 @@ export function HistoryList({
           <ul className="space-y-2">
             {group.entries.map((entry, i) => (
               <li key={`${group.dayKey}-${i}`}>
-                <EntryCard entry={entry} onDelete={onDelete} />
+                <EntryCard
+                  entry={entry}
+                  onDelete={onDelete}
+                  onSelectExercise={setSelectedExercise}
+                />
               </li>
             ))}
           </ul>
         </div>
       ))}
+      <ExerciseProgressDialog
+        name={selectedExercise}
+        onOpenChange={(open) => !open && setSelectedExercise(null)}
+      />
     </div>
   );
 }

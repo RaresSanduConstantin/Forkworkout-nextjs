@@ -1,12 +1,12 @@
-// Curated map of exercise name -> a verified, embeddable YouTube video ID, used
-// by the in-session "Videos" modal to play a form demo inline. IDs were checked
-// for existence + embeddability (YouTube oEmbed) when this map was authored.
+// Curated map of exercise name -> a My PT Hub YouTube demo video ID, used by the
+// in-session "Videos" modal to play a form demo inline. Every ID is a video from
+// the My PT Hub channel (youtube.com/@MyPTHub), verified embeddable via YouTube
+// oEmbed when this map was authored.
 //
-// Most entries are exercise-name matches against the My PT Hub demo channel
-// (youtube.com/@MyPTHub), cross-referenced with public/json/exercises.json; the
-// rest are hand-picked aliases for common free-form names (e.g. "squat"). Names
-// are normalized (lowercase). Exercises without a mapping fall back to the
-// YouTube/TikTok search buttons. Extend by adding entries below.
+// Most entries are exercise-name matches against public/json/exercises.json; the
+// rest are aliases for common free-form names (e.g. "squat"), also resolved to a
+// My PT Hub video. Names are normalized (lowercase). Exercises without a mapping
+// fall back to the YouTube/TikTok search buttons. Extend by adding entries below.
 
 const EXERCISE_VIDEOS: Record<string, string> = {
   "3/4 sit-up": "qIyuxNyZ0NQ", // 3:4 Sit Up
@@ -29,21 +29,18 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "band pull apart": "s4S7BdmVfRw", // Band Pull Apart
   "band skull crusher": "zVFahHKFLvk", // Band Skull Crusher
   "barbell ab rollout": "JDbvtIuBnMc", // Barbell Ab Rollout
-  "barbell bench press - medium grip": "hWbUlkb5Ms4",
   "barbell curl": "rt0M5P20ebQ", // Barbell Curl
   "barbell curls lying against an incline": "lrV5A-HaEuk", // Barbell Curl Lying Against An Incline
   "barbell deadlift": "uQFZFwrg2VE", // Barbell Deadlift
-  "barbell full squat": "rrJIyZGlK8c",
   "barbell glute bridge": "yYCc2HDLfO8", // Barbell Glute Bridge
   "barbell guillotine bench press": "cqJ2jm_YkaU", // Barbell Guillotine Bench Press
   "barbell hack squat": "YkU5n_GXUU4", // Barbell Hack Squat
   "barbell hip thrust": "TSz4XEoFSFw", // Barbell Hip Thrust
-  "barbell incline bench press - medium grip": "98HWfiRonkE",
   "barbell incline shoulder raise": "3Y_RFoYl-dk", // Barbell Incline Shoulder Raise
   "barbell lunge": "gWeyziUtsa0", // Barbell Lunges
   "barbell rear delt row": "P9cXUGEJKbw", // Barbell Rear Delt Row
   "barbell rollout from bench": "RVGYevyytlc", // Barbell Rollout From Bench
-  "barbell row": "Nqh7q3zDCoQ",
+  "barbell row": "lL7rdQjRIVI", // Bent Over Barbell Row
   "barbell seated calf raise": "drNzvpIuTGM", // Barbell Seated Calf Raise
   "barbell shrug": "ibbeNcOeZv8", // Barbell Shrug
   "barbell shrug behind the back": "NYclHLyUFn0", // Barbell Shrug Behind The Back
@@ -53,28 +50,27 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "barbell squat to a bench": "VPds8GE5Fjk", // Barbell Squat To A Bench
   "barbell step ups": "2SIHLrw5EBo", // Barbell Step-Ups
   "barbell walking lunge": "YSh0CDCuaOE", // Barbell Walking Lunges
-  "battling ropes": "1gNMRV1GUFg",
   "bench dips": "JVhG3GkF71o", // Bench Dips
-  "bench press": "hWbUlkb5Ms4",
+  "bench press": "2KTA9fLY2PU", // Barbell Bench Press
   "bench sprint": "f9opH_r6k9I", // Bench Sprint
   "bent over barbell row": "lL7rdQjRIVI", // Bent Over Barbell Row
   "bent over low-pulley side lateral": "Dg__TBaN1qo", // Bent Over Low-Pulley Side Lateral
   "bent over one-arm long bar row": "IHlkbFF4_e8", // Bent Over One-Arm Long Bar Row
-  "bent over row": "Nqh7q3zDCoQ",
+  "bent over row": "lL7rdQjRIVI", // Bent Over Barbell Row
   "bent-arm barbell pullover": "0wS1mVIk100", // Bent Arm Barbell Pullover
   "bent-arm dumbbell pullover": "QI2wOrMCzwc", // Bent-Arm Dumbbell Pullover
   "bent-knee hip raise": "R7Se3TSe1w4", // Bent Knee Hip Raises
-  "bicep curl": "XE_pHwbst04",
-  "bicycling, stationary": "rEqRmKAQ5xM",
+  "bicep curl": "6tje5r0AAdA", // Dumbbell Bicep Curl
   "body tricep press": "bHTZESCqtHs", // Body Tricep Press
   "bodyweight flyes": "C9JSBMCFdL0", // Bodyweight Flyes
   "bodyweight squat": "NrKLFHsWnCM", // Bodyweight Squats
   "bodyweight walking lunge": "SEPec1bcp1E", // Bodyweight Walking Lunges
   "bottoms up": "PShU9VHu-Co", // Bottoms Up
+  "box jump": "BLVDRvaS6Nc", // Box Jumps
   "box jump (multiple response)": "BLVDRvaS6Nc", // Box Jumps
   "box squat": "9MWwluwwJbU", // Box Squats
   "bradford/rocky presses": "utxC_-PuRVs", // Bradford:Rocky Presses
-  burpee: "qLBImHhCXSw",
+  burpee: "t0eZJG4WZI0", // Burpees
   "cable chest press": "bZPtYUSb-qU", // Cable Chest Press
   "cable crossover": "aT5grk7nPPI", // Cable Crossover
   "cable crunch": "T4y1rB-UVV4", // Cable Crunch
@@ -94,13 +90,14 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "cable seated crunch": "j3oQDKmMliU", // Cable Seated Crunch
   "cable seated lateral raise": "Gg1cCNLmjSM", // Cable Seated Lateral Raises
   "cable shrugs": "3Tp08q3ARAo", // Cable Shrugs
-  "calf raise": "n-5T_oYc1oU",
+  "calf raise": "0wSc1RO10xg", // Dumbbell Calf Raises
   "calf raises - with bands": "LVJvnfkIfNw", // Calf Raises With Bands
   "car deadlift": "w5gRp2NQxlQ", // Car Deadlift
   "car drivers": "N-LyAACMuuM", // Car Drivers
   "chair squat": "oKbxITeBikc", // Chair Squat
-  "chest fly": "rk8YayRoTRQ",
+  "chest press": "bZPtYUSb-qU", // Cable Chest Press
   "childs pose": "1a8JQcEQI9Y", // Childs Pose (Beginner)
+  "chin up": "IbuEsDYpR_Q", // Chin Ups
   "chin-up": "IbuEsDYpR_Q", // Chin Ups
   clean: "aqgMV_71fKw", // Clean
   "clean and jerk": "wp7xb7JV6S4", // Clean And Jerk
@@ -113,16 +110,17 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "close-grip push-up off of a dumbbell": "mt9dTVNBbrQ", // Close-Grip Push-up Off Of A Dumbbell
   "close-grip standing barbell curl": "MLZxDHouma4", // Close-Grip Standing Barbell Curl
   cocoons: "_epVveGVTz8", // Cocoons
+  "concentration curl": "vj3z4AetehE", // Concentration Curls
   "concentration curls": "vj3z4AetehE", // Concentration Curls
   "cross body hammer curl": "193aKGDmig4", // Cross Body Hammer Curls
   "cross-body crunch": "2b9EtcH771k", // Cross-Body Crunch
   crucifix: "jV_u23Z7bcE", // Crucifix
-  crunch: "ZKw4t23ERuw",
+  crunch: "T4y1rB-UVV4", // Cable Crunch
   "crunch - hands overhead": "ey5fxii7i9U", // Crunch - Hands Overhead
   crunches: "jyL1ualF5uQ", // Crunches
   "cuban press": "bcdr6Hi3IBo", // Cuban Press
   "dead bug": "9JHV1uiGKzo", // Dead Bug
-  deadlift: "ZaTM37cfiDs",
+  deadlift: "uQFZFwrg2VE", // Barbell Deadlift
   "decline barbell bench press": "xfXBMGJUuUM", // Decline Barbell Bench Press
   "decline dumbbell bench press": "i5WZXKN23Po", // Decline Dumbbell Bench Press
   "decline dumbbell flyes": "dfqyhKb6MoA", // Decline Dumbbell Flyes
@@ -131,7 +129,6 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "decline oblique crunch": "jJ3_d0KBR6A", // Decline Oblique Crunch
   "decline push-up": "dEoTnCslFyw", // Decline Push-Ups
   "decline smith press": "e9gnZca2c68", // Decline Smith Press
-  dip: "9llvBAV4RHI",
   "double kettlebell jerk": "dS-tFsbP6ro", // Double Kettlebell Jerk
   "double kettlebell push press": "BzWAtLL8bMM", // Double Kettlebell Push Press
   "double kettlebell snatch": "m5tLkPcBuFQ", // Double Kettlebell Snatch
@@ -141,7 +138,6 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "dumbbell bench press with neutral grip": "elGcGgwbpFw", // Dumbbell Bench Press with Neutral Grip
   "dumbbell bicep curl": "6tje5r0AAdA", // Dumbbell Bicep Curl
   "dumbbell clean": "R14DDDt-XFI", // Dumbbell Clean
-  "dumbbell curl": "XE_pHwbst04",
   "dumbbell floor press": "Sc2WjvXmU88", // Dumbbell Floor Press
   "dumbbell flyes": "2imiSDyfV40", // Dumbbell Flyes
   "dumbbell incline row": "tojf5lFfcII", // Dumbbell Incline Row
@@ -155,7 +151,7 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "dumbbell prone incline curl": "Yi6XqFRMFXE", // Dumbbell Prone Incline Curl
   "dumbbell raise": "WE_LZJCPJa4", // Dumbbell Raise
   "dumbbell rear lunge": "i-Fqn7E1sLE", // Dumbbell Rear Lunge
-  "dumbbell row": "gfUg6qWohTk",
+  "dumbbell row": "4TDYgEsJYs0", // Bent-Over Dumbbell Row
   "dumbbell scaption": "m6NBpSBjPGs", // Dumbbell Scaption
   "dumbbell seated box jump": "uozrKs3YPAI", // Dumbbell Seated Box Jump
   "dumbbell shrug": "uYTK_H1bP6M", // Dumbbell Shrug
@@ -181,15 +177,17 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "front cable raise": "qkcU7p_m4to", // Front Cable Raises
   "front incline dumbbell raise": "AbdHWZuYo_A", // Front Incline Dumbbell Raise
   "front plate raise": "UbO4CrbfV9c", // Front Plate Raise
+  "front raise": "-Xhb_E9FHLM", // Cable Front Raises
   "front raise and pullover": "ulEbzaPy1Fo", // Front Raise and Pullover
-  "front squat": "_qv0m3tPd3s",
-  "full range-of-motion lat pulldown": "bNmvKpJSWKM",
+  "front squat": "l6EPoqWS_iQ", // Barbell Front Squats
   "gironda sternum chins": "u3m3amlgj5I", // Gironda Sternum Chins
+  "glute bridge": "qU8t_res8wc", // Glute Bridge
   "goblet squat": "JN_ibGLbjxM", // Goblet Squat
   "good morning": "6-mJR5NvF3c", // Good Mornings
   "good morning off pins": "FubluSoLsmk", // Good Mornings Off Pins
   groiners: "p2jgaHa50PU", // Groiners
-  "hammer curl": "TZUv6qhubas",
+  "hack squat": "YkU5n_GXUU4", // Barbell Hack Squat
+  "hammer curl": "DbO2oh_Ej5w", // Cable Hammer Curls (Rope Attachment)
   "hang clean": "LLFo2TxLOLo", // Hang Cleans
   "hang clean - below the knees": "KzCB9mc6J2w", // Hang Clean - Below The Knees
   "hang snatch": "Eq7ZlBmFdhs", // Hang Snatch
@@ -198,11 +196,15 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "hanging pike": "W2bAqtQ_smM", // Hanging Pike
   "heaving snatch balance": "XzStZIFlvyI", // Heaving Snatch Balance
   "high cable curls": "GIROVVeVR4U", // High Cable Curls
+  "high knees": "0VoYrQ0WwSQ", // High Knees
+  "hip abduction": "ONfaDgL9bcM", // Cable Hip Abduction
+  "hip adduction": "e8ZhzDSHbKs", // Cable Hip Adduction
   "hip circles (prone)": "3ilzqrFEkkY", // Hip Circles
   "hip extension with bands": "kUGSunBQqH0", // Hip Extension With Bands
   "hip flexion with band": "gbf5YBB5Nuo", // Hip Flexion With Bands
-  "hip thrust": "5S8SApGU_Lk",
+  "hip thrust": "_Wrj5m7DnJ8", // Hip Thrusts
   "hyperextensions (back extensions)": "qSUpG1a7RMY", // Hyperextensions
+  "incline bench press": "a5wQXOywduw", // Barbell Incline Bench Press
   "incline cable chest press": "K88hDCAfjMU", // Incline Cable Chest Press
   "incline cable flye": "Y389PIcfs2A", // Incline Cable Flyes
   "incline dumbbell curl": "ouKnGRb043g", // Incline Dumbbell Curls
@@ -215,12 +217,12 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "jefferson squats": "wcfgi6fpLAg", // Jefferson Squat
   "jerk balance": "fjcQpFyHfAs", // Jerk Balance
   "jerk dip squat": "5rCKWWWJIq4", // Jerk Dip Squat
-  "jogging, treadmill": "K6I24WgiiPw",
   "kettlebell arnold press": "BwYjlOl2fKI", // Kettlebell Arnold Press
   "kettlebell figure 8": "w0nXNiWjS6M", // Kettlebell Figure of 8
   "kettlebell pirate ships": "Q9t1xZRFnow", // Kettlebell Pirate Ships
   "kettlebell seesaw press": "GJ9mnv67J3c", // Kettlebell Seesaw Press
   "kettlebell sumo high pull": "paH0vS_96pc", // Kettlebell Sumo High Pull
+  "kettlebell swing": "7vFAsThHuKs", // Kettlebell Swings
   "kettlebell thruster": "gzCRD2MS4-s", // Kettlebell Thruster
   "kettlebell turkish get-up (lunge style)": "fNH_IZwSo4I", // Kettlebell Turkish Get Up
   "kettlebell turkish get-up (squat style)": "fNH_IZwSo4I", // Kettlebell Turkish Get Up
@@ -230,12 +232,12 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "kneeling single-arm high pulley row": "83BT6B4v7T4", // Kneeling Single-Arm High Pulley Row
   "kneeling squat": "AmV5OLE0sB0", // Kneeling Squats
   "landmine 180s": "luYHqEgnXbk", // Landmine 180's
-  "lat pulldown": "bNmvKpJSWKM",
+  "lat pulldown": "2x9E_reM8cU", // Wide Grip Lat Pulldown
   "lateral bound": "uFt_6R_iSm4", // Lateral Bounds
-  "lateral raise": "Kl3LEzQ5Zqs",
+  "lateral raise": "1AzIueZ5OkQ", // Dumbbell Lateral Raises
   "lateral raise - with bands": "zdSueJ3JM-o", // Lateral Raises With Bands
-  "leg curl": "_lgE0gPvbik",
-  "leg extension": "ztNBgrGy6FQ",
+  "leg curl": "joImLSPyQWQ", // Seated Leg Curl
+  "leg extension": "vw7VJ-EBnfM", // Leg Extension
   "leg extensions": "eMXR40gE044", // Leg Extensions
   "leg press": "7IjrQj2sxqA", // Leg Press
   "leg pull-in": "AH7uELjhyPI", // Leg Pull Ins
@@ -246,7 +248,7 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "log lift": "JpLG2zJBHg8", // Log Lift
   "low cable crossover": "e3FsvYvlXiY", // Low Cable Crossover
   "low cable triceps extension": "14FLeQKDGj8", // Low Cable Tricep Extension
-  lunge: "mJilHWIBWO8",
+  lunge: "gWeyziUtsa0", // Barbell Lunges
   "lying cable curl": "fv2Iih_LoCw", // Lying Cable Curls
   "lying close-grip barbell triceps extension behind the head": "XPQziBbJVnI", // Lying Close-Grip Barbell Triceps Extension Behind The Head
   "lying close-grip barbell triceps press to chin": "EkLv3kFPxmY", // Lying Close-Grip Barbell Triceps Press To Chin
@@ -256,7 +258,7 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "lying supine dumbbell curl": "n3MXFaGzg5U", // Lying Supine Dumbbell Curl
   "lying t-bar row": "EOFZfYZYAO8", // Lying T Bar Row
   "middle back shrug": "91-CcFKUxwQ", // Middle Back Shrug
-  "mountain climber": "cnyTQDSE884",
+  "mountain climber": "8Av7DoAgxVU", // Mountain Climbers
   "mountain climbers": "8Av7DoAgxVU", // Mountain Climbers
   "narrow stance leg press": "S-gbYkOQ2mk", // Narrow Stance Leg Press
   "natural glute ham raise": "ifwSOKm9MCE", // Natural Glute Ham Raise
@@ -278,7 +280,7 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "one-legged cable kickback": "8bqi57dOO7U", // One-Legged Cable Kickback
   "otis-up": "vjAjAERSkIk", // Otis-Up
   "overhead cable curl": "AcEgxyKpcU8", // Overhead Cable Curls
-  "overhead press": "zoN5EH50Dro",
+  "overhead press": "HljalG4mOUY", // Seated Shoulder Press
   "overhead squat": "k4naFq89yb4", // Overhead Squat
   "pallof press": "rts4oLM6lGs", // Pallof Press
   "pallof press with rotation": "HRiKIeyIByw", // Pallof Press With Rotation
@@ -296,13 +298,17 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "power jerk": "C8HNgSjsUzA", // Power Jerk
   "power snatch": "i1EKpyahAZI", // Power Snatch
   "power snatch from blocks": "PBGfwmFrZPE", // Power Snatch From Blocks
+  "preacher curl": "elzZvAnPdBg", // Dumbbell Preacher Curls
   "press sit-up": "VRlWN3qarTo", // Press Sit-Up
-  "pull up": "eGo4IYlbE5g",
+  "press up": "ukHDKEVwSp8", // Press Ups
+  "pull over": "RdMZXz6yZIo", // Barbell Pullover
+  "pull up": "__9ocWQapAk", // Pull-Ups (Wide Grip)
+  pulldown: "2x9E_reM8cU", // Wide Grip Lat Pulldown
   pullups: "__9ocWQapAk", // Pull-Ups (Wide Grip)
   "push press": "jjmHMGJrOFE", // Push Press (Behind The Neck)
-  "push up": "_YrJc-kTYA0",
+  "push up": "ukHDKEVwSp8", // Press Ups
   "push up to side plank": "gjeXEwSS0b4", // Push Up To Side Plank
-  pushups: "_YrJc-kTYA0",
+  pushups: "ukHDKEVwSp8", // Press Ups
   "rack pulls": "jiF2sZx1PYk", // Rack Pulls
   "recumbent bike": "y-PPIpPv124", // Recumbent Bike
   "reverse barbell curl": "Yo0hHjvfdQI", // Reverse Barbell Curl
@@ -310,12 +316,13 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "reverse cable curl": "nhRWOQZtvoY", // Reverse Cable Curl
   "reverse crunch": "HuaW4wOgDZU", // Reverse Crunch
   "reverse grip triceps pushdown": "MfxVKZn8tL8", // Reverse Grip Triceps Pushdown
+  "reverse lunge": "0ygCeLlHEh4", // Barbell Reverse Lunges
   "reverse plate curls": "-pu02WL_ID0", // Reverse Plate Curls
   "ring dips": "PJXkw1ZwjQk", // Ring Dips
-  "romanian deadlift": "5rIqP63yWFg",
+  "romanian deadlift": "7v3WMF1VDU4", // Dumbbell Romanian Deadlifts
   "rope climb": "6y4K-zrgfNU", // Rope Climb
   "rope straight-arm pulldown": "GOYikbtya6U", // Rope Straight Arm Pulldown
-  "russian twist": "wkD8rjkodUI",
+  "russian twist": "WjYjVAnJU7M", // Cable Russian Twists
   "scapular pull-up": "NyHE9NPR3Qo", // Scapular Pull-Up
   "scissor kick": "DP9gjA82WdY", // Scissor Kicks
   "seated barbell military press": "3Dh4XKNLJ4Y", // Seated Barbell Military Press
@@ -333,15 +340,19 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "see-saw press (alternating side press)": "DFzg2wdoEX8", // See-Saw Press
   "shotgun row": "UWK2XrUMjyw", // Shotgun Row
   "shoulder circles": "gHdck9mOQjA", // Shoulder Circles
-  "shoulder press": "k6tzKisR3NY",
+  "shoulder press": "HljalG4mOUY", // Seated Shoulder Press
+  shrug: "ibbeNcOeZv8", // Barbell Shrug
   "side bridge": "OGtRZ4vP7cI", // Side Bridges
   "side jackknife": "eLUSfdbxvF8", // Side Jackknife
+  "side plank": "YohbrmlrivU", // Side Plank
   "single leg butt kick": "lGfI2026J94", // Single Leg Butt Kick
   "single leg glute bridge": "3kyAjM5mv3I", // Single Leg Glute Bridge
   "single-arm cable crossover": "Ob5vbpJShKU", // Single Arm Cable Crossover
   "single-arm linear jammer": "FkG27LeonTQ", // Single-Arm Linear Jammer
   "single-leg leg extension": "Gbl7lNosPTE", // Single-Leg Leg Extension
+  "sit up": "tgLGG1WeJxU", // Sit Ups
   "sit-up": "tgLGG1WeJxU", // Sit Ups
+  skullcrusher: "YbODisKSM_o", // Dumbbell Skullcrusher
   "sled overhead triceps extension": "6gNGbIjSj8g", // Sled Overhead Tricep Extensions
   "sled push": "2-sosJs_VQk", // Sled Push
   "sled reverse flye": "Wo7jivak5Yg", // Sled Reverse Flyes
@@ -369,7 +380,7 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "split jerk": "TGHdmx7GThs", // Split Jerk
   "split snatch": "6lMRyPs2ZC8", // Split Snatch
   "split squat with dumbbells": "Oal90jVJkyQ", // Split Squat with Dumbbells
-  squat: "rrJIyZGlK8c",
+  squat: "HljthpBlZVA", // Barbell Squat
   "squat jerk": "Pmey7_tyvQ4", // Squat Jerk
   "standing alternating dumbbell press": "I25p_PYgCno", // Standing Alternating Dumbbell Press
   "standing barbell press behind neck": "dxRxbOegFYA", // Standing Barbell Press Behind The Neck
@@ -394,15 +405,20 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   "sumo deadlift with bands": "9_C6O4CynVg", // Sumo Deadlifts With Bands
   "svend press": "rRToJYNADgA", // Svend Press
   "tate press": "Er-UcoSOA90", // Tate Press
+  thruster: "gzCRD2MS4-s", // Kettlebell Thruster
   "toe touchers": "v-FBXufN91Y", // Toe-Touchers
-  "triceps pushdown": "1FjkhpZsaxc",
+  "tricep dip": "6ff1rKCvslw", // Tricep Dips
+  "tricep pushdown": "Fw_rP-NZAU0", // Tricep Push-Down
+  "triceps pushdown": "Fw_rP-NZAU0", // Tricep Push-Down
   "two-arm dumbbell preacher curl": "EEStsiL9sG8", // Two Arm Dumbbell Preacher Curl
   "two-arm kettlebell military press": "ioD3Q6d9PSk", // Two-Arm Kettlebell Military Press
   "underhand cable pulldowns": "ENeMdS7iEjM", // Underhand Cable Pulldowns
   "upright barbell row": "v39_bcqzRvU", // Upright Barbell Row
   "upright cable row": "4kyqAHkx_BY", // Upright Cable Row
+  "upright row": "QnhT1Rg5YwA", // Dumbbell Upright Row
   "v-bar pulldown": "gR5uvo-1a2U", // V-Bar Pulldown
   "v-bar pullup": "kAAuh1-SxXw", // V-Bar Pullups
+  "walking lunge": "YSh0CDCuaOE", // Barbell Walking Lunges
   "weighted crunches": "GJDnTnCXpeA", // Weighted Crunches
   "weighted pull ups": "PC76k5VfPss", // Weighted Pull Ups
   "weighted sissy squat": "hOdsVKmHlGs", // Weighted Sissy Squats
@@ -430,9 +446,9 @@ function normalize(name: string): string {
 }
 
 /**
- * Resolves an exercise name to a curated YouTube video ID, or null if none is
- * mapped. Tries an exact normalized match first, then a substring/alias match
- * (e.g. "Dumbbell Bench Press" → "bench press", "Barbell Hip Thrust" → "hip thrust").
+ * Resolves an exercise name to a My PT Hub video ID, or null if none is mapped.
+ * Tries an exact normalized match first, then a substring/alias match (e.g.
+ * "Dumbbell Bench Press" → "bench press", "Barbell Hip Thrust" → "hip thrust").
  */
 export function getExerciseVideoId(name: string | undefined | null): string | null {
   const n = normalize(name ?? "");

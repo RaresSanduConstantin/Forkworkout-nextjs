@@ -42,7 +42,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { honkFont } from "@/lib/honkFont";
 
 import { getWorkoutById, getWorkouts, saveWorkouts } from "@/lib/storage/workout-storage";
-import { addCompletedWorkout } from "@/lib/storage/history-storage";
+import { addCompletedWorkout, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import {
   getActiveSessionFor,
   saveActiveSession,
@@ -52,8 +52,9 @@ import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { getExerciseVideoId } from "@/lib/exercise-videos";
+import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { ROUTES } from "@/lib/routes";
-import type { ActiveSession, SessionSet, SetStatus, SetUnit } from "@/lib/types";
+import type { ActiveSession, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
 // Type for exercise details from JSON
@@ -86,6 +87,7 @@ const StartWorkoutComponent = () => {
 
   const [workout, setWorkout] = useState<ActiveSession | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [history, setHistory] = useState<CompletedWorkout[]>([]);
 
   const [resting, setResting] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
@@ -168,6 +170,8 @@ const StartWorkoutComponent = () => {
   useEffect(() => {
     const found = getWorkoutById(workoutId);
     setRestSeconds(found?.rest ? parseInt(found.rest, 10) || 0 : 0);
+    // Snapshot history once for the per-exercise "last time / PR" hints.
+    setHistory(getCompletedWorkouts());
 
     const saved = getActiveSessionFor(workoutId);
     if (saved) {
@@ -644,6 +648,10 @@ const StartWorkoutComponent = () => {
                 </Select>
               </div>
 
+              {exercise.name.trim() && (
+                <ExerciseStatsLine name={exercise.name} history={history} />
+              )}
+
               {(() => {
                 const exUnit =
                   exercise.sets[0]?.unit ?? inferUnit(exercise.sets[0]?.value ?? "");
@@ -893,7 +901,7 @@ const StartWorkoutComponent = () => {
 
       {/* Video Modal */}
       <Dialog open={showVideoModal} onOpenChange={setShowVideoModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100%-1rem)] gap-3 p-3 sm:max-w-3xl sm:p-4">
           <DialogHeader className="text-left">
             <DialogTitle>Watch a demo</DialogTitle>
             <DialogDescription>
@@ -905,18 +913,18 @@ const StartWorkoutComponent = () => {
 
           {demoVideoId ? (
             <div className="space-y-3">
-              <AspectRatio ratio={16 / 9} className="overflow-hidden rounded-lg bg-black">
+              <div className="relative mx-auto aspect-video w-full max-h-[78svh] overflow-hidden rounded-lg bg-black">
                 {/* Keyed by id + open so it only mounts (and stops) with the dialog. */}
                 <iframe
                   key={`${demoVideoId}-${showVideoModal}`}
-                  className="h-full w-full"
+                  className="absolute inset-0 h-full w-full"
                   src={`https://www.youtube-nocookie.com/embed/${demoVideoId}?rel=0&modestbranding=1`}
                   title={`${selectedExercise} demo`}
                   loading="lazy"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                 />
-              </AspectRatio>
+              </div>
               <Button
                 variant="outline"
                 className="w-full justify-between"
