@@ -2,48 +2,28 @@
 
 import * as React from "react";
 
-import type { MuscleGroup } from "@/lib/exercises";
-import type { MuscleMapWidget, Muscle, MuscleIntensity } from "@abdofallah/musclemap-js";
-
-/** Our 6 coarse groups → the SDK's individual muscle slugs. */
-const GROUP_MUSCLES: Record<MuscleGroup, Muscle[]> = {
-  Chest: ["chest", "serratus"],
-  Back: ["upper-back", "lower-back", "trapezius", "rhomboids"],
-  Shoulders: ["deltoids", "rotator-cuff"],
-  Arms: ["biceps", "triceps", "forearm"],
-  Legs: ["quadriceps", "hamstring", "gluteal", "calves", "tibialis"],
-  Core: ["abs", "obliques"],
-};
-
-const HEATMAP_CFG = { colorScale: "workout" as const, threshold: 0.001 };
-
-function toMuscleIntensities(intensity: Record<MuscleGroup, number>): MuscleIntensity[] {
-  const out: MuscleIntensity[] = [];
-  for (const group of Object.keys(GROUP_MUSCLES) as MuscleGroup[]) {
-    const v = intensity[group] ?? 0;
-    if (v <= 0) continue;
-    for (const m of GROUP_MUSCLES[group]) out.push({ muscle: m, intensity: v });
-  }
-  return out;
-}
+import type { MuscleMapWidget } from "@abdofallah/musclemap-js";
+import type { MuscleHighlight } from "@/lib/muscle-map";
 
 /**
- * Renders the MuscleMapJS front + back body maps, shaded by per-group training
- * intensity (0–1). Instantiated client-side on canvas; cleaned up on unmount.
+ * Renders the MuscleMapJS front + back body maps with red highlights whose
+ * opacity encodes training intensity (primary muscles solid, secondary pale,
+ * ramping with volume). Instantiated client-side on canvas; cleaned up on
+ * unmount.
  */
 export function MuscleMapView({
-  intensity,
+  highlights,
   gender = "male",
 }: {
-  intensity: Record<MuscleGroup, number>;
+  highlights: MuscleHighlight[];
   gender?: "male" | "female";
 }) {
   const frontRef = React.useRef<HTMLDivElement>(null);
   const backRef = React.useRef<HTMLDivElement>(null);
   const frontMap = React.useRef<MuscleMapWidget | null>(null);
   const backMap = React.useRef<MuscleMapWidget | null>(null);
-  const intensityRef = React.useRef(intensity);
-  intensityRef.current = intensity;
+  const highlightsRef = React.useRef(highlights);
+  highlightsRef.current = highlights;
 
   React.useEffect(() => {
     let mounted = true;
@@ -62,9 +42,8 @@ export function MuscleMapView({
         interactive: false,
         multiSelect: false,
       });
-      const data = toMuscleIntensities(intensityRef.current);
-      frontMap.current.setHeatmap(data, HEATMAP_CFG);
-      backMap.current.setHeatmap(data, HEATMAP_CFG);
+      frontMap.current.setHighlightData(highlightsRef.current);
+      backMap.current.setHighlightData(highlightsRef.current);
       cleanup = () => {
         frontMap.current?.destroy();
         backMap.current?.destroy();
@@ -78,12 +57,11 @@ export function MuscleMapView({
     };
   }, [gender]);
 
-  // Re-shade when intensities change (e.g. a set is completed live).
+  // Re-shade when highlights change (e.g. a set is completed live).
   React.useEffect(() => {
-    const data = toMuscleIntensities(intensity);
-    frontMap.current?.setHeatmap(data, HEATMAP_CFG);
-    backMap.current?.setHeatmap(data, HEATMAP_CFG);
-  }, [intensity]);
+    frontMap.current?.setHighlightData(highlights);
+    backMap.current?.setHighlightData(highlights);
+  }, [highlights]);
 
   return (
     <div className="flex items-end justify-center gap-4">

@@ -44,6 +44,14 @@ export function muscleGroupSetCounts(
   library: LibraryExercise[],
   days: number
 ): MuscleGroupCount[] {
+  return muscleGroupCountsFromExercises(collectWindowExercises(history, days), library);
+}
+
+/** Flattened exercises from all workouts within the last `days` days. */
+export function collectWindowExercises(
+  history: CompletedWorkout[],
+  days: number
+): { name: string; sets: { status?: SetStatus; type?: SetType }[] }[] {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   const exercises: { name: string; sets: { status?: SetStatus; type?: SetType }[] }[] = [];
   for (const w of history) {
@@ -51,7 +59,7 @@ export function muscleGroupSetCounts(
     if (!Number.isFinite(t) || t < cutoff) continue;
     if (w.exercises) exercises.push(...w.exercises);
   }
-  return muscleGroupCountsFromExercises(exercises, library);
+  return exercises;
 }
 
 /** Total sets across all groups (for headline / empty-state checks). */

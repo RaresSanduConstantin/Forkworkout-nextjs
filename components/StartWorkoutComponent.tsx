@@ -58,7 +58,7 @@ import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName } from "@/lib/history-stats";
-import { muscleGroupCountsFromExercises, muscleIntensities } from "@/lib/muscle-stats";
+import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
 import {
   Accordion,
@@ -276,10 +276,10 @@ const StartWorkoutComponent = () => {
     return map;
   }, [exNamesKey, history]);
 
-  // Live muscle-group intensity from the sets completed so far this session.
-  const muscleIntensity = useMemo(() => {
+  // Live muscle highlights from the sets completed so far this session.
+  const muscleHighlightData = useMemo(() => {
     if (!workout) return null;
-    return muscleIntensities(muscleGroupCountsFromExercises(workout.exercises, library));
+    return muscleHighlights(muscleScores(workout.exercises, library));
   }, [workout, library]);
 
   // Pre-session PR snapshot per exercise, taken once when the session loads, so
@@ -785,7 +785,7 @@ const StartWorkoutComponent = () => {
         <Progress value={progress.percent} aria-label="Workout progress" />
       </div>
 
-      {muscleIntensity && (
+      {muscleHighlightData && (
         <Accordion
           type="single"
           collapsible
@@ -800,9 +800,9 @@ const StartWorkoutComponent = () => {
               </span>
             </AccordionTrigger>
             <AccordionContent>
-              <MuscleMapView intensity={muscleIntensity} />
+              <MuscleMapView highlights={muscleHighlightData} />
               <p className="mt-1 text-center text-xs text-muted-foreground">
-                Lights up as you complete sets.
+                Lights up as you complete sets — primary muscles solid, secondary paler.
               </p>
             </AccordionContent>
           </AccordionItem>

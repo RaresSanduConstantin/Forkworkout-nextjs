@@ -8,7 +8,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
 import type { CompletedWorkout } from "@/lib/types";
 import { getCachedLibrary, loadExerciseLibrary, type LibraryExercise } from "@/lib/exercises";
-import { muscleGroupSetCounts, muscleIntensities, totalSets } from "@/lib/muscle-stats";
+import {
+  muscleGroupSetCounts,
+  totalSets,
+  collectWindowExercises,
+} from "@/lib/muscle-stats";
+import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 
 /**
  * Muscle-group training balance: a stylized body heatmap + a ranked bar
@@ -33,7 +38,10 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
     () => muscleGroupSetCounts(history, library, days),
     [history, library, days]
   );
-  const intensity = React.useMemo(() => muscleIntensities(counts), [counts]);
+  const highlights = React.useMemo(
+    () => muscleHighlights(muscleScores(collectWindowExercises(history, days), library)),
+    [history, library, days]
+  );
   const total = totalSets(counts);
   const ranked = React.useMemo(() => [...counts].sort((a, b) => b.sets - a.sets), [counts]);
   const maxSets = ranked.length ? ranked[0].sets : 0;
@@ -75,7 +83,7 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
           </p>
         ) : (
           <>
-            <MuscleMapView intensity={intensity} />
+            <MuscleMapView highlights={highlights} />
 
 
             <div className="space-y-2">

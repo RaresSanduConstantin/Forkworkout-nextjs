@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { MUSCLE_GROUPS } from "@/lib/exercises";
+import { SELECTABLE_MUSCLES } from "@/lib/muscle-map";
 import { addCustomExercise, upsertCustomExercise, type CustomExercise } from "@/lib/storage/custom-exercises";
 import { extractYouTubeId } from "@/lib/exercise-videos";
 import type { SetUnit } from "@/lib/types";
@@ -66,11 +66,17 @@ export function CustomExerciseDialog({
 }) {
   const [name, setName] = React.useState(initialName);
   const [unit, setUnit] = React.useState<SetUnit>("kg");
-  const [groups, setGroups] = React.useState<string[]>([]);
+  const [primary, setPrimary] = React.useState<string[]>([]);
+  const [secondary, setSecondary] = React.useState<string[]>([]);
   const [category, setCategory] = React.useState("strength");
   const [equipment, setEquipment] = React.useState("");
   const [instructions, setInstructions] = React.useState("");
   const [videoUrl, setVideoUrl] = React.useState("");
+
+  const matchMuscles = (stored: string[]) =>
+    SELECTABLE_MUSCLES.filter((m) =>
+      stored.some((s) => s.toLowerCase() === m.value.toLowerCase())
+    ).map((m) => m.value);
 
   // Prefill from the exercise being edited, or reset to the typed name.
   React.useEffect(() => {
@@ -78,12 +84,8 @@ export function CustomExerciseDialog({
     if (editing) {
       setName(editing.name);
       setUnit(editing.defaultUnit);
-      // Muscle groups are stored lowercased; match them back to the labels.
-      setGroups(
-        MUSCLE_GROUPS.filter((g) =>
-          editing.primaryMuscles.some((m) => m.toLowerCase() === g.toLowerCase())
-        )
-      );
+      setPrimary(matchMuscles(editing.primaryMuscles));
+      setSecondary(matchMuscles(editing.secondaryMuscles));
       setCategory(editing.category || "strength");
       setEquipment(editing.equipment ?? "");
       setInstructions(editing.instructions.join("\n"));
@@ -91,7 +93,8 @@ export function CustomExerciseDialog({
     } else {
       setName(initialName);
       setUnit("kg");
-      setGroups([]);
+      setPrimary([]);
+      setSecondary([]);
       setCategory("strength");
       setEquipment("");
       setInstructions("");
@@ -118,8 +121,9 @@ export function CustomExerciseDialog({
       defaultUnit: unit,
       category,
       equipment: equipment.trim() || null,
-      // Store the (lowercased) muscle-group labels; the taxonomy maps them back.
-      primaryMuscles: groups.map((g) => g.toLowerCase()),
+      // Specific muscles power the accurate body heatmap (primary vs secondary).
+      primaryMuscles: primary,
+      secondaryMuscles: secondary,
       instructions: instructions
         .split("\n")
         .map((s) => s.trim())
@@ -187,17 +191,40 @@ export function CustomExerciseDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Muscle groups (optional)</Label>
+            <Label>Primary muscles</Label>
+            <p className="text-xs text-muted-foreground">
+              The main muscles this exercise targets — shown solid red on your body heatmap.
+            </p>
             <ToggleGroup
               type="multiple"
-              value={groups}
-              onValueChange={setGroups}
+              value={primary}
+              onValueChange={setPrimary}
               variant="outline"
               className="flex flex-wrap justify-start gap-2"
             >
-              {MUSCLE_GROUPS.map((g) => (
-                <ToggleGroupItem key={g} value={g} className={chipItemClass}>
-                  {g}
+              {SELECTABLE_MUSCLES.map((m) => (
+                <ToggleGroupItem key={m.value} value={m.value} className={chipItemClass}>
+                  {m.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Secondary muscles (optional)</Label>
+            <p className="text-xs text-muted-foreground">
+              Assisting muscles — shown a paler red.
+            </p>
+            <ToggleGroup
+              type="multiple"
+              value={secondary}
+              onValueChange={setSecondary}
+              variant="outline"
+              className="flex flex-wrap justify-start gap-2"
+            >
+              {SELECTABLE_MUSCLES.map((m) => (
+                <ToggleGroupItem key={m.value} value={m.value} className={chipItemClass}>
+                  {m.label}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
