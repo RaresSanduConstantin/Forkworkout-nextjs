@@ -27,6 +27,23 @@ export function BodyProfileCard({
   profile: BodyProfile;
   onChange: (patch: Partial<BodyProfile>) => void;
 }) {
+  // Local text state so typing isn't wiped by the store's range normalization
+  // (intermediate values like "1" are out of range). Persist on blur.
+  const [height, setHeight] = React.useState("");
+  const [year, setYear] = React.useState("");
+
+  React.useEffect(() => {
+    setHeight(profile.heightCm != null ? String(profile.heightCm) : "");
+  }, [profile.heightCm]);
+  React.useEffect(() => {
+    setYear(profile.birthYear != null ? String(profile.birthYear) : "");
+  }, [profile.birthYear]);
+
+  const commitHeight = () =>
+    onChange({ heightCm: height.trim() ? Number(height) : undefined });
+  const commitYear = () =>
+    onChange({ birthYear: year.trim() ? Number(year) : undefined });
+
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
@@ -46,10 +63,9 @@ export function BodyProfileCard({
             <NumberInput
               id="bp-height"
               decimal
-              value={profile.heightCm != null ? String(profile.heightCm) : ""}
-              onChange={(e) =>
-                onChange({ heightCm: e.target.value ? Number(e.target.value) : undefined })
-              }
+              value={height}
+              onChange={(e) => setHeight(e.target.value)}
+              onBlur={commitHeight}
               placeholder="e.g. 178"
             />
           </div>
@@ -60,10 +76,9 @@ export function BodyProfileCard({
             </label>
             <NumberInput
               id="bp-year"
-              value={profile.birthYear != null ? String(profile.birthYear) : ""}
-              onChange={(e) =>
-                onChange({ birthYear: e.target.value ? Number(e.target.value) : undefined })
-              }
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              onBlur={commitYear}
               placeholder="e.g. 1995"
             />
           </div>
