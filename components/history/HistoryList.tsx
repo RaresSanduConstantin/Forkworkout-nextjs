@@ -43,6 +43,9 @@ function EntryCard({
     entry.volume ? `${entry.volume.toLocaleString()} kg` : null,
     entry.exercises ? `${entry.exercises.length} exercises` : null,
     entry.rpe ? `RPE ${entry.rpe}` : null,
+    entry.calories ? `${entry.calories.toLocaleString()} kcal` : null,
+    entry.avgHeartRate ? `${entry.avgHeartRate} bpm avg` : null,
+    entry.maxHeartRate ? `${entry.maxHeartRate} bpm max` : null,
   ].filter(Boolean);
 
   return (

@@ -106,6 +106,9 @@ const StartWorkoutComponent = () => {
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [finishNotes, setFinishNotes] = useState("");
   const [finishRpe, setFinishRpe] = useState<number | null>(null);
+  const [finishCalories, setFinishCalories] = useState("");
+  const [finishAvgBpm, setFinishAvgBpm] = useState("");
+  const [finishMaxBpm, setFinishMaxBpm] = useState("");
 
   // Keep the phone screen awake during the workout.
   useWakeLock(true);
@@ -537,6 +540,9 @@ const StartWorkoutComponent = () => {
       exercises: snapshot,
       notes: finishNotes.trim() || undefined,
       rpe: finishRpe ?? undefined,
+      calories: parseInt(finishCalories, 10) || undefined,
+      avgHeartRate: parseInt(finishAvgBpm, 10) || undefined,
+      maxHeartRate: parseInt(finishMaxBpm, 10) || undefined,
     });
 
     // Persist edited reps/values/units back onto the saved workout (strip statuses).
@@ -1173,6 +1179,39 @@ const StartWorkoutComponent = () => {
               rows={3}
               maxLength={500}
             />
+
+            <div className="space-y-1.5">
+              <span className="text-sm font-medium">From your watch (optional)</span>
+              <div className="grid grid-cols-3 gap-2">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={finishCalories}
+                  onChange={(e) => setFinishCalories(e.target.value)}
+                  placeholder="kcal"
+                  aria-label="Calories burned"
+                />
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={finishAvgBpm}
+                  onChange={(e) => setFinishAvgBpm(e.target.value)}
+                  placeholder="avg bpm"
+                  aria-label="Average heart rate"
+                />
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={finishMaxBpm}
+                  onChange={(e) => setFinishMaxBpm(e.target.value)}
+                  placeholder="max bpm"
+                  aria-label="Max heart rate"
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">

@@ -69,6 +69,9 @@ export type CompletedWorkout = {
   exercises?: CompletedExercise[]; // snapshot of what was performed
   notes?: string; // free-text session notes ("felt heavy")
   rpe?: number; // overall session RPE (1–10)
+  calories?: number; // kcal burned (from a wearable, user-entered)
+  avgHeartRate?: number; // average bpm (user-entered)
+  maxHeartRate?: number; // max bpm (user-entered)
 };
 
 // Live workout session state (persisted so a refresh can resume progress).

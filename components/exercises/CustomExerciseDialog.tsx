@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MUSCLE_GROUPS } from "@/lib/exercises";
-import { addCustomExercise } from "@/lib/storage/custom-exercises";
+import { addCustomExercise, upsertCustomExercise, type CustomExercise } from "@/lib/storage/custom-exercises";
 import { extractYouTubeId } from "@/lib/exercise-videos";
 import type { SetUnit } from "@/lib/types";
 
@@ -49,16 +49,19 @@ const CATEGORY_OPTIONS = [
 const chipItemClass =
   "!flex-none !rounded-md !border-l px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground";
 
-/** Modal to create a user-defined exercise, merged into the local library. */
+/** Modal to create or edit a user-defined exercise, merged into the local library. */
 export function CustomExerciseDialog({
   open,
   onOpenChange,
   initialName = "",
+  editing,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialName?: string;
+  /** When set, the dialog edits this exercise (prefilled; rename allowed). */
+  editing?: CustomExercise | null;
   onCreated: (name: string) => void;
 }) {
   const [name, setName] = React.useState(initialName);
@@ -69,9 +72,23 @@ export function CustomExerciseDialog({
   const [instructions, setInstructions] = React.useState("");
   const [videoUrl, setVideoUrl] = React.useState("");
 
-  // Reset the form to the typed name each time the dialog opens.
+  // Prefill from the exercise being edited, or reset to the typed name.
   React.useEffect(() => {
-    if (open) {
+    if (!open) return;
+    if (editing) {
+      setName(editing.name);
+      setUnit(editing.defaultUnit);
+      // Muscle groups are stored lowercased; match them back to the labels.
+      setGroups(
+        MUSCLE_GROUPS.filter((g) =>
+          editing.primaryMuscles.some((m) => m.toLowerCase() === g.toLowerCase())
+        )
+      );
+      setCategory(editing.category || "strength");
+      setEquipment(editing.equipment ?? "");
+      setInstructions(editing.instructions.join("\n"));
+      setVideoUrl(editing.videoUrl ?? "");
+    } else {
       setName(initialName);
       setUnit("kg");
       setGroups([]);
@@ -80,7 +97,7 @@ export function CustomExerciseDialog({
       setInstructions("");
       setVideoUrl("");
     }
-  }, [open, initialName]);
+  }, [open, initialName, editing]);
 
   const handleSave = () => {
     const trimmed = name.trim();
@@ -96,7 +113,7 @@ export function CustomExerciseDialog({
       toast.error("That doesn't look like a valid YouTube link.");
       return;
     }
-    const created = addCustomExercise({
+    const payload = {
       name: trimmed,
       defaultUnit: unit,
       category,
@@ -108,12 +125,17 @@ export function CustomExerciseDialog({
         .map((s) => s.trim())
         .filter(Boolean),
       videoUrl: videoUrl.trim() || undefined,
-    });
+    };
+    const created = editing
+      ? upsertCustomExercise(editing.name, payload)
+      : addCustomExercise(payload);
     if (!created) {
       toast.error("Couldn't save — storage may be full.");
       return;
     }
-    toast.success(`Added “${created.name}” to your exercises`);
+    toast.success(
+      editing ? `Updated “${created.name}”` : `Added “${created.name}” to your exercises`
+    );
     onOpenChange(false);
     onCreated(created.name);
   };
@@ -124,11 +146,12 @@ export function CustomExerciseDialog({
         <DialogHeader className="text-left">
           <DialogTitle className="flex items-center gap-2">
             <Plus className="size-5 text-primary" />
-            Add a custom exercise
+            {editing ? "Edit exercise" : "Add a custom exercise"}
           </DialogTitle>
           <DialogDescription>
-            Create an exercise that isn&apos;t in the library (e.g. swimming). Saved on this
-            device only — deleting your data removes it unless you choose to keep it.
+            {editing
+              ? "Update your exercise. Changes apply everywhere it's used."
+              : "Create an exercise that isn't in the library (e.g. swimming). Saved on this device only — deleting your data removes it unless you choose to keep it."}
           </DialogDescription>
         </DialogHeader>
 
@@ -236,7 +259,7 @@ export function CustomExerciseDialog({
           </Button>
           <Button className="flex-1 gap-1" onClick={handleSave}>
             <Plus className="size-4" />
-            Add exercise
+            {editing ? "Save changes" : "Add exercise"}
           </Button>
         </DialogFooter>
       </DialogContent>

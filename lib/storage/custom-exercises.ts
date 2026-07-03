@@ -93,6 +93,22 @@ export function deleteCustomExercise(name: string): boolean {
   return writeJson(STORAGE_KEYS.customExercises, all);
 }
 
+/**
+ * Creates or updates a custom exercise. When `originalName` differs from the new
+ * name, the old entry is removed (rename). Returns the stored exercise or null.
+ */
+export function upsertCustomExercise(
+  originalName: string,
+  input: Parameters<typeof addCustomExercise>[0]
+): CustomExercise | null {
+  const original = originalName.trim().toLowerCase();
+  const nextName = input.name.trim().toLowerCase();
+  if (original && original !== nextName) {
+    deleteCustomExercise(originalName);
+  }
+  return addCustomExercise(input);
+}
+
 /** Replaces the whole set (used by import/restore). */
 export function saveCustomExercises(list: CustomExercise[]): boolean {
   const clean = list.map(normalize).filter((e): e is CustomExercise => e !== null);

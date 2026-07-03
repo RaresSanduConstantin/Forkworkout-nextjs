@@ -42,6 +42,11 @@ function normalizeCompleted(raw: unknown): CompletedWorkout | null {
       : undefined,
     notes: typeof c.notes === "string" && c.notes.trim() ? c.notes : undefined,
     rpe: typeof c.rpe === "number" && c.rpe > 0 ? c.rpe : undefined,
+    calories: typeof c.calories === "number" && c.calories > 0 ? c.calories : undefined,
+    avgHeartRate:
+      typeof c.avgHeartRate === "number" && c.avgHeartRate > 0 ? c.avgHeartRate : undefined,
+    maxHeartRate:
+      typeof c.maxHeartRate === "number" && c.maxHeartRate > 0 ? c.maxHeartRate : undefined,
   };
 }
 
@@ -65,6 +70,9 @@ export function addCompletedWorkout(entry: {
   exercises?: CompletedExercise[];
   notes?: string;
   rpe?: number;
+  calories?: number;
+  avgHeartRate?: number;
+  maxHeartRate?: number;
 }): boolean {
   const now = entry.date ? new Date(entry.date) : new Date();
   const completed: CompletedWorkout = {
@@ -79,6 +87,11 @@ export function addCompletedWorkout(entry: {
     exercises: entry.exercises && entry.exercises.length > 0 ? entry.exercises : undefined,
     notes: entry.notes && entry.notes.trim() ? entry.notes.trim() : undefined,
     rpe: entry.rpe && entry.rpe > 0 ? entry.rpe : undefined,
+    calories: entry.calories && entry.calories > 0 ? Math.round(entry.calories) : undefined,
+    avgHeartRate:
+      entry.avgHeartRate && entry.avgHeartRate > 0 ? Math.round(entry.avgHeartRate) : undefined,
+    maxHeartRate:
+      entry.maxHeartRate && entry.maxHeartRate > 0 ? Math.round(entry.maxHeartRate) : undefined,
   };
   const existing = getCompletedWorkouts();
   existing.push(completed);

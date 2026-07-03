@@ -200,6 +200,12 @@ const WorkoutList = () => {
             Body metrics
           </Link>
         </Button>
+        <Button asChild variant="outline" className="w-full gap-2">
+          <Link href={ROUTES.exercises}>
+            <Dumbbell className="size-4" />
+            Create &amp; edit your exercises
+          </Link>
+        </Button>
       </div>
 
       {/* Your workouts */}

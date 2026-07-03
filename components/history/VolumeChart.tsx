@@ -20,15 +20,22 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { CompletedWorkout } from "@/lib/types";
 
-type Metric = "volume" | "time" | "reps";
+type Metric = "volume" | "time" | "reps" | "calories" | "avgBpm";
 
 const METRICS: Record<
   Metric,
-  { label: string; unit: string; value: (e: CompletedWorkout) => number }
+  { label: string; unit: string; agg: "sum" | "avg"; value: (e: CompletedWorkout) => number }
 > = {
-  volume: { label: "Volume", unit: "kg", value: (e) => e.volume ?? 0 },
-  time: { label: "Time", unit: "min", value: (e) => Math.round((e.durationSec ?? 0) / 60) },
-  reps: { label: "Reps", unit: "reps", value: (e) => e.totalReps ?? 0 },
+  volume: { label: "Volume", unit: "kg", agg: "sum", value: (e) => e.volume ?? 0 },
+  time: {
+    label: "Time",
+    unit: "min",
+    agg: "sum",
+    value: (e) => Math.round((e.durationSec ?? 0) / 60),
+  },
+  reps: { label: "Reps", unit: "reps", agg: "sum", value: (e) => e.totalReps ?? 0 },
+  calories: { label: "Calories", unit: "kcal", agg: "sum", value: (e) => e.calories ?? 0 },
+  avgBpm: { label: "Avg BPM", unit: "bpm", agg: "avg", value: (e) => e.avgHeartRate ?? 0 },
 };
 
 /**
@@ -62,7 +69,11 @@ export function VolumeChart({ entries }: { entries: CompletedWorkout[] }) {
   // Only show once there's at least one completed workout.
   if (entries.length === 0) return null;
 
-  const total = data.reduce((sum, d) => sum + d.value, 0);
+  const sum = data.reduce((s, d) => s + d.value, 0);
+  const headline =
+    cfg.agg === "avg"
+      ? `${data.length ? Math.round(sum / data.length).toLocaleString() : 0} ${cfg.unit} average`
+      : `${sum.toLocaleString()} ${cfg.unit}`;
 
   return (
     <Card>
@@ -72,7 +83,7 @@ export function VolumeChart({ entries }: { entries: CompletedWorkout[] }) {
             <CardTitle>Progress</CardTitle>
             <CardDescription>
               {data.length > 0
-                ? `${total.toLocaleString()} ${cfg.unit} across ${data.length} ${
+                ? `${headline} across ${data.length} ${
                     data.length === 1 ? "session" : "sessions"
                   }`
                 : `No ${cfg.label.toLowerCase()} recorded yet`}
@@ -84,6 +95,7 @@ export function VolumeChart({ entries }: { entries: CompletedWorkout[] }) {
             onValueChange={(v) => v && setMetric(v as Metric)}
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto"
           >
             {(Object.keys(METRICS) as Metric[]).map((m) => (
               <ToggleGroupItem

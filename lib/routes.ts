@@ -5,6 +5,7 @@ export const ROUTES = {
   dashboard: "/app",
   history: "/history",
   body: "/body",
+  exercises: "/exercises",
   newWorkout: "/create-workout",
   editWorkout: (id: string) => `/create-workout/${id}`,
   startWorkout: (id: string) => `/start-workout/${id}`,
