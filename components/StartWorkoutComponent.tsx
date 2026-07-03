@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, e
 import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { loadExerciseLibrary, getExerciseDefaultUnit } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
+import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
@@ -103,6 +104,7 @@ const StartWorkoutComponent = () => {
   const [exerciseDetails, setExerciseDetails] = useState<ExerciseDetails | null>(null);
   const [exercises, setExercises] = useState<ExerciseDetails[]>([]);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [finishNotes, setFinishNotes] = useState("");
@@ -316,6 +318,26 @@ const StartWorkoutComponent = () => {
 
   const updateSetValue = (exIdx: number, setIdx: number, value: string) =>
     updateSet(exIdx, setIdx, (s) => ({ ...s, value }));
+
+  // Reorder exercises (drag-and-drop modal). Persisted via the save effect.
+  const moveExercise = (from: number, to: number) => {
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      if (
+        from === to ||
+        from < 0 ||
+        to < 0 ||
+        from >= prev.exercises.length ||
+        to >= prev.exercises.length
+      ) {
+        return prev;
+      }
+      const next = [...prev.exercises];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return { ...prev, exercises: next };
+    });
+  };
 
   // Units are per-exercise in the session table: cycle & apply to every set.
   const UNIT_CYCLE: SetUnit[] = ["kg", "bw", "time", "km"];
@@ -612,6 +634,17 @@ const StartWorkoutComponent = () => {
           <ArrowLeft className="size-4" />
           Go Back
         </Button>
+        {workout.exercises.length > 1 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setReorderOpen(true)}
+          >
+            <ArrowUpDown className="size-4" />
+            Reorder
+          </Button>
+        )}
       </div>
 
       <h1 className="break-words text-center text-4xl font-bold">
@@ -1112,6 +1145,16 @@ const StartWorkoutComponent = () => {
           setShowExitConfirm(false);
           router.push(ROUTES.dashboard);
         }}
+      />
+
+      <ReorderExercisesDialog
+        open={reorderOpen}
+        onOpenChange={setReorderOpen}
+        items={workout.exercises.map((ex, i) => ({
+          id: ex.id ?? String(i),
+          title: ex.name?.trim() || `Exercise ${i + 1}`,
+        }))}
+        onMove={moveExercise}
       />
 
       {/* Add set — copy previous or start fresh */}
