@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { ArrowLeft, CalendarDays, Download, Dumbbell, History, ShieldCheck, Upload } from "lucide-react";
+import { ArrowLeft, CalendarDays, Download, Dumbbell, FileSpreadsheet, History, ShieldCheck, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   deleteCompletedWorkout,
 } from "@/lib/storage/history-storage";
 import { downloadExport, mergeImport } from "@/lib/storage/transfer";
+import { downloadExcel } from "@/lib/storage/excel-export";
 import {
   getAutoBackup,
   autoBackupHasData,
@@ -35,6 +36,7 @@ const HistoryComponent = () => {
   const [pendingDelete, setPendingDelete] = React.useState<CompletedWorkout | null>(null);
   const [backup, setBackup] = React.useState<AutoBackup | null>(null);
   const [showRestore, setShowRestore] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
   // Bumped on mutations to force storage-reading children (calendar, streak) to refresh.
   const [version, setVersion] = React.useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -49,6 +51,18 @@ const HistoryComponent = () => {
     setEntries(getCompletedWorkouts());
     setBackup(getAutoBackup());
     setVersion((v) => v + 1);
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      await downloadExcel();
+    } catch (err) {
+      console.error("Excel export failed:", err);
+      toast.error("Couldn't build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const confirmDelete = () => {
@@ -94,18 +108,29 @@ const HistoryComponent = () => {
         description="Your completed workouts and streak, saved on this device."
       />
 
-      <div className="mb-6 flex gap-2">
-        <Button variant="outline" className="flex-1 gap-2" onClick={downloadExport}>
-          <Download className="size-4" />
-          Export data
-        </Button>
+      <div className="mb-2 space-y-2">
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1 gap-2" onClick={downloadExport}>
+            <Download className="size-4" />
+            Backup (JSON)
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 gap-2"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="size-4" />
+            Restore (JSON)
+          </Button>
+        </div>
         <Button
           variant="outline"
-          className="flex-1 gap-2"
-          onClick={() => fileInputRef.current?.click()}
+          className="w-full gap-2"
+          disabled={exporting}
+          onClick={handleExportExcel}
         >
-          <Upload className="size-4" />
-          Import data
+          <FileSpreadsheet className="size-4" />
+          {exporting ? "Preparing…" : "Export to Excel (for viewing)"}
         </Button>
         <input
           ref={fileInputRef}
@@ -114,6 +139,10 @@ const HistoryComponent = () => {
           className="hidden"
           onChange={handleImportFile}
         />
+        <p className="text-xs text-muted-foreground">
+          The JSON backup is what you restore from. Excel is a read-only snapshot to view or
+          analyze — it can&apos;t be imported.
+        </p>
       </div>
 
       {backup && autoBackupHasData(backup) && (
