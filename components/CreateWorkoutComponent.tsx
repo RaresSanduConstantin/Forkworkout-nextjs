@@ -1,6 +1,6 @@
 "use client";
 
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
@@ -26,13 +26,14 @@ import ExerciseBuilder from "./ExerciseBuilder";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { BottomActionBar } from "@/components/layout/BottomActionBar";
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
+import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 
 import { honkFont } from "@/lib/honkFont";
 import { motion, MotionConfig } from "motion/react";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Plus, Save, Sparkles } from "lucide-react";
 
 import { useRouter, useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
@@ -81,6 +82,14 @@ const CreateWorkoutComponent = () => {
 
   const hasInitialized = React.useRef(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
+
+  // Live exercise names for the reorder modal (updates as you type).
+  const watchedExercises = useWatch({ control: form.control, name: "exercises" });
+  const reorderItems = exerciseFields.map((f, i) => ({
+    id: f.id,
+    title: watchedExercises?.[i]?.name?.trim() || `Exercise ${i + 1}`,
+  }));
 
   const handleGenerated = (workout: Workout) => {
     hasInitialized.current = true;
@@ -216,6 +225,20 @@ const CreateWorkoutComponent = () => {
           />
 
           {/* Exercises */}
+          {exerciseFields.length > 1 && (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setReorderOpen(true)}
+              >
+                <ArrowUpDown className="size-4" />
+                Reorder
+              </Button>
+            </div>
+          )}
           <MotionConfig reducedMotion="user">
             <div className="space-y-4">
               {exerciseFields.map((exercise, index) => (
@@ -271,6 +294,12 @@ const CreateWorkoutComponent = () => {
       </Form>
 
       <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
+      <ReorderExercisesDialog
+        open={reorderOpen}
+        onOpenChange={setReorderOpen}
+        items={reorderItems}
+        onMove={(from, to) => moveExercise(from, to)}
+      />
     </PageContainer>
   );
 };
