@@ -18,6 +18,10 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
+  // start_url (/app) is a static page — precache it (instead of the default
+  // runtime-only caching) so the installed PWA launches offline on first run.
+  cacheStartUrl: true,
+  dynamicStartUrl: false,
   // Serve a friendly offline page when a navigation isn't cached and we're offline.
   fallbacks: {
     document: "/offline",
