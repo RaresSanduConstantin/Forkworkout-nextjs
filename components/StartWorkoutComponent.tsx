@@ -111,6 +111,7 @@ const StartWorkoutComponent = () => {
   const [restVibration, setRestVibration] = useState(true);
   const restVibrationRef = useRef(true);
   restVibrationRef.current = restVibration;
+  const [vibrationSupported, setVibrationSupported] = useState(false);
 
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
@@ -236,6 +237,9 @@ const StartWorkoutComponent = () => {
   // Load the rest-vibration preference once (client-side).
   useEffect(() => {
     setRestVibration(getSettings().restVibration);
+    setVibrationSupported(
+      typeof navigator !== "undefined" && typeof navigator.vibrate === "function"
+    );
   }, []);
 
   // Rest countdown timer with cleanup and end sound + vibration.
@@ -1336,19 +1340,26 @@ const StartWorkoutComponent = () => {
           >
             Skip Rest
           </Button>
-          <button
-            type="button"
-            onClick={() => {
-              const next = !restVibration;
-              setRestVibration(next);
-              updateSettings({ restVibration: next });
-            }}
-            className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            aria-pressed={restVibration}
-          >
-            {restVibration ? <Vibrate className="size-3.5" /> : <VibrateOff className="size-3.5" />}
-            Vibrate when rest ends: {restVibration ? "On" : "Off"}
-          </button>
+          {vibrationSupported ? (
+            <button
+              type="button"
+              onClick={() => {
+                const next = !restVibration;
+                setRestVibration(next);
+                updateSettings({ restVibration: next });
+              }}
+              className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              aria-pressed={restVibration}
+            >
+              {restVibration ? <Vibrate className="size-3.5" /> : <VibrateOff className="size-3.5" />}
+              Vibrate when rest ends: {restVibration ? "On" : "Off"}
+            </button>
+          ) : (
+            <p className="mx-auto flex items-center gap-1.5 text-center text-xs text-muted-foreground">
+              <VibrateOff className="size-3.5 shrink-0" />
+              Vibration isn&apos;t supported on this device — a sound plays instead.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
 
