@@ -119,6 +119,29 @@ export function getLastPerformance(
   return all.length ? all[all.length - 1] : null;
 }
 
+/**
+ * The raw per-set data from the most recent prior session in which the exercise
+ * appeared (index-aligned to how it was performed). Used for the in-session
+ * "beat your last numbers" ghost placeholders. Empty when there's no history.
+ */
+export function getLastSessionSets(
+  name: string,
+  history: CompletedWorkout[] = getCompletedWorkouts()
+): CompletedSet[] {
+  const target = normalizeExName(name);
+  let latest: { time: number; sets: CompletedSet[] } | null = null;
+  for (const w of history) {
+    if (!w.exercises) continue;
+    for (const ex of w.exercises) {
+      if (normalizeExName(ex.name) !== target) continue;
+      if (!ex.sets || ex.sets.length === 0) continue;
+      const time = new Date(w.date).getTime();
+      if (!latest || time > latest.time) latest = { time, sets: ex.sets };
+    }
+  }
+  return latest?.sets ?? [];
+}
+
 /** Best-ever numbers for the exercise across all history. */
 export type ExercisePR = {
   kind: SetUnit;

@@ -56,9 +56,10 @@ import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, e
 import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { loadExerciseLibrary, getExerciseDefaultUnit } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
+import { getLastSessionSets, normalizeExName } from "@/lib/history-stats";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { ROUTES } from "@/lib/routes";
-import type { ActiveSession, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
+import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
 // Type for exercise details from JSON
@@ -248,6 +249,19 @@ const StartWorkoutComponent = () => {
     if (!workout) return 0;
     return estimateWorkoutSeconds(workout.exercises, restSeconds ? String(restSeconds) : "");
   }, [workout, restSeconds]);
+
+  // Last-session sets per exercise, for the "beat your last numbers" hints.
+  // Keyed on exercise names so it only recomputes when names (not set values)
+  // change; history is snapshotted once at load.
+  const exNamesKey = (workout?.exercises ?? []).map((e) => e.name).join("|");
+  const lastSetsByName = useMemo(() => {
+    const map: Record<string, CompletedSet[]> = {};
+    for (const name of exNamesKey ? exNamesKey.split("|") : []) {
+      const key = normalizeExName(name);
+      if (name.trim() && !(key in map)) map[key] = getLastSessionSets(name, history);
+    }
+    return map;
+  }, [exNamesKey, history]);
 
   // Live elapsed time since the session started.
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -740,6 +754,7 @@ const StartWorkoutComponent = () => {
               {(() => {
                 const exUnit =
                   exercise.sets[0]?.unit ?? inferUnit(exercise.sets[0]?.value ?? "");
+                const lastSets = lastSetsByName[normalizeExName(exercise.name)] ?? [];
                 return (
                   <div className="overflow-hidden rounded-lg border">
                     <table className="w-full table-fixed text-sm">
@@ -770,6 +785,7 @@ const StartWorkoutComponent = () => {
                               : set.status === "skipped"
                               ? "bg-muted opacity-70"
                               : "";
+                          const lastRef = lastSets[setIdx];
                           return (
                             <tr
                               key={set.id ?? setIdx}
@@ -797,6 +813,11 @@ const StartWorkoutComponent = () => {
                                   className="h-8 w-full text-center"
                                   aria-label={`Reps for set ${setIdx + 1}`}
                                 />
+                                {lastRef && exUnit !== "time" && (
+                                  <div className="mt-0.5 text-center text-[10px] leading-none text-muted-foreground">
+                                    last {lastRef.reps}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-1 py-1.5">
                                 {exUnit === "bw" ? (
@@ -809,7 +830,7 @@ const StartWorkoutComponent = () => {
                                       updateSetValue(exIdx, setIdx, e.target.value)
                                     }
                                     className="h-8 w-full text-center"
-                                    placeholder={unitPlaceholder(exUnit)}
+                                    placeholder={lastRef?.value || unitPlaceholder(exUnit)}
                                     aria-label="Value"
                                   />
                                 ) : (
@@ -820,9 +841,15 @@ const StartWorkoutComponent = () => {
                                       updateSetValue(exIdx, setIdx, e.target.value)
                                     }
                                     className="h-8 w-full text-center"
-                                    placeholder={unitPlaceholder(exUnit)}
+                                    placeholder={lastRef?.value || unitPlaceholder(exUnit)}
                                     aria-label="Value"
                                   />
+                                )}
+                                {lastRef && exUnit !== "bw" && lastRef.value && lastRef.value !== "BW" && (
+                                  <div className="mt-0.5 text-center text-[10px] leading-none text-muted-foreground">
+                                    last {lastRef.value}
+                                    {exUnit === "km" ? " km" : ""}
+                                  </div>
                                 )}
                               </td>
                               <td className="px-1 py-1.5 text-center">
