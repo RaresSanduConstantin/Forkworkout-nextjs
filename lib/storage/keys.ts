@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   schemaVersion: "forkworkout:schema-version",
   autoBackup: "forkworkout:auto-backup",
   settings: "forkworkout:settings",
+  bodyProfile: "forkworkout:body-profile",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

@@ -108,6 +108,7 @@ export type BodyMeasurements = {
   arms?: number;
   thighs?: number;
   hips?: number;
+  neck?: number;
 };
 
 export type BodyMetricEntry = {

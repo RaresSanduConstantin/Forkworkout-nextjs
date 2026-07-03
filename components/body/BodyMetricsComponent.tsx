@@ -22,17 +22,20 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import {
-  getBodyMetrics,
-  addBodyMetric,
-  deleteBodyMetric,
-} from "@/lib/storage/body-storage";
+import { getBodyMetrics, addBodyMetric, deleteBodyMetric } from "@/lib/storage/body-storage";
+import { getBodyProfile, updateBodyProfile, type BodyProfile } from "@/lib/storage/profile";
+import { computeBMI, bodyFatNavy } from "@/lib/body-metrics";
+import { BodyProfileCard } from "@/components/body/BodyProfileCard";
+import { HealthMetrics } from "@/components/body/HealthMetrics";
+import { Calendar } from "@/components/ui/calendar";
+import { dayKeyToDate } from "@/lib/date/day-key";
 import { ROUTES } from "@/lib/routes";
 import type { BodyMeasurements, BodyMetricEntry } from "@/lib/types";
 
 const MEASURES: { key: keyof BodyMeasurements; label: string }[] = [
   { key: "chest", label: "Chest" },
   { key: "waist", label: "Waist" },
+  { key: "neck", label: "Neck" },
   { key: "arms", label: "Arms" },
   { key: "thighs", label: "Thighs" },
   { key: "hips", label: "Hips" },
@@ -50,11 +53,17 @@ export function BodyMetricsComponent() {
   const [measures, setMeasures] = React.useState<Record<string, string>>({});
   const [note, setNote] = React.useState("");
   const [pendingDelete, setPendingDelete] = React.useState<BodyMetricEntry | null>(null);
+  const [profile, setProfile] = React.useState<BodyProfile>({});
+  const [calMonth, setCalMonth] = React.useState<Date>(new Date());
 
   React.useEffect(() => {
     setEntries(getBodyMetrics());
+    setProfile(getBodyProfile());
     setLoaded(true);
   }, []);
+
+  const handleProfileChange = (patch: Partial<BodyProfile>) =>
+    setProfile(updateBodyProfile(patch));
 
   const refresh = () => setEntries(getBodyMetrics());
 
@@ -101,8 +110,61 @@ export function BodyMetricsComponent() {
       ? Math.round((latestWeight - firstWeight) * 10) / 10
       : null;
 
+  // Most-recent known value for each field (entries are oldest → newest).
+  const latestValues = React.useMemo(() => {
+    const v: { weightKg?: number; waist?: number; neck?: number; hips?: number } = {};
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i];
+      if (v.weightKg === undefined && e.weightKg !== undefined) v.weightKg = e.weightKg;
+      if (v.waist === undefined && e.measurements?.waist !== undefined) v.waist = e.measurements.waist;
+      if (v.neck === undefined && e.measurements?.neck !== undefined) v.neck = e.measurements.neck;
+      if (v.hips === undefined && e.measurements?.hips !== undefined) v.hips = e.measurements.hips;
+    }
+    return v;
+  }, [entries]);
+
+  const bmiSeries = React.useMemo(() => {
+    if (!profile.heightCm) return [] as { label: string; value: number }[];
+    return entries
+      .filter((e) => e.weightKg !== undefined)
+      .map((e) => ({
+        label: format(new Date(e.date), "MMM d"),
+        value: computeBMI(e.weightKg, profile.heightCm),
+      }))
+      .filter((p): p is { label: string; value: number } => p.value !== null);
+  }, [entries, profile.heightCm]);
+
+  const bodyFatSeries = React.useMemo(() => {
+    if (!profile.sex || !profile.heightCm) return [] as { label: string; value: number }[];
+    return entries
+      .map((e) => {
+        const bf = bodyFatNavy(
+          profile.sex,
+          profile.heightCm,
+          e.measurements?.waist,
+          e.measurements?.neck,
+          e.measurements?.hips
+        );
+        return bf !== null ? { label: format(new Date(e.date), "MMM d"), value: bf } : null;
+      })
+      .filter((p): p is { label: string; value: number } => p !== null);
+  }, [entries, profile.sex, profile.heightCm]);
+
+  const loggedDates = React.useMemo(
+    () => entries.map((e) => (e.dayKey ? dayKeyToDate(e.dayKey) : new Date(e.date))),
+    [entries]
+  );
+
   const chartConfig = {
     value: { label: "Weight (kg)", color: "var(--chart-1)" },
+  } satisfies ChartConfig;
+
+  const bmiChartConfig = {
+    value: { label: "BMI", color: "var(--chart-2)" },
+  } satisfies ChartConfig;
+
+  const bodyFatChartConfig = {
+    value: { label: "Body fat (%)", color: "var(--chart-4)" },
   } satisfies ChartConfig;
 
   return (
@@ -167,6 +229,18 @@ export function BodyMetricsComponent() {
         </CardContent>
       </Card>
 
+      {/* Profile + health calculators */}
+      <div className="mb-6 space-y-6">
+        <BodyProfileCard profile={profile} onChange={handleProfileChange} />
+        <HealthMetrics
+          profile={profile}
+          weightKg={latestValues.weightKg}
+          waist={latestValues.waist}
+          neck={latestValues.neck}
+          hips={latestValues.hips}
+        />
+      </div>
+
       {loaded && entries.length === 0 ? (
         <EmptyState
           icon={<Scale className="size-8" />}
@@ -218,7 +292,84 @@ export function BodyMetricsComponent() {
             </Card>
           )}
 
-          {/* Entries list */}
+          {/* BMI trend */}
+          {bmiSeries.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <h2 className="mb-3 font-semibold">BMI trend</h2>
+                <ChartContainer config={bmiChartConfig} className="h-[220px] w-full min-w-0">
+                  <LineChart accessibilityLayer data={bmiSeries} margin={{ left: 4, right: 8, top: 8 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis width={40} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      dataKey="value"
+                      type="monotone"
+                      stroke="var(--color-value)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Body fat trend */}
+          {bodyFatSeries.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <h2 className="mb-3 font-semibold">Body fat trend</h2>
+                <ChartContainer config={bodyFatChartConfig} className="h-[220px] w-full min-w-0">
+                  <LineChart accessibilityLayer data={bodyFatSeries} margin={{ left: 4, right: 8, top: 8 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis width={40} tickLine={false} axisLine={false} domain={["auto", "auto"]} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      dataKey="value"
+                      type="monotone"
+                      stroke="var(--color-value)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Logged-days calendar */}
+          {loggedDates.length > 0 && (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-4 p-4">
+                <div className="w-full">
+                  <h2 className="text-xl font-semibold">Logging calendar</h2>
+                  <p className="text-sm text-muted-foreground">Every day you log a measurement lights up.</p>
+                </div>
+                <Calendar
+                  mode="single"
+                  month={calMonth}
+                  onMonthChange={setCalMonth}
+                  weekStartsOn={1}
+                  showOutsideDays
+                  className="rounded-xl border p-3"
+                  modifiers={{ logged: loggedDates }}
+                  modifiersClassNames={{
+                    logged:
+                      "rounded-md bg-gradient-to-br from-sky-500 to-emerald-500 font-semibold text-white hover:opacity-90 aria-selected:opacity-100",
+                  }}
+                />
+                <div className="flex w-full items-center gap-2 text-sm text-muted-foreground">
+                  <span className="size-3 rounded-sm bg-gradient-to-br from-sky-500 to-emerald-500" />
+                  Logged a measurement
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <div className="space-y-2">
             <h2 className="text-sm font-medium text-muted-foreground">Log</h2>
             {[...entries].reverse().map((entry) => (

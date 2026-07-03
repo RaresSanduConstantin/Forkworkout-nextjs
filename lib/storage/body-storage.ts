@@ -4,7 +4,7 @@ import { readJson, writeJson } from "./safe-storage";
 import { toDayKey } from "@/lib/date/day-key";
 import { v4 as uuidv4 } from "uuid";
 
-const MEASURE_KEYS: (keyof BodyMeasurements)[] = ["waist", "chest", "arms", "thighs", "hips"];
+const MEASURE_KEYS: (keyof BodyMeasurements)[] = ["waist", "chest", "arms", "thighs", "hips", "neck"];
 
 function num(v: unknown): number | undefined {
   const n = typeof v === "number" ? v : parseFloat(String(v));
