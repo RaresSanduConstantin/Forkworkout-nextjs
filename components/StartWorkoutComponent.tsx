@@ -53,6 +53,7 @@ import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { getExerciseVideoId } from "@/lib/exercise-videos";
+import { loadExerciseLibrary, getExerciseDefaultUnit } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
@@ -69,6 +70,7 @@ type ExerciseDetails = {
   secondaryMuscles: string[];
   instructions: string[];
   category: string;
+  custom?: boolean;
 };
 
 /** Trigger text for the per-exercise rest dropdown. When the exercise has no
@@ -155,18 +157,17 @@ const StartWorkoutComponent = () => {
     }
   };
 
-  // Load exercise reference data.
+  // Load exercise reference data (bundled + custom) for the info modal.
   useEffect(() => {
-    const loadExercises = async () => {
-      try {
-        const response = await fetch("/json/exercises.json");
-        const data = await response.json();
-        setExercises(data.exercises || []);
-      } catch (error) {
-        console.error("Failed to load exercises:", error);
-      }
+    let active = true;
+    loadExerciseLibrary()
+      .then((lib) => {
+        if (active) setExercises(lib as ExerciseDetails[]);
+      })
+      .catch((error) => console.error("Failed to load exercises:", error));
+    return () => {
+      active = false;
     };
-    loadExercises();
   }, []);
 
   // Load the workout — resuming an in-progress session if one exists.
@@ -422,11 +423,27 @@ const StartWorkoutComponent = () => {
   };
 
   const updateExerciseName = (exIdx: number, name: string) => {
+    // Custom exercises carry a default measurement unit — apply it to the sets.
+    const unit = getExerciseDefaultUnit(name);
     setWorkout((prev) =>
       prev
         ? {
             ...prev,
-            exercises: prev.exercises.map((ex, i) => (i !== exIdx ? ex : { ...ex, name })),
+            exercises: prev.exercises.map((ex, i) =>
+              i !== exIdx
+                ? ex
+                : {
+                    ...ex,
+                    name,
+                    sets: unit
+                      ? ex.sets.map((s) => ({
+                          ...s,
+                          unit,
+                          value: unit === "bw" ? "BW" : s.value === "BW" ? "" : s.value,
+                        }))
+                      : ex.sets,
+                  }
+            ),
           }
         : prev
     );
@@ -841,6 +858,7 @@ const StartWorkoutComponent = () => {
           <div className="flex-1 space-y-5 overflow-y-auto p-6">
             {exerciseDetails ? (
               <>
+                {!exerciseDetails.custom && (
                 <Carousel className="w-full">
                   <CarouselContent>
                     {getExerciseImageUrls(selectedExercise).map((imageUrl, index) => (
@@ -862,6 +880,7 @@ const StartWorkoutComponent = () => {
                   <CarouselPrevious className="left-2" />
                   <CarouselNext className="right-2" />
                 </Carousel>
+                )}
 
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary" className="capitalize">{exerciseDetails.level}</Badge>

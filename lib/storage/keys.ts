@@ -4,6 +4,7 @@ export const STORAGE_KEYS = {
   workouts: "workouts",
   completedWorkouts: "completedWorkouts",
   bodyMetrics: "forkworkout:body-metrics",
+  customExercises: "forkworkout:custom-exercises",
   schemaVersion: "forkworkout:schema-version",
   autoBackup: "forkworkout:auto-backup",
 } as const;

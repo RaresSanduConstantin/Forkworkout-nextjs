@@ -24,6 +24,7 @@ import {
 import { ExerciseCombobox } from "./ExerciseCombobox";
 import { ExerciseInfoDialog } from "@/components/exercises/ExerciseInfoDialog";
 import { SET_UNITS, SET_TYPES, unitPlaceholder, formatRestLabel, EXERCISE_REST_OPTIONS } from "@/lib/workout";
+import { getExerciseDefaultUnit } from "@/lib/exercises";
 import type { SetType, SetUnit } from "@/lib/types";
 
 const newSet = () => ({ id: uuidv4(), reps: 1, value: "", unit: "kg" as SetUnit });
@@ -244,6 +245,22 @@ const ExerciseBuilder = ({
     insertSet(setIndex + 1, { ...s, id: uuidv4() });
   };
 
+  // When a custom exercise (with a default measurement unit) is picked, apply
+  // that unit to every set so its history is tracked correctly.
+  const applyDefaultUnit = (name: string) => {
+    const unit = getExerciseDefaultUnit(name);
+    if (!unit) return;
+    const sets = (form.getValues(`exercises.${index}.sets`) ?? []) as { value?: string }[];
+    sets.forEach((s, i) => {
+      form.setValue(`exercises.${index}.sets.${i}.unit`, unit, { shouldDirty: true });
+      if (unit === "bw") {
+        form.setValue(`exercises.${index}.sets.${i}.value`, "BW", { shouldDirty: true });
+      } else if (s.value === "BW") {
+        form.setValue(`exercises.${index}.sets.${i}.value`, "", { shouldDirty: true });
+      }
+    });
+  };
+
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
@@ -303,7 +320,10 @@ const ExerciseBuilder = ({
               <FormControl>
                 <ExerciseCombobox
                   value={field.value || ""}
-                  onChange={field.onChange}
+                  onChange={(value) => {
+                    field.onChange(value);
+                    applyDefaultUnit(value);
+                  }}
                   placeholder="Search for an exercise..."
                   recommendForName={exerciseName}
                 />

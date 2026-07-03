@@ -92,5 +92,9 @@ export function restoreAutoBackup(): boolean {
     STORAGE_KEYS.bodyMetrics,
     Array.isArray(b.bundle.bodyMetrics) ? b.bundle.bodyMetrics : []
   );
+  writeJson(
+    STORAGE_KEYS.customExercises,
+    Array.isArray(b.bundle.customExercises) ? b.bundle.customExercises : []
+  );
   return true;
 }

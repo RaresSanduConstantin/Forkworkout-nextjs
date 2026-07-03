@@ -2,6 +2,11 @@ import type { BodyMetricEntry, CompletedWorkout, Workout } from "@/lib/types";
 import { getWorkouts, saveWorkouts } from "./workout-storage";
 import { getCompletedWorkouts } from "./history-storage";
 import { getBodyMetrics } from "./body-storage";
+import {
+  getCustomExercises,
+  saveCustomExercises,
+  type CustomExercise,
+} from "./custom-exercises";
 import { STORAGE_KEYS } from "./keys";
 import { writeJson } from "./safe-storage";
 
@@ -11,6 +16,7 @@ export type ExportBundle = {
   workouts: Workout[];
   completedWorkouts: CompletedWorkout[];
   bodyMetrics: BodyMetricEntry[];
+  customExercises: CustomExercise[];
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -21,6 +27,7 @@ export function buildExport(): ExportBundle {
     workouts: getWorkouts(),
     completedWorkouts: getCompletedWorkouts(),
     bodyMetrics: getBodyMetrics(),
+    customExercises: getCustomExercises(),
   };
 }
 
@@ -48,6 +55,7 @@ export function mergeImport(text: string): {
   workoutsAdded: number;
   historyAdded: number;
   bodyAdded: number;
+  exercisesAdded: number;
 } {
   let parsed: unknown;
   try {
@@ -61,6 +69,7 @@ export function mergeImport(text: string): {
     ? bundle.completedWorkouts
     : [];
   const importedBody = Array.isArray(bundle.bodyMetrics) ? bundle.bodyMetrics : [];
+  const importedExercises = Array.isArray(bundle.customExercises) ? bundle.customExercises : [];
 
   // Merge workouts by id.
   const workouts = getWorkouts();
@@ -101,5 +110,18 @@ export function mergeImport(text: string): {
   }
   writeJson(STORAGE_KEYS.bodyMetrics, body);
 
-  return { workoutsAdded, historyAdded, bodyAdded };
+  // Merge custom exercises by normalized name.
+  const exercises = getCustomExercises();
+  const exNames = new Set(exercises.map((e) => e.name.toLowerCase()));
+  let exercisesAdded = 0;
+  for (const e of importedExercises) {
+    if (e && typeof e.name === "string" && !exNames.has(e.name.toLowerCase())) {
+      exercises.push(e);
+      exNames.add(e.name.toLowerCase());
+      exercisesAdded += 1;
+    }
+  }
+  saveCustomExercises(exercises);
+
+  return { workoutsAdded, historyAdded, bodyAdded, exercisesAdded };
 }

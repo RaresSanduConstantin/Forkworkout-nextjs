@@ -24,6 +24,8 @@ import {
   partitionByGroups,
   type LibraryExercise,
 } from "@/lib/exercises";
+import { CustomExerciseDialog } from "@/components/exercises/CustomExerciseDialog";
+import { Plus } from "lucide-react";
 
 interface ExerciseComboboxProps {
   value: string;
@@ -71,6 +73,7 @@ export function ExerciseCombobox({
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [loading, setLoading] = React.useState(library.length === 0);
   const [search, setSearch] = React.useState("");
+  const [customOpen, setCustomOpen] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
@@ -125,7 +128,16 @@ export function ExerciseCombobox({
     setOpen(false);
   };
 
+  // After a custom exercise is created: pull the refreshed (merged) library and
+  // select it.
+  const handleCreated = (name: string) => {
+    loadExerciseLibrary().then((lib) => setLibrary(lib));
+    onChange(name);
+    setOpen(false);
+  };
+
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
@@ -149,40 +161,57 @@ export function ExerciseCombobox({
           <CommandList>
             {loading ? (
               <CommandEmpty>Loading exercises...</CommandEmpty>
-            ) : recTop.length === 0 && restTop.length === 0 && !showCustom ? (
-              <CommandEmpty>No exercises found.</CommandEmpty>
             ) : (
               <>
-                {showCustom && (
-                  <CommandGroup heading="Custom">
-                    <CommandItem value={`__custom__${trimmed}`} onSelect={() => select(trimmed)}>
-                      Use “{trimmed}”
+                <CommandGroup heading="Create">
+                  {showCustom && (
+                    <CommandItem value={`__use__${trimmed}`} onSelect={() => select(trimmed)}>
+                      Use “{trimmed}” as-is
                     </CommandItem>
-                  </CommandGroup>
-                )}
-                {recTop.length > 0 && (
-                  <CommandGroup heading="Recommended">
-                    {recTop.map((ex) => (
-                      <ExerciseItem
-                        key={`rec-${ex.name}`}
-                        exercise={ex}
-                        selected={value === ex.name}
-                        onSelect={select}
-                      />
-                    ))}
-                  </CommandGroup>
-                )}
-                {restTop.length > 0 && (
-                  <CommandGroup heading={recTop.length > 0 ? "All exercises" : undefined}>
-                    {restTop.map((ex) => (
-                      <ExerciseItem
-                        key={`all-${ex.name}`}
-                        exercise={ex}
-                        selected={value === ex.name}
-                        onSelect={select}
-                      />
-                    ))}
-                  </CommandGroup>
+                  )}
+                  <CommandItem
+                    value="__add_custom_exercise__"
+                    onSelect={() => {
+                      setOpen(false);
+                      setCustomOpen(true);
+                    }}
+                    className="text-primary"
+                  >
+                    <Plus className="mr-2 size-4" />
+                    Add new exercise{trimmed ? ` “${trimmed}”` : ""}…
+                  </CommandItem>
+                </CommandGroup>
+                {recTop.length === 0 && restTop.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No exercises found. Add it as a new exercise above.
+                  </p>
+                ) : (
+                  <>
+                    {recTop.length > 0 && (
+                      <CommandGroup heading="Recommended">
+                        {recTop.map((ex) => (
+                          <ExerciseItem
+                            key={`rec-${ex.name}`}
+                            exercise={ex}
+                            selected={value === ex.name}
+                            onSelect={select}
+                          />
+                        ))}
+                      </CommandGroup>
+                    )}
+                    {restTop.length > 0 && (
+                      <CommandGroup heading={recTop.length > 0 ? "All exercises" : undefined}>
+                        {restTop.map((ex) => (
+                          <ExerciseItem
+                            key={`all-${ex.name}`}
+                            exercise={ex}
+                            selected={value === ex.name}
+                            onSelect={select}
+                          />
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -190,5 +219,12 @@ export function ExerciseCombobox({
         </Command>
       </PopoverContent>
     </Popover>
+    <CustomExerciseDialog
+      open={customOpen}
+      onOpenChange={setCustomOpen}
+      initialName={trimmed}
+      onCreated={handleCreated}
+    />
+    </>
   );
 }

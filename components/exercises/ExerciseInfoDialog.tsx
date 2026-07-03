@@ -85,6 +85,7 @@ export function ExerciseInfoDialog({
         <div className="flex-1 space-y-5 overflow-y-auto p-6">
           {details ? (
             <>
+              {!details.custom && (
               <Carousel className="w-full">
                 <CarouselContent>
                   {getImageUrls(exerciseName).map((imageUrl, index) => (
@@ -106,6 +107,7 @@ export function ExerciseInfoDialog({
                 <CarouselPrevious className="left-2" />
                 <CarouselNext className="right-2" />
               </Carousel>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary" className="capitalize">{details.level}</Badge>

@@ -26,6 +26,7 @@ import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWork
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import { buildShareUrl, decodeWorkout } from "@/lib/storage/share";
 import { clearAllData } from "@/lib/storage/reset";
+import { hasCustomExercises } from "@/lib/storage/custom-exercises";
 import { computeStreak } from "@/lib/date/streak";
 import { instantiateTemplate, type WorkoutTemplate } from "@/lib/templates";
 import { ROUTES } from "@/lib/routes";
@@ -39,6 +40,7 @@ const WorkoutList = () => {
   const [totalCompleted, setTotalCompleted] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Workout | null>(null);
   const [showClearAll, setShowClearAll] = useState(false);
+  const [keepCustomExercises, setKeepCustomExercises] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [pendingImport, setPendingImport] = useState<Workout | null>(null);
   const [shareTarget, setShareTarget] = useState<Workout | null>(null);
@@ -145,12 +147,16 @@ const WorkoutList = () => {
   };
 
   const handleClearAll = () => {
-    clearAllData();
+    clearAllData({ keepCustomExercises });
     setWorkouts([]);
     setStreak(0);
     setTotalCompleted(0);
     setShowClearAll(false);
-    toast.success("All your data has been deleted from this device");
+    toast.success(
+      keepCustomExercises && hasCustomExercises()
+        ? "Your data was deleted — custom exercises kept"
+        : "All your data has been deleted from this device"
+    );
   };
 
   const handleGenerated = (workout: Workout) => {
@@ -284,15 +290,42 @@ const WorkoutList = () => {
         onConfirm={confirmDelete}
       />
 
-      <ConfirmDialog
-        open={showClearAll}
-        onOpenChange={setShowClearAll}
-        title="Delete all your data?"
-        description="This permanently removes every workout, your completed-workout history, and any in-progress session from this device. This cannot be undone."
-        confirmLabel="Delete everything"
-        destructive
-        onConfirm={handleClearAll}
-      />
+      {/* Delete all data — with an option to keep custom exercises */}
+      <Dialog open={showClearAll} onOpenChange={setShowClearAll}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Delete all your data?</DialogTitle>
+            <DialogDescription>
+              This permanently removes every workout, your completed-workout history, body
+              metrics, and any in-progress session from this device. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {hasCustomExercises() && (
+            <label className="flex items-start gap-2.5 rounded-lg border bg-muted/40 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={keepCustomExercises}
+                onChange={(e) => setKeepCustomExercises(e.target.checked)}
+                className="mt-0.5 size-4 accent-primary"
+              />
+              <span>
+                <span className="font-medium">Keep my custom exercises</span>
+                <span className="block text-xs text-muted-foreground">
+                  Your added exercises stay so you don&apos;t have to recreate them.
+                </span>
+              </span>
+            </label>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowClearAll(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" className="flex-1" onClick={handleClearAll}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
 

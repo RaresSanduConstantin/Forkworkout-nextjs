@@ -8,6 +8,8 @@
 // My PT Hub video. Names are normalized (lowercase). Exercises without a mapping
 // fall back to the YouTube/TikTok search buttons. Extend by adding entries below.
 
+import { getCustomExercises } from "@/lib/storage/custom-exercises";
+
 const EXERCISE_VIDEOS: Record<string, string> = {
   "3/4 sit-up": "qIyuxNyZ0NQ", // 3:4 Sit Up
   "air bike": "CXEcOthC110", // Air Bike
@@ -446,13 +448,32 @@ function normalize(name: string): string {
 }
 
 /**
- * Resolves an exercise name to a My PT Hub video ID, or null if none is mapped.
- * Tries an exact normalized match first, then a substring/alias match (e.g.
- * "Dumbbell Bench Press" → "bench press", "Barbell Hip Thrust" → "hip thrust").
+ * Extracts an 11-char YouTube video ID from a URL (watch?v=, youtu.be, shorts,
+ * embed) or a bare ID. Returns null if none is found.
+ */
+export function extractYouTubeId(url: string | undefined | null): string | null {
+  const s = (url ?? "").trim();
+  if (!s) return null;
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = s.match(
+    /(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/
+  );
+  return m ? m[1] : null;
+}
+
+/**
+ * Resolves an exercise name to a YouTube video ID, or null if none is mapped.
+ * Custom exercises (with a user-provided video URL) win first; otherwise tries
+ * an exact then substring/alias match against the My PT Hub map.
  */
 export function getExerciseVideoId(name: string | undefined | null): string | null {
   const n = normalize(name ?? "");
   if (!n) return null;
+  const custom = getCustomExercises().find((e) => normalize(e.name) === n);
+  if (custom?.videoUrl) {
+    const id = extractYouTubeId(custom.videoUrl);
+    if (id) return id;
+  }
   if (EXERCISE_VIDEOS[n]) return EXERCISE_VIDEOS[n];
   for (const key of SORTED_KEYS) {
     if (n.includes(key)) return EXERCISE_VIDEOS[key];
