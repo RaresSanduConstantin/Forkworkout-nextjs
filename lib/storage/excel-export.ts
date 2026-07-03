@@ -122,6 +122,7 @@ export async function downloadExcel(): Promise<void> {
     { header: "Weight (kg)", key: "weight", width: 12 },
     { header: "Chest (cm)", key: "chest", width: 11 },
     { header: "Waist (cm)", key: "waist", width: 11 },
+    { header: "Neck (cm)", key: "neck", width: 10 },
     { header: "Arms (cm)", key: "arms", width: 10 },
     { header: "Thighs (cm)", key: "thighs", width: 11 },
     { header: "Hips (cm)", key: "hips", width: 10 },
@@ -133,6 +134,7 @@ export async function downloadExcel(): Promise<void> {
       weight: b.weightKg ?? "",
       chest: b.measurements?.chest ?? "",
       waist: b.measurements?.waist ?? "",
+      neck: b.measurements?.neck ?? "",
       arms: b.measurements?.arms ?? "",
       thighs: b.measurements?.thighs ?? "",
       hips: b.measurements?.hips ?? "",
@@ -147,7 +149,8 @@ export async function downloadExcel(): Promise<void> {
     { header: "Unit", key: "unit", width: 10 },
     { header: "Category", key: "category", width: 14 },
     { header: "Equipment", key: "equipment", width: 14 },
-    { header: "Muscles", key: "muscles", width: 20 },
+    { header: "Primary muscles", key: "muscles", width: 22 },
+    { header: "Secondary muscles", key: "secondary", width: 22 },
     { header: "Video URL", key: "video", width: 40 },
     { header: "Instructions", key: "instructions", width: 60 },
   ];
@@ -158,6 +161,7 @@ export async function downloadExcel(): Promise<void> {
       category: e.category,
       equipment: e.equipment ?? "",
       muscles: e.primaryMuscles.join(", "),
+      secondary: e.secondaryMuscles.join(", "),
       video: e.videoUrl ?? "",
       instructions: e.instructions.join(" | "),
     });

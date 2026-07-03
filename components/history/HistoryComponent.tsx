@@ -87,7 +87,8 @@ const HistoryComponent = () => {
     if (!file) return;
     try {
       const text = await file.text();
-      const { workoutsAdded, historyAdded, bodyAdded, exercisesAdded } = mergeImport(text);
+      const { workoutsAdded, historyAdded, bodyAdded, exercisesAdded, profileRestored } =
+        mergeImport(text);
       refresh();
       const parts = [
         `${workoutsAdded} workout${workoutsAdded === 1 ? "" : "s"}`,
@@ -96,6 +97,7 @@ const HistoryComponent = () => {
       if (bodyAdded) parts.push(`${bodyAdded} body ${bodyAdded === 1 ? "entry" : "entries"}`);
       if (exercisesAdded)
         parts.push(`${exercisesAdded} exercise${exercisesAdded === 1 ? "" : "s"}`);
+      if (profileRestored) parts.push("profile");
       toast.success(`Imported ${parts.join(", ")}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed");

@@ -96,5 +96,12 @@ export function restoreAutoBackup(): boolean {
     STORAGE_KEYS.customExercises,
     Array.isArray(b.bundle.customExercises) ? b.bundle.customExercises : []
   );
+  // Profile + settings were added to the bundle later; restore when present.
+  if (b.bundle.bodyProfile && typeof b.bundle.bodyProfile === "object") {
+    writeJson(STORAGE_KEYS.bodyProfile, b.bundle.bodyProfile);
+  }
+  if (b.bundle.settings && typeof b.bundle.settings === "object") {
+    writeJson(STORAGE_KEYS.settings, b.bundle.settings);
+  }
   return true;
 }

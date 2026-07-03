@@ -2,6 +2,8 @@ import type { BodyMetricEntry, CompletedWorkout, Workout } from "@/lib/types";
 import { getWorkouts, saveWorkouts } from "./workout-storage";
 import { getCompletedWorkouts } from "./history-storage";
 import { getBodyMetrics } from "./body-storage";
+import { getBodyProfile, updateBodyProfile, type BodyProfile } from "./profile";
+import { getSettings, type AppSettings } from "./settings";
 import {
   getCustomExercises,
   saveCustomExercises,
@@ -17,6 +19,8 @@ export type ExportBundle = {
   completedWorkouts: CompletedWorkout[];
   bodyMetrics: BodyMetricEntry[];
   customExercises: CustomExercise[];
+  bodyProfile?: BodyProfile;
+  settings?: AppSettings;
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -28,6 +32,8 @@ export function buildExport(): ExportBundle {
     completedWorkouts: getCompletedWorkouts(),
     bodyMetrics: getBodyMetrics(),
     customExercises: getCustomExercises(),
+    bodyProfile: getBodyProfile(),
+    settings: getSettings(),
   };
 }
 
@@ -56,6 +62,7 @@ export function mergeImport(text: string): {
   historyAdded: number;
   bodyAdded: number;
   exercisesAdded: number;
+  profileRestored: boolean;
 } {
   let parsed: unknown;
   try {
@@ -123,5 +130,24 @@ export function mergeImport(text: string): {
   }
   saveCustomExercises(exercises);
 
-  return { workoutsAdded, historyAdded, bodyAdded, exercisesAdded };
+  // Restore body profile: only fill fields that aren't already set locally, so
+  // an import never clobbers the current device's profile. (Settings are
+  // device-local preferences, so they're left untouched on merge-import.)
+  let profileRestored = false;
+  const bp = bundle.bodyProfile;
+  if (bp && typeof bp === "object") {
+    const current = getBodyProfile();
+    const patch: Partial<BodyProfile> = {};
+    (["heightCm", "sex", "birthYear", "activity", "goalWeightKg"] as const).forEach((k) => {
+      if (current[k] === undefined && bp[k] !== undefined) {
+        (patch as Record<string, unknown>)[k] = bp[k];
+      }
+    });
+    if (Object.keys(patch).length > 0) {
+      updateBodyProfile(patch);
+      profileRestored = true;
+    }
+  }
+
+  return { workoutsAdded, historyAdded, bodyAdded, exercisesAdded, profileRestored };
 }
