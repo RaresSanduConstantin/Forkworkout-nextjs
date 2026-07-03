@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Plus, SkipForward, Target, Timer, Vibrate, VibrateOff, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ import {
   saveActiveSession,
   clearActiveSession,
 } from "@/lib/storage/session-storage";
+import { getSettings, updateSettings } from "@/lib/storage/settings";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, EXERCISE_REST_OPTIONS } from "@/lib/workout";
@@ -107,6 +108,9 @@ const StartWorkoutComponent = () => {
   const [resting, setResting] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
   const [countdown, setCountdown] = useState(0);
+  const [restVibration, setRestVibration] = useState(true);
+  const restVibrationRef = useRef(true);
+  restVibrationRef.current = restVibration;
 
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
@@ -229,12 +233,20 @@ const StartWorkoutComponent = () => {
     if (loaded && workout) saveActiveSession(workout);
   }, [workout, loaded]);
 
-  // Rest countdown timer with cleanup and end sound.
+  // Load the rest-vibration preference once (client-side).
+  useEffect(() => {
+    setRestVibration(getSettings().restVibration);
+  }, []);
+
+  // Rest countdown timer with cleanup and end sound + vibration.
   useEffect(() => {
     if (!resting) return;
     if (countdown <= 0) {
       setResting(false);
       playAudio(restEndAudioRef.current);
+      if (restVibrationRef.current && typeof navigator !== "undefined") {
+        navigator.vibrate?.([180, 80, 180]);
+      }
       return;
     }
     const timer = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
@@ -1324,6 +1336,19 @@ const StartWorkoutComponent = () => {
           >
             Skip Rest
           </Button>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !restVibration;
+              setRestVibration(next);
+              updateSettings({ restVibration: next });
+            }}
+            className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            aria-pressed={restVibration}
+          >
+            {restVibration ? <Vibrate className="size-3.5" /> : <VibrateOff className="size-3.5" />}
+            Vibrate when rest ends: {restVibration ? "On" : "Off"}
+          </button>
         </DialogContent>
       </Dialog>
 

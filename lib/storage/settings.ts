@@ -10,11 +10,14 @@ export type AppSettings = {
   weeklyGoal: number;
   /** Whether the first-run onboarding flow has been completed/dismissed. */
   onboardingDone: boolean;
+  /** Vibrate the device when the rest timer ends. */
+  restVibration: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   weeklyGoal: 3,
   onboardingDone: false,
+  restVibration: true,
 };
 
 function normalize(raw: unknown): AppSettings {
@@ -29,6 +32,8 @@ function normalize(raw: unknown): AppSettings {
   return {
     weeklyGoal,
     onboardingDone: r.onboardingDone === true,
+    // Default true unless explicitly disabled.
+    restVibration: r.restVibration !== false,
   };
 }
 
