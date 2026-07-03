@@ -85,3 +85,23 @@ export function deleteBodyMetric(id: string): boolean {
   const all = getBodyMetrics().filter((e) => e.id !== id);
   return writeJson(STORAGE_KEYS.bodyMetrics, all);
 }
+
+/** Updates an existing entry's weight, measurements and note (keeps its date). */
+export function updateBodyMetric(
+  id: string,
+  patch: { weightKg?: number; measurements?: BodyMeasurements; note?: string }
+): boolean {
+  const all = getBodyMetrics();
+  const idx = all.findIndex((e) => e.id === id);
+  if (idx === -1) return false;
+  all[idx] = {
+    ...all[idx],
+    weightKg: patch.weightKg,
+    measurements:
+      patch.measurements && Object.keys(patch.measurements).length > 0
+        ? patch.measurements
+        : undefined,
+    note: patch.note && patch.note.trim() ? patch.note.trim() : undefined,
+  };
+  return writeJson(STORAGE_KEYS.bodyMetrics, all);
+}

@@ -7,11 +7,13 @@ export function StatCard({
   label,
   value,
   icon,
+  info,
   className,
 }: {
   label: React.ReactNode;
   value: React.ReactNode;
   icon?: React.ReactNode;
+  info?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -22,9 +24,12 @@ export function StatCard({
             {icon}
           </div>
         ) : null}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-2xl font-bold leading-none">{value}</div>
-          <div className="mt-1 truncate text-xs text-muted-foreground">{label}</div>
+          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="truncate">{label}</span>
+            {info}
+          </div>
         </div>
       </CardContent>
     </Card>

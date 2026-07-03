@@ -5,6 +5,7 @@ import { Activity, Flame, Gauge, Percent } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { StatCard } from "@/components/shared/StatCard";
+import { InfoHint } from "@/components/shared/InfoHint";
 import type { BodyProfile } from "@/lib/storage/profile";
 import {
   computeBMI,
@@ -65,29 +66,58 @@ export function HealthMetrics({
             bmi !== null ? <span className={cat?.tone}>{bmi}</span> : <span className="text-muted-foreground">—</span>
           }
           icon={<Gauge className="size-5" />}
+          info={
+            <InfoHint title="BMI">
+              Body Mass Index — your weight relative to your height. Under 18.5 is underweight,
+              18.5–25 healthy, 25–30 overweight, 30+ obese. A rough guide that doesn&apos;t account
+              for muscle.
+            </InfoHint>
+          }
         />
         <StatCard
           label="Body fat (Navy)"
           value={bodyFat !== null ? `${bodyFat}%` : <span className="text-muted-foreground">—</span>}
           icon={<Percent className="size-5" />}
+          info={
+            <InfoHint title="Body fat %">
+              Estimated share of your weight that is fat, using the U.S. Navy tape method from your
+              height, neck and waist (plus hips for women). Log those measurements to see it.
+            </InfoHint>
+          }
         />
         <StatCard
           label="BMR (rest)"
           value={bmr !== null ? `${bmr}` : <span className="text-muted-foreground">—</span>}
           icon={<Activity className="size-5" />}
+          info={
+            <InfoHint title="BMR">
+              Basal Metabolic Rate — the calories your body burns at complete rest in a day, just to
+              keep you alive.
+            </InfoHint>
+          }
         />
         <StatCard
           label="Maintenance kcal"
           value={tdee !== null ? `${tdee}` : <span className="text-muted-foreground">—</span>}
           icon={<Flame className="size-5" />}
+          info={
+            <InfoHint title="Maintenance calories">
+              Calories per day to keep your current weight (BMR × your activity level). Eat below it
+              to lose fat, above it to gain.
+            </InfoHint>
+          }
         />
       </div>
 
       {targets && (
         <Card>
           <CardContent className="p-4">
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+            <h3 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
               Daily calorie targets
+              <InfoHint title="Calorie targets">
+                Rough daily calorie goals around your maintenance level: about −500 kcal to lose ~0.5
+                kg/week, maintenance to stay the same, and +300 kcal to gain muscle.
+              </InfoHint>
             </h3>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-lg border p-2.5">

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-import { ArrowLeft, Plus, Scale, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Scale, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import { getBodyProfile, updateBodyProfile, type BodyProfile } from "@/lib/stora
 import { computeBMI, bodyFatNavy } from "@/lib/body-metrics";
 import { BodyProfileCard } from "@/components/body/BodyProfileCard";
 import { HealthMetrics } from "@/components/body/HealthMetrics";
+import { EditBodyEntryDialog } from "@/components/body/EditBodyEntryDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { dayKeyToDate } from "@/lib/date/day-key";
 import { ROUTES } from "@/lib/routes";
@@ -53,6 +54,7 @@ export function BodyMetricsComponent() {
   const [measures, setMeasures] = React.useState<Record<string, string>>({});
   const [note, setNote] = React.useState("");
   const [pendingDelete, setPendingDelete] = React.useState<BodyMetricEntry | null>(null);
+  const [editEntry, setEditEntry] = React.useState<BodyMetricEntry | null>(null);
   const [profile, setProfile] = React.useState<BodyProfile>({});
   const [calMonth, setCalMonth] = React.useState<Date>(new Date());
 
@@ -394,15 +396,26 @@ export function BodyMetricsComponent() {
                       <p className="text-xs italic text-muted-foreground">“{entry.note}”</p>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label="Delete entry"
-                    onClick={() => setPendingDelete(entry)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Edit entry"
+                      onClick={() => setEditEntry(entry)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Delete entry"
+                      onClick={() => setPendingDelete(entry)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -424,6 +437,13 @@ export function BodyMetricsComponent() {
             refresh();
           }
         }}
+      />
+
+      <EditBodyEntryDialog
+        entry={editEntry}
+        measures={MEASURES}
+        onOpenChange={(open) => !open && setEditEntry(null)}
+        onSaved={refresh}
       />
     </PageContainer>
   );
