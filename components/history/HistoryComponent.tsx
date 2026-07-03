@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { ArrowLeft, CalendarDays, Download, Dumbbell, FileSpreadsheet, History, ShieldCheck, Upload } from "lucide-react";
+import { ArrowLeft, CalendarDays, Download, Dumbbell, FileSpreadsheet, History, ShieldCheck, Trophy, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import CalendarComponent from "@/components/Calendar";
 import { StreakSummary } from "@/components/history/StreakSummary";
 import { VolumeChart } from "@/components/history/VolumeChart";
+import { RecordsList } from "@/components/history/RecordsList";
 import { HistoryList } from "@/components/history/HistoryList";
 import {
   getCompletedWorkouts,
@@ -169,6 +170,16 @@ const HistoryComponent = () => {
         <CalendarComponent key={`cal-${version}`} />
 
         <VolumeChart entries={entries} />
+
+        {entries.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Trophy className="size-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold">Personal records</h2>
+            </div>
+            <RecordsList history={entries} />
+          </section>
+        )}
 
         <section className="space-y-3">
           <div className="flex items-center gap-2">

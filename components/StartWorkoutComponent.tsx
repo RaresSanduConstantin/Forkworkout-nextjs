@@ -52,11 +52,11 @@ import {
 } from "@/lib/storage/session-storage";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { inferUnit, setVolumeKg, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, EXERCISE_REST_OPTIONS } from "@/lib/workout";
+import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { loadExerciseLibrary, getExerciseDefaultUnit } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
-import { getLastSessionSets, normalizeExName } from "@/lib/history-stats";
+import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName } from "@/lib/history-stats";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
@@ -262,6 +262,61 @@ const StartWorkoutComponent = () => {
     }
     return map;
   }, [exNamesKey, history]);
+
+  // Pre-session PR snapshot per exercise, taken once when the session loads, so
+  // a set is compared against the record it needs to beat (not against itself).
+  const prSnapshotRef = useRef<Record<string, ReturnType<typeof getExercisePR>>>({});
+  const celebratedRef = useRef<Set<string>>(new Set());
+  const snapshotDoneRef = useRef(false);
+  useEffect(() => {
+    if (snapshotDoneRef.current || !loaded || !workout) return;
+    snapshotDoneRef.current = true;
+    const snap: Record<string, ReturnType<typeof getExercisePR>> = {};
+    for (const ex of workout.exercises) {
+      const key = normalizeExName(ex.name);
+      if (ex.name.trim() && !(key in snap)) snap[key] = getExercisePR(ex.name, history);
+    }
+    prSnapshotRef.current = snap;
+  }, [loaded, workout, history]);
+
+  // Fire a celebration toast the first time a done set beats the pre-session PR
+  // for that exercise (only when a prior record existed to beat).
+  const celebratePR = (exIdx: number, set: SessionSet | undefined) => {
+    if (!set) return;
+    const ex = workout?.exercises[exIdx];
+    if (!ex) return;
+    const key = normalizeExName(ex.name);
+    if (celebratedRef.current.has(key)) return;
+    const pr = prSnapshotRef.current[key];
+    if (!pr) return;
+
+    const unit = set.unit ?? inferUnit(set.value);
+    let label: string | null = null;
+    if (unit === "kg") {
+      const w = setWeightKg(set.value, unit);
+      if (pr.maxWeightKg > 0 && w > pr.maxWeightKg) {
+        label = `${w} kg × ${set.reps}`;
+      } else if (pr.bestOneRepMax > 0) {
+        const orm = estimateOneRepMax(w, set.reps);
+        if (orm > pr.bestOneRepMax) label = `est. 1RM ~${Math.round(orm)} kg`;
+      }
+    } else if (unit === "bw") {
+      if (pr.bestReps > 0 && set.reps > pr.bestReps) label = `${set.reps} reps`;
+    } else if (unit === "time") {
+      const d = parseDuration(set.value);
+      if (pr.bestDurationSec > 0 && d > pr.bestDurationSec) {
+        label = formatSetValue(`${d}s`, "time");
+      }
+    } else if (unit === "km") {
+      const km = parseFloat(set.value) || 0;
+      if (pr.bestDistanceKm > 0 && km > pr.bestDistanceKm) label = `${km} km`;
+    }
+
+    if (label) {
+      celebratedRef.current.add(key);
+      toast.success(`\uD83C\uDF89 New PR: ${ex.name} — ${label}!`);
+    }
+  };
 
   // Live elapsed time since the session started.
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -503,6 +558,7 @@ const StartWorkoutComponent = () => {
       return;
     }
     markSet(exIdx, setIdx, "done");
+    celebratePR(exIdx, set);
     const eff = effectiveRestSeconds(
       workout?.exercises[exIdx]?.rest,
       restSeconds ? String(restSeconds) : ""

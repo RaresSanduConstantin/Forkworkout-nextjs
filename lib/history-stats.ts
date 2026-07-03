@@ -142,6 +142,24 @@ export function getLastSessionSets(
   return latest?.sets ?? [];
 }
 
+/** Distinct exercise names that appear in history (most-recent activity first). */
+export function getAllExerciseNames(
+  history: CompletedWorkout[] = getCompletedWorkouts()
+): string[] {
+  const seen = new Map<string, { name: string; time: number }>();
+  for (const w of history) {
+    if (!w.exercises) continue;
+    const time = new Date(w.date).getTime();
+    for (const ex of w.exercises) {
+      if (!ex.name?.trim()) continue;
+      const key = normalizeExName(ex.name);
+      const prev = seen.get(key);
+      if (!prev || time > prev.time) seen.set(key, { name: ex.name.trim(), time });
+    }
+  }
+  return [...seen.values()].sort((a, b) => b.time - a.time).map((e) => e.name);
+}
+
 /** Best-ever numbers for the exercise across all history. */
 export type ExercisePR = {
   kind: SetUnit;
