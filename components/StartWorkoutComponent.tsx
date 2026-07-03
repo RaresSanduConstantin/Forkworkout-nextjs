@@ -8,6 +8,7 @@ import { ArrowLeft, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, ListChe
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -767,11 +768,20 @@ const StartWorkoutComponent = () => {
                               <td className="px-1 py-1.5">
                                 {exUnit === "bw" ? (
                                   <div className="text-center text-muted-foreground">BW</div>
-                                ) : (
+                                ) : exUnit === "time" ? (
                                   <Input
-                                    type={exUnit === "time" ? "text" : "number"}
-                                    inputMode={exUnit === "time" ? "text" : "decimal"}
-                                    min={exUnit === "time" ? undefined : 0}
+                                    type="text"
+                                    value={set.value}
+                                    onChange={(e) =>
+                                      updateSetValue(exIdx, setIdx, e.target.value)
+                                    }
+                                    className="h-8 w-full text-center"
+                                    placeholder={unitPlaceholder(exUnit)}
+                                    aria-label="Value"
+                                  />
+                                ) : (
+                                  <NumberInput
+                                    decimal
                                     value={set.value}
                                     onChange={(e) =>
                                       updateSetValue(exIdx, setIdx, e.target.value)

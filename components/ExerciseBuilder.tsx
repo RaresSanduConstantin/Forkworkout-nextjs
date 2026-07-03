@@ -3,6 +3,7 @@ import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
 import { Trash2, Plus, Info, Timer, ChevronUp, ChevronDown, Copy, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -182,21 +183,31 @@ function SetRow({
         <FormField
           control={control}
           name={`${base}.value`}
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <Input
-                  type={unit === "kg" ? "number" : "text"}
-                  inputMode={unit === "kg" ? "decimal" : "text"}
-                  min={unit === "kg" ? 0 : undefined}
-                  placeholder={unitPlaceholder(unit)}
-                  aria-label={unit === "kg" ? "Weight in kg" : "Duration"}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const isDecimal = unit === "kg" || unit === "km";
+            return (
+              <FormItem>
+                <FormControl>
+                  {isDecimal ? (
+                    <NumberInput
+                      decimal
+                      placeholder={unitPlaceholder(unit)}
+                      aria-label={unit === "kg" ? "Weight in kg" : "Distance in km"}
+                      {...field}
+                    />
+                  ) : (
+                    <Input
+                      type="text"
+                      placeholder={unitPlaceholder(unit)}
+                      aria-label="Duration"
+                      {...field}
+                    />
+                  )}
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
       )}
     </div>

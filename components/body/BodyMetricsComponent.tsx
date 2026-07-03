@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -125,12 +126,9 @@ export function BodyMetricsComponent() {
             <label htmlFor="bm-weight" className="text-sm font-medium">
               Bodyweight (kg)
             </label>
-            <Input
+            <NumberInput
               id="bm-weight"
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="0.1"
+              decimal
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
               placeholder="e.g. 78.5"
@@ -141,12 +139,9 @@ export function BodyMetricsComponent() {
             <span className="text-sm font-medium">Measurements (cm, optional)</span>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {MEASURES.map((m) => (
-                <Input
+                <NumberInput
                   key={m.key}
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.1"
+                  decimal
                   value={measures[m.key] ?? ""}
                   onChange={(e) =>
                     setMeasures((prev) => ({ ...prev, [m.key]: e.target.value }))
