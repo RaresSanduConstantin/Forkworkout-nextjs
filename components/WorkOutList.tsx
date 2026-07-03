@@ -26,12 +26,14 @@ import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWork
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import { buildShareUrl, decodeWorkout } from "@/lib/storage/share";
 import { clearAllData } from "@/lib/storage/reset";
-import { hasCustomExercises } from "@/lib/storage/custom-exercises";
+import { hasCustomExercises, getCustomExercises, addCustomExercise } from "@/lib/storage/custom-exercises";
 import { computeStreak } from "@/lib/date/streak";
 import { instantiateTemplate, type WorkoutTemplate } from "@/lib/templates";
 import { ROUTES } from "@/lib/routes";
 import type { Workout } from "@/lib/types";
 import { toast } from "sonner";
+
+type AddCustomInput = Parameters<typeof addCustomExercise>[0];
 
 const WorkoutList = () => {
   const router = useRouter();
@@ -43,6 +45,7 @@ const WorkoutList = () => {
   const [keepCustomExercises, setKeepCustomExercises] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [pendingImport, setPendingImport] = useState<Workout | null>(null);
+  const [pendingCustom, setPendingCustom] = useState<AddCustomInput[]>([]);
   const [shareTarget, setShareTarget] = useState<Workout | null>(null);
   const [shareMessage, setShareMessage] = useState("");
 
@@ -59,8 +62,10 @@ const WorkoutList = () => {
     const decoded = decodeWorkout(match[1]);
     // Clear the fragment so a refresh doesn't re-prompt.
     history.replaceState(null, "", window.location.pathname + window.location.search);
-    if (decoded) setPendingImport(decoded);
-    else toast.error("That shared workout link looks invalid.");
+    if (decoded) {
+      setPendingImport(decoded.workout);
+      setPendingCustom(decoded.customExercises);
+    } else toast.error("That shared workout link looks invalid.");
   }, []);
 
   const handleEdit = (id: string) => router.push(ROUTES.editWorkout(id));
@@ -115,6 +120,14 @@ const WorkoutList = () => {
 
   const confirmImport = () => {
     if (!pendingImport) return;
+    // Register any bundled custom exercises we don't already have (by name), so
+    // the recipient gets their how-to / video / units too.
+    if (pendingCustom.length > 0) {
+      const have = new Set(getCustomExercises().map((e) => e.name.toLowerCase()));
+      for (const cx of pendingCustom) {
+        if (!have.has(cx.name.toLowerCase())) addCustomExercise(cx);
+      }
+    }
     const title = uniqueWorkoutTitle(
       pendingImport.title,
       workouts.map((w) => w.title)
@@ -124,6 +137,7 @@ const WorkoutList = () => {
     setWorkouts((prev) => [...prev, imported]);
     toast.success(`Added “${imported.title}” to your workouts`);
     setPendingImport(null);
+    setPendingCustom([]);
   };
 
   const handleAddTemplate = (template: WorkoutTemplate) => {
@@ -413,6 +427,12 @@ const WorkoutList = () => {
                   )}
                 </ul>
               </div>
+              {pendingCustom.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Includes {pendingCustom.length} custom exercise
+                  {pendingCustom.length === 1 ? "" : "s"} (with how-to &amp; video).
+                </p>
+              )}
             </div>
           )}
           <DialogFooter className="gap-2 sm:gap-2">
