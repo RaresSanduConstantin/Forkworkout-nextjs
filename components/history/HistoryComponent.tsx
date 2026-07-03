@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import CalendarComponent from "@/components/Calendar";
 import { StreakSummary } from "@/components/history/StreakSummary";
 import { VolumeChart } from "@/components/history/VolumeChart";
+import { MuscleInsights } from "@/components/history/MuscleInsights";
 import { RecordsList, buildExerciseRecords } from "@/components/history/RecordsList";
 import {
   Accordion,
@@ -176,6 +177,8 @@ const HistoryComponent = () => {
         <CalendarComponent key={`cal-${version}`} />
 
         <VolumeChart entries={entries} />
+
+        {entries.length > 0 && <MuscleInsights history={entries} />}
 
         {(() => {
           const recordCount = buildExerciseRecords(entries).length;
