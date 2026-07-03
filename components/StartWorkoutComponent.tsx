@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, Layers, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { BottomActionBar } from "@/components/layout/BottomActionBar";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { honkFont } from "@/lib/honkFont";
+import { cn } from "@/lib/utils";
 
 import { getWorkoutById, getWorkouts, saveWorkouts } from "@/lib/storage/workout-storage";
 import { addCompletedWorkout, getCompletedWorkouts } from "@/lib/storage/history-storage";
@@ -454,6 +455,28 @@ const StartWorkoutComponent = () => {
     );
   };
 
+  const setExerciseSuperset = (exIdx: number, superset: string | undefined) => {
+    setWorkout((prev) =>
+      prev
+        ? {
+            ...prev,
+            exercises: prev.exercises.map((ex, i) =>
+              i === exIdx ? { ...ex, superset } : ex
+            ),
+          }
+        : prev
+    );
+  };
+
+  // The last exercise of a contiguous superset block (used for combined rest:
+  // in a true superset there's no rest between exercises, only after the round).
+  const isLastInSupersetBlock = (exIdx: number): boolean => {
+    const group = workout?.exercises[exIdx]?.superset;
+    if (!group) return true;
+    const next = workout?.exercises[exIdx + 1]?.superset;
+    return next !== group;
+  };
+
   const addExercise = () => {
     setWorkout((prev) =>
       prev
@@ -559,6 +582,15 @@ const StartWorkoutComponent = () => {
     }
     markSet(exIdx, setIdx, "done");
     celebratePR(exIdx, set);
+
+    // True superset: don't rest between exercises in a group — only after the
+    // last one. Nudge the user to move straight to the next exercise instead.
+    if (!isLastInSupersetBlock(exIdx)) {
+      const nextName = workout?.exercises[exIdx + 1]?.name;
+      toast(nextName ? `Straight into ${nextName} — no rest` : "Straight to the next exercise — no rest");
+      return;
+    }
+
     const eff = effectiveRestSeconds(
       workout?.exercises[exIdx]?.rest,
       restSeconds ? String(restSeconds) : ""
@@ -736,28 +768,38 @@ const StartWorkoutComponent = () => {
       </div>
 
       <div className="mt-6 space-y-4">
-        {workout.exercises.map((exercise, exIdx) => (
-          <Card key={exercise.id ?? exIdx}>
-            <CardContent className="space-y-3 p-4">
-              {exercise.superset && (
-                <Badge variant="secondary" className="gap-1">
-                  <ListChecks className="size-3" />
-                  Superset {exercise.superset}
-                </Badge>
+        {workout.exercises.map((exercise, exIdx) => {
+          const group = exercise.superset;
+          const prevGroup = exIdx > 0 ? workout.exercises[exIdx - 1]?.superset : undefined;
+          const nextGroup = workout.exercises[exIdx + 1]?.superset;
+          const inGroup = !!group && (group === prevGroup || group === nextGroup);
+          const isGroupStart = inGroup && group !== prevGroup;
+          return (
+            <div
+              key={exercise.id ?? exIdx}
+              className={cn(inGroup && "rounded-l-lg border-l-2 border-primary/60 pl-2")}
+            >
+              {isGroupStart && (
+                <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-primary">
+                  <ListChecks className="size-3.5" />
+                  Superset {group} · no rest between these
+                </div>
               )}
-              <ExerciseCombobox
-                value={exercise.name}
-                onChange={(value) => updateExerciseName(exIdx, value)}
-                placeholder="Search for an exercise..."
-                recommendForName={
-                  exercise.name ||
-                  workout.exercises
-                    .slice(0, exIdx)
-                    .reverse()
-                    .find((e) => e.name)?.name ||
-                  ""
-                }
-              />
+              <Card>
+                <CardContent className="space-y-3 p-4">
+                  <ExerciseCombobox
+                    value={exercise.name}
+                    onChange={(value) => updateExerciseName(exIdx, value)}
+                    placeholder="Search for an exercise..."
+                    recommendForName={
+                      exercise.name ||
+                      workout.exercises
+                        .slice(0, exIdx)
+                        .reverse()
+                        .find((e) => e.name)?.name ||
+                      ""
+                    }
+                  />
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
@@ -797,6 +839,31 @@ const StartWorkoutComponent = () => {
                     {EXERCISE_REST_OPTIONS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={exercise.superset || "none"}
+                  onValueChange={(v) =>
+                    setExerciseSuperset(exIdx, v === "none" ? undefined : v)
+                  }
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="w-auto gap-1.5"
+                    aria-label="Superset group"
+                  >
+                    <Layers className="size-4 text-primary" />
+                    <SelectValue>
+                      {exercise.superset ? `Superset ${exercise.superset}` : "Superset"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No superset</SelectItem>
+                    {["A", "B", "C", "D", "E", "F"].map((g) => (
+                      <SelectItem key={g} value={g}>
+                        Superset {g}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -966,7 +1033,9 @@ const StartWorkoutComponent = () => {
               </Button>
             </CardContent>
           </Card>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       <Button

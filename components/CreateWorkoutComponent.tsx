@@ -33,7 +33,8 @@ import { motion, MotionConfig } from "motion/react";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUpDown, Plus, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Layers, Plus, Save, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { useRouter, useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
@@ -241,28 +242,51 @@ const CreateWorkoutComponent = () => {
           )}
           <MotionConfig reducedMotion="user">
             <div className="space-y-4">
-              {exerciseFields.map((exercise, index) => (
-                <motion.div
-                  key={exercise.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <ExerciseBuilder
-                    index={index}
-                    onRemove={() => removeExercise(index)}
-                    exercisesLength={exerciseFields.length}
-                    onMoveUp={index > 0 ? () => moveExercise(index, index - 1) : undefined}
-                    onMoveDown={
-                      index < exerciseFields.length - 1
-                        ? () => moveExercise(index, index + 1)
-                        : undefined
-                    }
-                    onDuplicate={() => duplicateExercise(index)}
-                  />
-                </motion.div>
-              ))}
+              {exerciseFields.map((exercise, index) => {
+                const group = watchedExercises?.[index]?.superset as string | undefined;
+                const prevGroup =
+                  index > 0
+                    ? (watchedExercises?.[index - 1]?.superset as string | undefined)
+                    : undefined;
+                const nextGroup =
+                  index < exerciseFields.length - 1
+                    ? (watchedExercises?.[index + 1]?.superset as string | undefined)
+                    : undefined;
+                const inGroup = !!group && (group === prevGroup || group === nextGroup);
+                const isStart = inGroup && group !== prevGroup;
+                return (
+                  <div
+                    key={exercise.id}
+                    className={cn(inGroup && "rounded-l-lg border-l-2 border-primary/60 pl-2")}
+                  >
+                    {isStart && (
+                      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-primary">
+                        <Layers className="size-3.5" />
+                        Superset {group} · no rest between these
+                      </div>
+                    )}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <ExerciseBuilder
+                        index={index}
+                        onRemove={() => removeExercise(index)}
+                        exercisesLength={exerciseFields.length}
+                        onMoveUp={index > 0 ? () => moveExercise(index, index - 1) : undefined}
+                        onMoveDown={
+                          index < exerciseFields.length - 1
+                            ? () => moveExercise(index, index + 1)
+                            : undefined
+                        }
+                        onDuplicate={() => duplicateExercise(index)}
+                      />
+                    </motion.div>
+                  </div>
+                );
+              })}
             </div>
           </MotionConfig>
 
