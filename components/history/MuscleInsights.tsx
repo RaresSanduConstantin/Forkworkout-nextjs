@@ -5,7 +5,7 @@ import { Dumbbell } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { BodyHeatmap } from "@/components/history/BodyHeatmap";
+import { MuscleMapView } from "@/components/history/MuscleMapView";
 import type { CompletedWorkout } from "@/lib/types";
 import { getCachedLibrary, loadExerciseLibrary, type LibraryExercise } from "@/lib/exercises";
 import { muscleGroupSetCounts, muscleIntensities, totalSets } from "@/lib/muscle-stats";
@@ -75,7 +75,8 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
           </p>
         ) : (
           <>
-            <BodyHeatmap intensity={intensity} />
+            <MuscleMapView intensity={intensity} />
+
 
             <div className="space-y-2">
               {ranked.map(({ group, sets }) => (

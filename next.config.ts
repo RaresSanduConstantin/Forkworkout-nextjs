@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["raw.githubusercontent.com"],
   },
+  // MuscleMapJS ships raw TypeScript from GitHub; let Next compile it.
+  transpilePackages: ["@abdofallah/musclemap-js"],
 };
 
 // PWA: precache the app shell + runtime-cache assets so the app installs to the

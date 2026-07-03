@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Info, Layers, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Plus, SkipForward, Target, Timer, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,9 +55,17 @@ import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { getExerciseVideoId } from "@/lib/exercise-videos";
-import { loadExerciseLibrary, getExerciseDefaultUnit } from "@/lib/exercises";
+import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName } from "@/lib/history-stats";
+import { muscleGroupCountsFromExercises, muscleIntensities } from "@/lib/muscle-stats";
+import { MuscleMapView } from "@/components/history/MuscleMapView";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
@@ -105,6 +113,7 @@ const StartWorkoutComponent = () => {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [exerciseDetails, setExerciseDetails] = useState<ExerciseDetails | null>(null);
   const [exercises, setExercises] = useState<ExerciseDetails[]>([]);
+  const [library, setLibrary] = useState<LibraryExercise[]>(getCachedLibrary());
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
@@ -170,7 +179,10 @@ const StartWorkoutComponent = () => {
     let active = true;
     loadExerciseLibrary()
       .then((lib) => {
-        if (active) setExercises(lib as ExerciseDetails[]);
+        if (active) {
+          setExercises(lib as ExerciseDetails[]);
+          setLibrary(lib);
+        }
       })
       .catch((error) => console.error("Failed to load exercises:", error));
     return () => {
@@ -263,6 +275,12 @@ const StartWorkoutComponent = () => {
     }
     return map;
   }, [exNamesKey, history]);
+
+  // Live muscle-group intensity from the sets completed so far this session.
+  const muscleIntensity = useMemo(() => {
+    if (!workout) return null;
+    return muscleIntensities(muscleGroupCountsFromExercises(workout.exercises, library));
+  }, [workout, library]);
 
   // Pre-session PR snapshot per exercise, taken once when the session loads, so
   // a set is compared against the record it needs to beat (not against itself).
@@ -766,6 +784,30 @@ const StartWorkoutComponent = () => {
         </div>
         <Progress value={progress.percent} aria-label="Workout progress" />
       </div>
+
+      {muscleIntensity && (
+        <Accordion
+          type="single"
+          collapsible
+          defaultValue="muscles"
+          className="mt-4 rounded-lg border px-4"
+        >
+          <AccordionItem value="muscles" className="border-b-0">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <Flame className="size-4 text-orange-500" />
+                Muscles worked
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <MuscleMapView intensity={muscleIntensity} />
+              <p className="mt-1 text-center text-xs text-muted-foreground">
+                Lights up as you complete sets.
+              </p>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
 
       <div className="mt-6 space-y-4">
         {workout.exercises.map((exercise, exIdx) => {
