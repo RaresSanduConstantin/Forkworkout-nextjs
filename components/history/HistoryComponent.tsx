@@ -14,7 +14,13 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import CalendarComponent from "@/components/Calendar";
 import { StreakSummary } from "@/components/history/StreakSummary";
 import { VolumeChart } from "@/components/history/VolumeChart";
-import { RecordsList } from "@/components/history/RecordsList";
+import { RecordsList, buildExerciseRecords } from "@/components/history/RecordsList";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { HistoryList } from "@/components/history/HistoryList";
 import {
   getCompletedWorkouts,
@@ -171,15 +177,28 @@ const HistoryComponent = () => {
 
         <VolumeChart entries={entries} />
 
-        {entries.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Trophy className="size-5 text-muted-foreground" />
-              <h2 className="text-xl font-semibold">Personal records</h2>
-            </div>
-            <RecordsList history={entries} />
-          </section>
-        )}
+        {(() => {
+          const recordCount = buildExerciseRecords(entries).length;
+          if (entries.length === 0 || recordCount === 0) return null;
+          return (
+            <Accordion type="single" collapsible className="rounded-lg border px-4">
+              <AccordionItem value="records">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-xl font-semibold">
+                    <Trophy className="size-5 text-muted-foreground" />
+                    Personal records
+                    <span className="text-sm font-normal text-muted-foreground">
+                      ({recordCount})
+                    </span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <RecordsList history={entries} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          );
+        })()}
 
         <section className="space-y-3">
           <div className="flex items-center gap-2">

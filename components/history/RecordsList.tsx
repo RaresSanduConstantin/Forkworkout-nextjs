@@ -9,7 +9,7 @@ import { formatSetValue } from "@/lib/workout";
 
 type RecordRow = { name: string; main: string; sub?: string };
 
-function buildRecords(history: CompletedWorkout[]): RecordRow[] {
+export function buildExerciseRecords(history: CompletedWorkout[]): RecordRow[] {
   const rows: RecordRow[] = [];
   for (const name of getAllExerciseNames(history)) {
     const pr = getExercisePR(name, history);
@@ -38,7 +38,7 @@ function buildRecords(history: CompletedWorkout[]): RecordRow[] {
  * Renders nothing when there are no records yet.
  */
 export function RecordsList({ history }: { history: CompletedWorkout[] }) {
-  const records = React.useMemo(() => buildRecords(history), [history]);
+  const records = React.useMemo(() => buildExerciseRecords(history), [history]);
   if (records.length === 0) return null;
 
   return (
