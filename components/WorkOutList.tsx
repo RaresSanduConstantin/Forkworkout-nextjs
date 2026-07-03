@@ -21,6 +21,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { WorkoutCard } from "@/components/workouts/WorkoutCard";
 import { StarterWorkouts } from "@/components/workouts/StarterWorkouts";
+import { WeeklyGoalCard } from "@/components/dashboard/WeeklyGoalCard";
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
 import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
@@ -184,6 +185,7 @@ const WorkoutList = () => {
     <div className="mx-auto w-full max-w-xl px-4 py-6 space-y-8">
       {/* Progress summary */}
       <div className="space-y-3">
+        <WeeklyGoalCard key={`goal-${totalCompleted}`} />
         <Link href={ROUTES.history} className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="grid grid-cols-2 gap-3">
             <StatCard
