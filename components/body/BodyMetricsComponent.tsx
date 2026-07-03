@@ -27,6 +27,7 @@ import { getBodyProfile, updateBodyProfile, type BodyProfile } from "@/lib/stora
 import { computeBMI, bodyFatNavy } from "@/lib/body-metrics";
 import { BodyProfileCard } from "@/components/body/BodyProfileCard";
 import { HealthMetrics } from "@/components/body/HealthMetrics";
+import { WeightGoalCard } from "@/components/body/WeightGoalCard";
 import { EditBodyEntryDialog } from "@/components/body/EditBodyEntryDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { dayKeyToDate } from "@/lib/date/day-key";
@@ -157,6 +158,14 @@ export function BodyMetricsComponent() {
     [entries]
   );
 
+  const weightPoints = React.useMemo(
+    () =>
+      entries
+        .filter((e) => e.weightKg !== undefined)
+        .map((e) => ({ date: e.date, weightKg: e.weightKg as number })),
+    [entries]
+  );
+
   const chartConfig = {
     value: { label: "Weight (kg)", color: "var(--chart-1)" },
   } satisfies ChartConfig;
@@ -245,6 +254,7 @@ export function BodyMetricsComponent() {
           neck={latestValues.neck}
           hips={latestValues.hips}
         />
+        <WeightGoalCard profile={profile} onChange={handleProfileChange} series={weightPoints} />
       </div>
 
       {loaded && entries.length === 0 ? (

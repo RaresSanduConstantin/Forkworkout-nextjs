@@ -100,3 +100,75 @@ export function bodyFatNavy(
   if (!Number.isFinite(bf) || bf <= 0 || bf > 70) return null;
   return Math.round(bf * 10) / 10;
 }
+
+// --- Goal weight projection ------------------------------------------------
+
+export type WeightProjection = {
+  start: number; // first weight in the series
+  current: number; // latest weight
+  goal: number;
+  progressPct: number; // 0–100 from start toward goal
+  reached: boolean;
+  slopePerWeek: number; // signed kg/week trend
+  etaWeeks: number | null; // weeks to goal at current pace (null if not trending toward it)
+  towardGoal: boolean;
+};
+
+/** Least-squares slope (kg/day) of weight over time; null if indeterminate. */
+function weightSlopePerDay(points: { date: string; weightKg: number }[]): number | null {
+  if (points.length < 2) return null;
+  const t0 = new Date(points[0].date).getTime();
+  const xs = points.map((p) => (new Date(p.date).getTime() - t0) / 86400000);
+  const ys = points.map((p) => p.weightKg);
+  const n = xs.length;
+  const sx = xs.reduce((a, b) => a + b, 0);
+  const sy = ys.reduce((a, b) => a + b, 0);
+  const sxy = xs.reduce((a, x, i) => a + x * ys[i], 0);
+  const sxx = xs.reduce((a, x) => a + x * x, 0);
+  const denom = n * sxx - sx * sx;
+  if (Math.abs(denom) < 1e-9) return null;
+  return (n * sxy - sx * sy) / denom;
+}
+
+/**
+ * Projects progress from the first logged weight toward a goal, using the
+ * least-squares trend of the (date-sorted) series to estimate weeks remaining.
+ */
+export function weightProjection(
+  series: { date: string; weightKg: number }[],
+  goalKg?: number
+): WeightProjection | null {
+  if (!goalKg || series.length === 0) return null;
+  const pts = [...series].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  const start = pts[0].weightKg;
+  const current = pts[pts.length - 1].weightKg;
+
+  const losing = goalKg < start;
+  const reached =
+    Math.abs(current - goalKg) <= 0.25 || (losing ? current <= goalKg : current >= goalKg);
+
+  const total = start - goalKg;
+  const done = start - current;
+  const progressPct =
+    Math.abs(total) < 1e-9
+      ? reached
+        ? 100
+        : 0
+      : Math.max(0, Math.min(100, (done / total) * 100));
+
+  const slopeDay = weightSlopePerDay(pts) ?? 0;
+  const slopePerWeek = Math.round(slopeDay * 7 * 100) / 100;
+
+  const need = goalKg - current; // signed remaining
+  const towardGoal = !reached && slopeDay !== 0 && Math.sign(slopeDay) === Math.sign(need);
+
+  let etaWeeks: number | null = null;
+  if (towardGoal) {
+    const weeks = need / (slopeDay * 7);
+    if (Number.isFinite(weeks) && weeks > 0 && weeks < 260) etaWeeks = Math.ceil(weeks);
+  }
+
+  return { start, current, goal: goalKg, progressPct, reached, slopePerWeek, etaWeeks, towardGoal };
+}

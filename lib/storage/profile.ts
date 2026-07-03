@@ -13,6 +13,7 @@ export type BodyProfile = {
   sex?: BodySex;
   birthYear?: number;
   activity?: ActivityLevel;
+  goalWeightKg?: number;
 };
 
 function posNum(v: unknown, min: number, max: number): number | undefined {
@@ -36,6 +37,7 @@ function normalize(raw: unknown): BodyProfile {
       r.activity === "very_active"
         ? r.activity
         : undefined,
+    goalWeightKg: posNum(r.goalWeightKg, 20, 400),
   };
 }
 
