@@ -22,6 +22,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { WorkoutCard } from "@/components/workouts/WorkoutCard";
 import { StarterWorkouts } from "@/components/workouts/StarterWorkouts";
 import { WeeklyGoalCard } from "@/components/dashboard/WeeklyGoalCard";
+import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
 import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
@@ -29,6 +30,7 @@ import { buildShareUrl, decodeWorkout } from "@/lib/storage/share";
 import { clearAllData } from "@/lib/storage/reset";
 import { hasCustomExercises, getCustomExercises, addCustomExercise } from "@/lib/storage/custom-exercises";
 import { computeStreak } from "@/lib/date/streak";
+import { getSettings } from "@/lib/storage/settings";
 import { instantiateTemplate, type WorkoutTemplate } from "@/lib/templates";
 import { ROUTES } from "@/lib/routes";
 import type { Workout } from "@/lib/types";
@@ -49,11 +51,19 @@ const WorkoutList = () => {
   const [pendingCustom, setPendingCustom] = useState<AddCustomInput[]>([]);
   const [shareTarget, setShareTarget] = useState<Workout | null>(null);
   const [shareMessage, setShareMessage] = useState("");
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    setWorkouts(getWorkouts());
+    const loaded = getWorkouts();
+    setWorkouts(loaded);
     setStreak(computeStreak(getCompletedDayKeys()));
     setTotalCompleted(getCompletedWorkouts().length);
+
+    // First-run onboarding: only when the user hasn't seen it and has no
+    // workouts yet. Read after mount to avoid hydration mismatches.
+    if (!getSettings().onboardingDone && loaded.length === 0) {
+      setShowOnboarding(true);
+    }
   }, []);
 
   // Detect a shared workout in the URL fragment (#import=…) and offer to import.
@@ -350,6 +360,22 @@ const WorkoutList = () => {
       </Dialog>
 
       <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
+
+      <OnboardingDialog
+        open={showOnboarding}
+        onOpenChange={setShowOnboarding}
+        onComplete={({ addedWorkout }) => {
+          if (addedWorkout) {
+            setWorkouts((prev) => [...prev, addedWorkout]);
+            toast.success(`Added “${addedWorkout.title}”`, {
+              action: {
+                label: "Start",
+                onClick: () => router.push(ROUTES.startWorkout(addedWorkout.id)),
+              },
+            });
+          }
+        }}
+      />
 
       {/* Share a workout — add an optional message, then send the link */}
       <Dialog
