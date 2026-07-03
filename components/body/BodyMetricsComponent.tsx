@@ -215,6 +215,10 @@ export function BodyMetricsComponent() {
                 />
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Tip: log your <span className="font-medium">neck</span> and{" "}
+              <span className="font-medium">waist</span> (plus hips for women) to unlock body-fat %.
+            </p>
           </div>
 
           <Input

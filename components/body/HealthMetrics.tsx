@@ -57,6 +57,24 @@ export function HealthMetrics({
 
   const cat = bmi !== null ? bmiCategory(bmi) : null;
 
+  // Tell the user exactly what's missing when body fat can't be computed.
+  let bodyFatHint: string | null = null;
+  if (bodyFat === null) {
+    if (!profile.sex || !profile.heightCm) {
+      bodyFatHint = "Add your sex and height above to calculate body fat.";
+    } else {
+      const need: string[] = [];
+      if (!waist) need.push("waist");
+      if (!neck) need.push("neck");
+      if (profile.sex === "female" && !hips) need.push("hips");
+      if (need.length) {
+        bodyFatHint = `Log your ${need.join(", ")} measurement${
+          need.length > 1 ? "s" : ""
+        } to calculate body fat.`;
+      }
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -108,6 +126,13 @@ export function HealthMetrics({
           }
         />
       </div>
+
+      {bodyFatHint && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Percent className="size-3.5 shrink-0" />
+          {bodyFatHint}
+        </p>
+      )}
 
       {targets && (
         <Card>
