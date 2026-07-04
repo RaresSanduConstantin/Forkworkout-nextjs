@@ -168,6 +168,7 @@ const StartWorkoutComponent = () => {
   const restVibrationRef = useRef(true);
   restVibrationRef.current = restVibration;
   const [vibrationSupported, setVibrationSupported] = useState(false);
+  const [restNextLabel, setRestNextLabel] = useState<string | null>(null);
 
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
@@ -502,6 +503,30 @@ const StartWorkoutComponent = () => {
   const updateSetType = (exIdx: number, setIdx: number, type: SetType) =>
     updateSet(exIdx, setIdx, (s) => ({ ...s, type }));
 
+  // Label of the next set to do after the one at (exIdx, setIdx), for the rest
+  // timer's "next up" preview.
+  const nextUpLabel = (exIdx: number, setIdx: number): string | null => {
+    if (!workout) return null;
+    const ex = workout.exercises[exIdx];
+    let next: { name: string; num: number; total: number; set: SessionSet } | null = null;
+    if (ex && setIdx + 1 < ex.sets.length) {
+      next = { name: ex.name, num: setIdx + 2, total: ex.sets.length, set: ex.sets[setIdx + 1] };
+    } else {
+      for (let j = exIdx + 1; j < workout.exercises.length; j++) {
+        const nx = workout.exercises[j];
+        if (nx.sets.length) {
+          next = { name: nx.name, num: 1, total: nx.sets.length, set: nx.sets[0] };
+          break;
+        }
+      }
+    }
+    if (!next) return null;
+    const u = next.set.unit ?? inferUnit(next.set.value);
+    const target =
+      u === "bw" ? `${next.set.reps} reps` : `${next.set.reps} × ${formatSetValue(next.set.value, u)}`;
+    return `${next.name || "Exercise"} · Set ${next.num}/${next.total} · ${target}`;
+  };
+
   // Reorder exercises (drag-and-drop modal). Persisted via the save effect.
   const moveExercise = (from: number, to: number) => {
     setWorkout((prev) => {
@@ -709,6 +734,7 @@ const StartWorkoutComponent = () => {
       restSeconds ? String(restSeconds) : ""
     );
     if (!eff) return;
+    setRestNextLabel(nextUpLabel(exIdx, setIdx));
     setCountdown(eff);
     setResting(true);
     // This runs from a user tap, so play the start sound and unlock the end
@@ -1479,6 +1505,14 @@ const StartWorkoutComponent = () => {
           <div className="font-mono text-6xl font-bold text-primary tabular-nums">
             {countdown}s
           </div>
+          {restNextLabel && (
+            <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Next up
+              </span>
+              <p className="mt-0.5 font-medium">{restNextLabel}</p>
+            </div>
+          )}
           <div className="flex items-center justify-center gap-3">
             <Button
               variant="outline"
