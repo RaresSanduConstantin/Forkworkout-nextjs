@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Input } from "@/components/ui/input";
 import {
   Accordion,
   AccordionContent,
@@ -42,6 +43,13 @@ import { MuscleMapView } from "@/components/history/MuscleMapView";
 import { MuscleMapPicker } from "@/components/workouts/MuscleMapPicker";
 import { getBodyProfile } from "@/lib/storage/profile";
 import { updateBodyProfile } from "@/lib/storage/profile";
+import {
+  HOME_EQUIPMENT_ITEMS,
+  getHomeEquipment,
+  saveHomeEquipment,
+  resolveHomeEquipment,
+  type HomeEquipmentKey,
+} from "@/lib/storage/home-equipment";
 import { getBodyMetrics } from "@/lib/storage/body-storage";
 import { suggestNextWeight, getLastPerformance } from "@/lib/history-stats";
 import { cn } from "@/lib/utils";
@@ -93,6 +101,9 @@ export function WorkoutWizard({
   const [targetMuscles, setTargetMuscles] = React.useState<MuscleTargetKey[]>([]);
   const [goal, setGoal] = React.useState<Goal>("muscle");
   const [equipment, setEquipment] = React.useState<EquipmentAccess>("gym");
+  const [homeOwned, setHomeOwned] = React.useState<HomeEquipmentKey[]>([]);
+  const [dumbbellMax, setDumbbellMax] = React.useState("");
+  const [kettlebellMax, setKettlebellMax] = React.useState("");
   const [experience, setExperience] = React.useState<Experience>("beginner");
   const [minutes, setMinutes] = React.useState(30);
 
@@ -125,6 +136,10 @@ export function WorkoutWizard({
       return;
     }
     setGender(getBodyProfile().sex === "female" ? "female" : "male");
+    const he = getHomeEquipment();
+    setHomeOwned(he.owned);
+    setDumbbellMax(he.dumbbellMaxKg != null ? String(he.dumbbellMaxKg) : "");
+    setKettlebellMax(he.kettlebellMaxKg != null ? String(he.kettlebellMaxKg) : "");
     let active = true;
     loadExerciseLibrary().then((lib) => {
       if (active) setLibrary(lib);
@@ -143,6 +158,19 @@ export function WorkoutWizard({
     const latestWeight = [...getBodyMetrics()]
       .reverse()
       .find((m) => m.weightKg !== undefined)?.weightKg;
+
+    // Resolve & remember home equipment (only relevant for the "home" option).
+    let homeEquipment: ReturnType<typeof resolveHomeEquipment> | undefined;
+    if (equipment === "home") {
+      const he = {
+        owned: homeOwned,
+        dumbbellMaxKg: dumbbellMax ? Number(dumbbellMax) : undefined,
+        kettlebellMaxKg: kettlebellMax ? Number(kettlebellMax) : undefined,
+      };
+      saveHomeEquipment(he);
+      homeEquipment = resolveHomeEquipment(he);
+    }
+
     const opts = {
       targetMuscles,
       equipment,
@@ -153,6 +181,7 @@ export function WorkoutWizard({
       bodyweightKg: latestWeight,
       historyWeightKg: (name: string) =>
         suggestNextWeight(name) ?? getLastPerformance(name)?.topWeightKg ?? null,
+      homeEquipment,
     };
 
     // Build up to 3 distinct variants by rotating the generator seed.
@@ -313,6 +342,58 @@ export function WorkoutWizard({
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
+
+            {equipment === "home" && (
+              <div className="mt-3 space-y-3 rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">
+                  What do you have at home? Bodyweight exercises are always included.
+                </p>
+                <ToggleGroup
+                  type="multiple"
+                  value={homeOwned}
+                  onValueChange={(v) => setHomeOwned(v as HomeEquipmentKey[])}
+                  variant="outline"
+                  className="flex flex-wrap justify-start gap-2"
+                >
+                  {HOME_EQUIPMENT_ITEMS.map((item) => (
+                    <ToggleGroupItem key={item.key} value={item.key} className={chipItemClass}>
+                      {item.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+
+                {homeOwned.includes("dumbbells") && (
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    <span>Heaviest dumbbell (kg)</span>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={100}
+                      placeholder="e.g. 8"
+                      value={dumbbellMax}
+                      onChange={(e) => setDumbbellMax(e.target.value)}
+                      className="w-24"
+                    />
+                  </label>
+                )}
+                {homeOwned.includes("kettlebells") && (
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    <span>Heaviest kettlebell (kg)</span>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={100}
+                      placeholder="e.g. 12"
+                      value={kettlebellMax}
+                      onChange={(e) => setKettlebellMax(e.target.value)}
+                      className="w-24"
+                    />
+                  </label>
+                )}
+              </div>
+            )}
           </Field>
 
           <Field label="Experience">

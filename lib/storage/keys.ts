@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   autoBackup: "forkworkout:auto-backup",
   settings: "forkworkout:settings",
   bodyProfile: "forkworkout:body-profile",
+  homeEquipment: "forkworkout:home-equipment",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

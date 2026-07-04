@@ -35,6 +35,14 @@ export type GeneratorOptions = {
   bodyweightKg?: number;
   /** Real weight (kg) from history for an exercise, if known — preferred over the heuristic. */
   historyWeightKg?: (name: string) => number | null;
+  /** When equipment is "home": the specific gear the user owns. Limits the pool
+   * to body-only + allowed equipment, and caps suggested loads per equipment. */
+  homeEquipment?: {
+    /** Library `equipment` values allowed (besides body-only). */
+    allowed: string[];
+    /** Max kg per library `equipment` value (weighted gear only). */
+    maxKg?: Record<string, number>;
+  };
 };
 
 // Sets / reps / rest per goal. Volume is later modulated by experience & time.
@@ -170,9 +178,21 @@ export function generateWorkout(
   const secondaryHit = (ex: LibraryExercise) =>
     (ex.secondaryMuscles ?? []).some((m) => unionLib.has(m.toLowerCase()));
 
+  // Equipment matching: for "home" with a detailed selection, allow only
+  // body-only + the owned gear; otherwise use the coarse access rule.
+  const homeAllowed =
+    opts.equipment === "home" && opts.homeEquipment
+      ? new Set(opts.homeEquipment.allowed.map((s) => s.toLowerCase()))
+      : null;
+  const equipmentOk = (ex: LibraryExercise) => {
+    if (!homeAllowed) return matchesEquipment(ex, opts.equipment);
+    const eq = (ex.equipment ?? "body only").toLowerCase();
+    return eq === "body only" || eq === "none" || homeAllowed.has(eq);
+  };
+
   const pool = library.filter(
     (ex) =>
-      matchesEquipment(ex, opts.equipment) &&
+      equipmentOk(ex) &&
       allowsLevel(ex.level, opts.experience) &&
       (opts.useWeights === false ? isBodyweight(ex) : true) &&
       ["strength", "plyometrics", "cardio", "powerlifting", "olympic weightlifting"].includes(
@@ -210,19 +230,22 @@ export function generateWorkout(
   // Round-robin over the selected muscles (each once per cycle).
   const order: MuscleTargetKey[] = [...targets];
 
+  const weightCap = opts.homeEquipment?.maxKg;
   const buildExercise = (ex: LibraryExercise, withWarmup = false) => {
     const bodyweight = isBodyweight(ex);
     const unit: SetUnit = bodyweight ? "bw" : "kg";
-    const weight = bodyweight
-      ? "BW"
-      : String(
-          opts.historyWeightKg?.(ex.name) ??
-            suggestStartingWeightKg(ex, {
-              experience: opts.experience,
-              sex: opts.sex,
-              bodyweightKg: opts.bodyweightKg,
-            })
-        );
+    let kg = bodyweight
+      ? 0
+      : (opts.historyWeightKg?.(ex.name) ??
+        suggestStartingWeightKg(ex, {
+          experience: opts.experience,
+          sex: opts.sex,
+          bodyweightKg: opts.bodyweightKg,
+        }));
+    // Cap to the user's available load for this equipment (e.g. 8kg dumbbells).
+    const cap = weightCap?.[(ex.equipment ?? "").toLowerCase()];
+    if (!bodyweight && cap != null) kg = Math.max(2.5, Math.min(kg, cap));
+    const weight = bodyweight ? "BW" : String(kg);
     const working = Array.from({ length: scheme.sets }, () => ({
       id: uuidv4(),
       reps: scheme.reps,
