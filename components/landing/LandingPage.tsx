@@ -25,7 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { InstallButton } from "@/components/InstallButton";
 import { honkFont } from "@/lib/honkFont";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, FEEDBACK_MAILTO } from "@/lib/routes";
 import { STARTER_TEMPLATES } from "@/lib/templates";
 
 const FEATURES = [
@@ -411,13 +411,19 @@ export default function LandingPage() {
 
       <footer className="border-t border-border py-6 text-center text-sm text-muted-foreground">
         <p>ForkWorkout — an app that keeps you fit.</p>
-        <p className="mt-1">
+        <p className="mt-1 space-x-4">
           <Link
             href={ROUTES.credits}
             className="underline underline-offset-4 hover:text-foreground"
           >
             Credits &amp; licenses
           </Link>
+          <a
+            href={FEEDBACK_MAILTO}
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Send feedback
+          </a>
         </p>
       </footer>
     </main>

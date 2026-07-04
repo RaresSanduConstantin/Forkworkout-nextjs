@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, FEEDBACK_MAILTO, SUPPORT_EMAIL } from "@/lib/routes";
 
 export const metadata: Metadata = {
   title: "Credits & licenses · ForkWorkout",
@@ -42,11 +42,6 @@ const CREDITS: Credit[] = [
     used: "Outfit, used for headings.",
     license: "SIL Open Font License",
     href: "https://fonts.google.com/specimen/Outfit",
-  },
-  {
-    title: "Sound effects",
-    used: "The rest-timer start/end cues, from a free sound library.",
-    license: "Free / royalty-free",
   },
   {
     title: "Framework",
@@ -99,6 +94,23 @@ export default function CreditsPage() {
           </li>
         ))}
       </ul>
+
+      <div className="mt-8 rounded-lg border bg-muted/30 p-4">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <Mail className="size-4 text-primary" />
+          Feedback &amp; support
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Found a bug or have an idea? I&apos;d love to hear it.
+        </p>
+        <a
+          href={FEEDBACK_MAILTO}
+          className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+        >
+          <Mail className="size-4" />
+          {SUPPORT_EMAIL}
+        </a>
+      </div>
 
       <p className="mt-8 text-sm text-muted-foreground">
         Everything you log stays on your device — no account, no servers, no tracking.

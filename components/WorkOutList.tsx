@@ -34,7 +34,7 @@ import { hasCustomExercises, getCustomExercises, addCustomExercise } from "@/lib
 import { computeStreak } from "@/lib/date/streak";
 import { getSettings } from "@/lib/storage/settings";
 import { instantiateTemplate, type WorkoutTemplate } from "@/lib/templates";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, FEEDBACK_MAILTO } from "@/lib/routes";
 import type { Workout } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -367,6 +367,24 @@ const WorkoutList = () => {
           Delete your data
         </Button>
       </section>
+
+      <footer className="pt-2 text-center text-xs text-muted-foreground">
+        <a
+          href={FEEDBACK_MAILTO}
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          Send feedback
+        </a>
+        <span className="mx-2" aria-hidden>
+          ·
+        </span>
+        <Link
+          href={ROUTES.credits}
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          Credits &amp; licenses
+        </Link>
+      </footer>
 
       <ConfirmDialog
         open={pendingDelete !== null}
