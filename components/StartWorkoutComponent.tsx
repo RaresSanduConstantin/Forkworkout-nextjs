@@ -957,225 +957,221 @@ const StartWorkoutComponent = () => {
                   exercise.sets[0]?.unit ?? inferUnit(exercise.sets[0]?.value ?? "");
                 const lastSets = lastSetsByName[normalizeExName(exercise.name)] ?? [];
                 return (
-                  <div className="overflow-hidden rounded-lg border">
-                    <table className="w-full table-fixed text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
-                          <th className="w-10 px-1 py-2 text-center font-medium">Set</th>
-                          <th className="px-1 py-2 text-center font-medium">Reps</th>
-                          <th className="px-1 py-1 text-center font-medium">
-                            <button
-                              type="button"
-                              onClick={() => cycleExerciseUnit(exIdx)}
-                              className="mx-auto inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-accent"
-                              aria-label="Change unit"
+                  <div className="space-y-2">
+                    {exercise.sets.map((set, setIdx) => {
+                      const rowStyle =
+                        set.status === "done"
+                          ? "border-lime-400/60 bg-lime-50 dark:bg-lime-500/10"
+                          : set.status === "skipped"
+                          ? "opacity-60"
+                          : "";
+                      const lastRef = lastSets[setIdx];
+                      const setKey = `${exIdx}-${setIdx}`;
+                      const curType = set.type ?? "working";
+                      return (
+                        <div
+                          key={set.id ?? setIdx}
+                          className={cn("rounded-lg border p-2.5", rowStyle)}
+                        >
+                          {/* Header: tappable set-type chip + delete */}
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <Popover
+                              open={typeMenuFor === setKey}
+                              onOpenChange={(o) => setTypeMenuFor(o ? setKey : null)}
                             >
-                              {unitLabel(exUnit)}
-                              <ChevronsUpDown className="size-3 opacity-60" />
-                            </button>
-                          </th>
-                          <th className="w-14 px-1 py-2 text-center font-medium">Done</th>
-                          <th className="w-9 px-1 py-2" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {exercise.sets.map((set, setIdx) => {
-                          const rowStyle =
-                            set.status === "done"
-                              ? "bg-lime-50 dark:bg-lime-500/15"
-                              : set.status === "skipped"
-                              ? "bg-muted opacity-70"
-                              : "";
-                          const lastRef = lastSets[setIdx];
-                          return (
-                            <tr
-                              key={set.id ?? setIdx}
-                              className={`border-b last:border-b-0 ${rowStyle}`}
-                            >
-                              <td className="px-1 py-1.5 text-center">
-                                {(() => {
-                                  const setKey = `${exIdx}-${setIdx}`;
-                                  const curType = set.type ?? "working";
-                                  return (
-                                    <Popover
-                                      open={typeMenuFor === setKey}
-                                      onOpenChange={(o) => setTypeMenuFor(o ? setKey : null)}
-                                    >
-                                      <PopoverTrigger asChild>
-                                        <button
-                                          type="button"
-                                          className="mx-auto flex flex-col items-center rounded px-1.5 py-0.5 leading-tight hover:bg-accent"
-                                          aria-label={`Set ${setIdx + 1} type — tap to change`}
-                                        >
-                                          <span className="text-muted-foreground">{setIdx + 1}</span>
-                                          {setTypeShort(set.type) && (
-                                            <span className="text-[10px] font-medium uppercase text-amber-600">
-                                              {setTypeShort(set.type)}
-                                            </span>
-                                          )}
-                                        </button>
-                                      </PopoverTrigger>
-                                      <PopoverContent align="start" className="w-40 p-1">
-                                        <p className="px-2 py-1 text-xs text-muted-foreground">
-                                          Set type
-                                        </p>
-                                        {SET_TYPES.map((t) => (
-                                          <button
-                                            key={t.value}
-                                            type="button"
-                                            onClick={() => {
-                                              updateSetType(exIdx, setIdx, t.value);
-                                              setTypeMenuFor(null);
-                                            }}
-                                            className={cn(
-                                              "flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-accent",
-                                              curType === t.value && "font-medium text-primary"
-                                            )}
-                                          >
-                                            {t.label}
-                                            {curType === t.value && <Check className="size-4" />}
-                                          </button>
-                                        ))}
-                                      </PopoverContent>
-                                    </Popover>
-                                  );
-                                })()}
-                              </td>
-                              <td className="px-1 py-1.5">
-                                <div className="flex items-center gap-0.5">
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                                  aria-label={`Set ${setIdx + 1} type — tap to change`}
+                                >
+                                  Set {setIdx + 1}
+                                  {setTypeShort(set.type) && (
+                                    <span className="uppercase text-amber-600">
+                                      · {setTypeShort(set.type)}
+                                    </span>
+                                  )}
+                                  <ChevronsUpDown className="size-3 opacity-60" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="w-40 p-1">
+                                <p className="px-2 py-1 text-xs text-muted-foreground">Set type</p>
+                                {SET_TYPES.map((t) => (
                                   <button
+                                    key={t.value}
                                     type="button"
-                                    onClick={() => stepReps(exIdx, setIdx, -1)}
-                                    className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
-                                    aria-label="Decrease reps"
+                                    onClick={() => {
+                                      updateSetType(exIdx, setIdx, t.value);
+                                      setTypeMenuFor(null);
+                                    }}
+                                    className={cn(
+                                      "flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-accent",
+                                      curType === t.value && "font-medium text-primary"
+                                    )}
                                   >
-                                    <Minus className="size-3.5" />
+                                    {t.label}
+                                    {curType === t.value && <Check className="size-4" />}
                                   </button>
-                                  <Input
-                                    type="number"
-                                    inputMode="numeric"
-                                    min={1}
-                                    value={set.reps}
-                                    onChange={(e) =>
-                                      updateSetReps(exIdx, setIdx, parseInt(e.target.value) || 0)
-                                    }
-                                    className="h-8 w-full min-w-0 px-0.5 text-center"
-                                    aria-label={`Reps for set ${setIdx + 1}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => stepReps(exIdx, setIdx, 1)}
-                                    className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
-                                    aria-label="Increase reps"
-                                  >
-                                    <Plus className="size-3.5" />
-                                  </button>
+                                ))}
+                              </PopoverContent>
+                            </Popover>
+                            {exercise.sets.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeSet(exIdx, setIdx)}
+                                className="flex size-7 items-center justify-center rounded text-muted-foreground hover:text-destructive"
+                                aria-label={`Delete set ${setIdx + 1}`}
+                              >
+                                <X className="size-4" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Reps + value steppers + Done */}
+                          <div className="flex items-start gap-2">
+                            {/* Reps */}
+                            <div className="min-w-0 flex-1">
+                              <span className="mb-1 block text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                Reps
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => stepReps(exIdx, setIdx, -1)}
+                                  className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                  aria-label="Decrease reps"
+                                >
+                                  <Minus className="size-4" />
+                                </button>
+                                <Input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={1}
+                                  value={set.reps}
+                                  onChange={(e) =>
+                                    updateSetReps(exIdx, setIdx, parseInt(e.target.value) || 0)
+                                  }
+                                  className="h-9 w-full min-w-0 px-0.5 text-center"
+                                  aria-label={`Reps for set ${setIdx + 1}`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => stepReps(exIdx, setIdx, 1)}
+                                  className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                  aria-label="Increase reps"
+                                >
+                                  <Plus className="size-4" />
+                                </button>
+                              </div>
+                              {lastRef && exUnit !== "time" && (
+                                <div className="mt-1 text-center text-[10px] leading-none text-muted-foreground">
+                                  last {lastRef.reps}
                                 </div>
-                                {lastRef && exUnit !== "time" && (
-                                  <div className="mt-0.5 text-center text-[10px] leading-none text-muted-foreground">
-                                    last {lastRef.reps}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-1 py-1.5">
-                                {exUnit === "bw" ? (
-                                  <div className="text-center text-muted-foreground">BW</div>
-                                ) : exUnit === "time" ? (
-                                  <Input
-                                    type="text"
-                                    value={set.value}
-                                    onChange={(e) =>
-                                      updateSetValue(exIdx, setIdx, e.target.value)
+                              )}
+                            </div>
+
+                            {/* Value */}
+                            <div className="min-w-0 flex-1">
+                              <button
+                                type="button"
+                                onClick={() => cycleExerciseUnit(exIdx)}
+                                className="mx-auto mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                                aria-label="Change unit"
+                              >
+                                {unitLabel(exUnit)}
+                                <ChevronsUpDown className="size-3 opacity-60" />
+                              </button>
+                              {exUnit === "bw" ? (
+                                <div className="flex h-9 items-center justify-center font-medium text-muted-foreground">
+                                  BW
+                                </div>
+                              ) : exUnit === "time" ? (
+                                <Input
+                                  type="text"
+                                  value={set.value}
+                                  onChange={(e) => updateSetValue(exIdx, setIdx, e.target.value)}
+                                  className="h-9 w-full text-center"
+                                  placeholder={lastRef?.value || unitPlaceholder(exUnit)}
+                                  aria-label="Value"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      stepValue(exIdx, setIdx, exUnit === "km" ? -0.5 : -2.5)
                                     }
-                                    className="h-8 w-full text-center"
+                                    className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                    aria-label="Decrease value"
+                                  >
+                                    <Minus className="size-4" />
+                                  </button>
+                                  <NumberInput
+                                    decimal
+                                    value={set.value}
+                                    onChange={(e) => updateSetValue(exIdx, setIdx, e.target.value)}
+                                    className="h-9 w-full min-w-0 px-0.5 text-center"
                                     placeholder={lastRef?.value || unitPlaceholder(exUnit)}
                                     aria-label="Value"
                                   />
-                                ) : (
-                                  <div className="flex items-center gap-0.5">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        stepValue(exIdx, setIdx, exUnit === "km" ? -0.5 : -2.5)
-                                      }
-                                      className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
-                                      aria-label="Decrease value"
-                                    >
-                                      <Minus className="size-3.5" />
-                                    </button>
-                                    <NumberInput
-                                      decimal
-                                      value={set.value}
-                                      onChange={(e) =>
-                                        updateSetValue(exIdx, setIdx, e.target.value)
-                                      }
-                                      className="h-8 w-full min-w-0 px-0.5 text-center"
-                                      placeholder={lastRef?.value || unitPlaceholder(exUnit)}
-                                      aria-label="Value"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        stepValue(exIdx, setIdx, exUnit === "km" ? 0.5 : 2.5)
-                                      }
-                                      className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
-                                      aria-label="Increase value"
-                                    >
-                                      <Plus className="size-3.5" />
-                                    </button>
-                                  </div>
-                                )}
-                                {lastRef && exUnit !== "bw" && lastRef.value && lastRef.value !== "BW" && (
-                                  <div className="mt-0.5 text-center text-[10px] leading-none text-muted-foreground">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      stepValue(exIdx, setIdx, exUnit === "km" ? 0.5 : 2.5)
+                                    }
+                                    className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                    aria-label="Increase value"
+                                  >
+                                    <Plus className="size-4" />
+                                  </button>
+                                </div>
+                              )}
+                              {lastRef &&
+                                exUnit !== "bw" &&
+                                lastRef.value &&
+                                lastRef.value !== "BW" && (
+                                  <div className="mt-1 text-center text-[10px] leading-none text-muted-foreground">
                                     last {lastRef.value}
                                     {exUnit === "km" ? " km" : ""}
                                   </div>
                                 )}
-                              </td>
-                              <td className="px-1 py-1.5 text-center">
-                                <Button
-                                  variant={
-                                    set.status === "done"
-                                      ? "default"
-                                      : set.status === "skipped"
-                                      ? "secondary"
-                                      : "outline"
-                                  }
-                                  size="icon-sm"
-                                  className="mx-auto"
-                                  onClick={() => handleComplete(exIdx, setIdx)}
-                                  aria-label={
-                                    set.status === "done"
-                                      ? "Set done — tap to skip"
-                                      : set.status === "skipped"
-                                      ? "Set skipped — tap to mark done"
-                                      : "Mark set done"
-                                  }
-                                >
-                                  {set.status === "skipped" ? (
-                                    <SkipForward className="size-4" />
-                                  ) : (
-                                    <Check className="size-4" />
-                                  )}
-                                </Button>
-                              </td>
-                              <td className="px-1 py-1.5 text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="mx-auto text-muted-foreground hover:text-destructive"
-                                  onClick={() => removeSet(exIdx, setIdx)}
-                                  disabled={exercise.sets.length === 1}
-                                  aria-label={`Delete set ${setIdx + 1}`}
-                                >
-                                  <X className="size-4" />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                            </div>
+
+                            {/* Done */}
+                            <div className="shrink-0">
+                              <span className="mb-1 block text-[10px] leading-none" aria-hidden>
+                                &nbsp;
+                              </span>
+                              <Button
+                                variant={
+                                  set.status === "done"
+                                    ? "default"
+                                    : set.status === "skipped"
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                size="icon"
+                                className="size-11"
+                                onClick={() => handleComplete(exIdx, setIdx)}
+                                aria-label={
+                                  set.status === "done"
+                                    ? "Set done — tap to skip"
+                                    : set.status === "skipped"
+                                    ? "Set skipped — tap to mark done"
+                                    : "Mark set done"
+                                }
+                              >
+                                {set.status === "skipped" ? (
+                                  <SkipForward className="size-5" />
+                                ) : (
+                                  <Check className="size-5" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })()}
