@@ -50,5 +50,8 @@ export function getBodyProfile(): BodyProfile {
 export function updateBodyProfile(patch: Partial<BodyProfile>): BodyProfile {
   const next = normalize({ ...getBodyProfile(), ...patch });
   writeJson(STORAGE_KEYS.bodyProfile, next);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("fw:profile-changed"));
+  }
   return next;
 }

@@ -14,6 +14,7 @@ import {
   collectWindowExercises,
 } from "@/lib/muscle-stats";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
+import { useMannequinGender } from "@/lib/use-body-gender";
 
 /**
  * Muscle-group training balance: a stylized body heatmap + a ranked bar
@@ -23,6 +24,7 @@ import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [days, setDays] = React.useState<number>(7);
+  const gender = useMannequinGender();
 
   React.useEffect(() => {
     let active = true;
@@ -83,7 +85,7 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
           </p>
         ) : (
           <>
-            <MuscleMapView highlights={highlights} />
+            <MuscleMapView highlights={highlights} gender={gender} />
 
 
             <div className="space-y-2">

@@ -33,6 +33,7 @@ import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
 import { MuscleMapPicker } from "@/components/workouts/MuscleMapPicker";
 import { getBodyProfile } from "@/lib/storage/profile";
+import { updateBodyProfile } from "@/lib/storage/profile";
 import { getBodyMetrics } from "@/lib/storage/body-storage";
 import { suggestNextWeight, getLastPerformance } from "@/lib/history-stats";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,11 @@ export function WorkoutWizard({
 
   const toggleMuscleGroup = (g: MuscleGroup) =>
     setMuscleGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+
+  const handleSex = (g: "male" | "female") => {
+    setGender(g);
+    updateBodyProfile({ sex: g });
+  };
 
   React.useEffect(() => {
     if (!open) {
@@ -133,7 +139,6 @@ export function WorkoutWizard({
       toast.error("No matching exercises — try different equipment or muscle groups.");
       return;
     }
-    setGender(profile.sex === "female" ? "female" : "male");
     setVariants(list);
     setSelected(0);
     setStep("results");
@@ -191,6 +196,26 @@ export function WorkoutWizard({
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
+          </Field>
+
+          <Field label="Your sex">
+            <ToggleGroup
+              type="single"
+              value={gender}
+              onValueChange={(v) => v && handleSex(v as "male" | "female")}
+              variant="outline"
+              className="flex flex-wrap gap-2"
+            >
+              <ToggleGroupItem value="male" className={chipItemClass}>
+                Men
+              </ToggleGroupItem>
+              <ToggleGroupItem value="female" className={chipItemClass}>
+                Women
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <p className="text-xs text-muted-foreground">
+              Sets the body map and calibrates suggested starting weights. Saved to your profile.
+            </p>
           </Field>
 
           <Field label="Primary muscle groups">

@@ -65,6 +65,7 @@ import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, type Lib
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName } from "@/lib/history-stats";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
+import { useMannequinGender } from "@/lib/use-body-gender";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
 import {
   Accordion,
@@ -363,6 +364,7 @@ const StartWorkoutComponent = () => {
     if (!workout) return null;
     return muscleHighlights(muscleScores(workout.exercises, library));
   }, [workout, library]);
+  const gender = useMannequinGender();
 
   // Pre-session PR snapshot per exercise, taken once when the session loads, so
   // a set is compared against the record it needs to beat (not against itself).
@@ -935,7 +937,7 @@ const StartWorkoutComponent = () => {
               </span>
             </AccordionTrigger>
             <AccordionContent>
-              <MuscleMapView highlights={muscleHighlightData} />
+              <MuscleMapView highlights={muscleHighlightData} gender={gender} />
               <p className="mt-1 text-center text-xs text-muted-foreground">
                 Lights up as you complete sets — primary muscles solid, secondary paler.
               </p>
@@ -1768,7 +1770,7 @@ const StartWorkoutComponent = () => {
               {muscleHighlightData && muscleHighlightData.length > 0 && (
                 <div>
                   <p className="mb-1 text-sm font-medium">Muscles worked</p>
-                  <MuscleMapView highlights={muscleHighlightData} />
+                  <MuscleMapView highlights={muscleHighlightData} gender={gender} />
                 </div>
               )}
             </div>
