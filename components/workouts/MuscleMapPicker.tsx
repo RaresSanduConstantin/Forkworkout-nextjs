@@ -39,6 +39,8 @@ export function MuscleMapPicker({
   // When true, the next `value`-effect repaint is skipped because a map tap
   // already painted synchronously (avoids a redundant full canvas redraw).
   const paintedByTap = React.useRef(false);
+  // Pending coalesced-draw animation-frame id for the widget (see below).
+  const rafId = React.useRef(0);
 
   const applyHighlights = React.useCallback((keys: MuscleTargetKey[]) => {
     const data = keys.flatMap((k) =>
@@ -74,9 +76,26 @@ export function MuscleMapPicker({
         multiSelect: true,
         onMuscleClick: handleClick,
       });
+      // Perf: a single tap triggers several synchronous full-canvas redraws
+      // (the SDK's select + selection-paint, then our clear + highlight). Wrap
+      // the widget's draw so those coalesce into ONE paint per animation frame,
+      // keeping rapid taps smooth. State and hit-testing stay synchronous.
+      const inst = mapRef.current as unknown as { draw: () => void };
+      if (typeof inst.draw === "function") {
+        const realDraw = inst.draw.bind(mapRef.current);
+        inst.draw = () => {
+          if (rafId.current) return;
+          rafId.current = requestAnimationFrame(() => {
+            rafId.current = 0;
+            realDraw();
+          });
+        };
+      }
       ready.current = true;
       applyHighlights(valueRef.current);
       cleanup = () => {
+        if (rafId.current) cancelAnimationFrame(rafId.current);
+        rafId.current = 0;
         mapRef.current?.destroy();
         mapRef.current = null;
         ready.current = false;
