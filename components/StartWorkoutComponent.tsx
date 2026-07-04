@@ -101,6 +101,57 @@ function restTriggerLabel(rest: string | undefined, defaultSec: number): string 
   return `Rest Timer: ${restDurationLabel(sec)}`;
 }
 
+/**
+ * Tiny per-set hint under an input: shows the last session's value, or a
+ * coloured ▲/▼ delta once the user has entered a different value.
+ */
+function SetDelta({
+  current,
+  last,
+  suffix = "",
+}: {
+  current: string | number;
+  last: string | number | undefined;
+  suffix?: string;
+}) {
+  const lst = typeof last === "number" ? last : parseFloat(String(last ?? ""));
+  if (!Number.isFinite(lst)) return null;
+  const curStr = String(current ?? "").trim();
+  const cur = typeof current === "number" ? current : parseFloat(curStr);
+  const hasCur = curStr !== "" && Number.isFinite(cur);
+
+  if (!hasCur) {
+    return (
+      <div className="mt-1 text-center text-[10px] leading-none text-muted-foreground">
+        last {last}
+        {suffix}
+      </div>
+    );
+  }
+  const diff = Math.round((cur - lst) * 100) / 100;
+  if (diff === 0) {
+    return (
+      <div className="mt-1 text-center text-[10px] leading-none text-muted-foreground">
+        = last {last}
+        {suffix}
+      </div>
+    );
+  }
+  const up = diff > 0;
+  return (
+    <div
+      className={cn(
+        "mt-1 text-center text-[10px] font-medium leading-none",
+        up ? "text-emerald-600" : "text-amber-600"
+      )}
+    >
+      {up ? "▲ +" : "▼ "}
+      {diff}
+      {suffix}
+    </div>
+  );
+}
+
 const StartWorkoutComponent = () => {
   const params = useParams();
   const workoutId = params.id as string;
@@ -1064,9 +1115,7 @@ const StartWorkoutComponent = () => {
                                 </button>
                               </div>
                               {lastRef && exUnit !== "time" && (
-                                <div className="mt-1 text-center text-[10px] leading-none text-muted-foreground">
-                                  last {lastRef.reps}
-                                </div>
+                                <SetDelta current={set.reps} last={lastRef.reps} />
                               )}
                             </div>
 
@@ -1130,10 +1179,11 @@ const StartWorkoutComponent = () => {
                                 exUnit !== "bw" &&
                                 lastRef.value &&
                                 lastRef.value !== "BW" && (
-                                  <div className="mt-1 text-center text-[10px] leading-none text-muted-foreground">
-                                    last {lastRef.value}
-                                    {exUnit === "km" ? " km" : ""}
-                                  </div>
+                                  <SetDelta
+                                    current={set.value}
+                                    last={lastRef.value}
+                                    suffix={exUnit === "km" ? " km" : ""}
+                                  />
                                 )}
                             </div>
 
