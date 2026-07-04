@@ -410,7 +410,15 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t border-border py-6 text-center text-sm text-muted-foreground">
-        ForkWorkout — an app that keeps you fit.
+        <p>ForkWorkout — an app that keeps you fit.</p>
+        <p className="mt-1">
+          <Link
+            href={ROUTES.credits}
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Credits &amp; licenses
+          </Link>
+        </p>
       </footer>
     </main>
   );

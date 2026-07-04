@@ -9,6 +9,7 @@ export const ROUTES = {
   newWorkout: "/create-workout",
   editWorkout: (id: string) => `/create-workout/${id}`,
   startWorkout: (id: string) => `/start-workout/${id}`,
+  credits: "/credits",
 } as const;
 
 // The four sections that show the bottom tab bar.
