@@ -179,7 +179,7 @@ export function BodyMetricsComponent() {
   } satisfies ChartConfig;
 
   return (
-    <PageContainer>
+    <PageContainer className="pb-24">
       <Button asChild variant="ghost" size="sm" className="mb-2 gap-1 px-2">
         <Link href={ROUTES.dashboard}>
           <ArrowLeft className="size-4" />

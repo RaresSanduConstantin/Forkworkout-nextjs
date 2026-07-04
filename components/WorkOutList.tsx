@@ -207,7 +207,7 @@ const WorkoutList = () => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-6 space-y-8">
+    <div className="mx-auto w-full max-w-xl px-4 py-6 pb-24 space-y-8">
       {/* Progress summary */}
       <div className="space-y-3">
         <WeeklyGoalCard key={`goal-${totalCompleted}`} />

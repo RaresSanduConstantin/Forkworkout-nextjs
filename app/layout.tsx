@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ActiveSessionBanner } from "@/components/session/ActiveSessionBanner";
+import { BottomNav } from "@/components/layout/BottomNav";
 import { StorageBoot } from "@/components/StorageBoot";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
@@ -74,6 +75,7 @@ export default function RootLayout({
           {children}
           <StorageBoot />
           <ActiveSessionBanner />
+          <BottomNav />
           <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>

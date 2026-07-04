@@ -5,12 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Dumbbell, Play, Trash2 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   getActiveSession,
   clearActiveSession,
 } from "@/lib/storage/session-storage";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, isMainTabRoute } from "@/lib/routes";
 import type { ActiveSession } from "@/lib/types";
 
 /**
@@ -40,7 +41,13 @@ export function ActiveSessionBanner() {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <div
+      className={cn(
+        "fixed inset-x-0 z-50 border-t border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80",
+        // Sit above the bottom tab bar on the main sections; flush otherwise.
+        isMainTabRoute(pathname) ? "bottom-16" : "bottom-0"
+      )}
+    >
       <div className="mx-auto flex max-w-2xl items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
