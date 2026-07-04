@@ -95,6 +95,7 @@ const CreateWorkoutComponent = () => {
   const handleGenerated = (workout: Workout) => {
     hasInitialized.current = true;
     form.reset(workout);
+    setShowWizard(false);
     toast.success("Draft created — review and save it");
   };
 

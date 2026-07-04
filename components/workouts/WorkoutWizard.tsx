@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, ArrowLeft, Check, Clock, Dumbbell } from "lucide-react";
+import { Sparkles, ArrowLeft, Check, Clock, Dumbbell, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -112,6 +112,9 @@ export function WorkoutWizard({
   const [variants, setVariants] = React.useState<Workout[]>([]);
   const [selected, setSelected] = React.useState(0);
   const [gender, setGender] = React.useState<"male" | "female">("male");
+  // True from tapping "Use this" until the modal unmounts/closes — shows a
+  // loader because creating the workout then opening its editor takes a moment.
+  const [creating, setCreating] = React.useState(false);
 
   const toggleMuscle = (k: MuscleTargetKey) =>
     setTargetMuscles((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
@@ -133,6 +136,7 @@ export function WorkoutWizard({
   React.useEffect(() => {
     if (!open) {
       setStep("form");
+      setCreating(false);
       return;
     }
     setGender(getBodyProfile().sex === "female" ? "female" : "male");
@@ -206,9 +210,12 @@ export function WorkoutWizard({
 
   const handleChoose = () => {
     const workout = variants[selected];
-    if (!workout) return;
+    if (!workout || creating) return;
+    // Show a loader and keep the modal up: onGenerate navigates to the editor
+    // (which unmounts us) or resets in place (the caller then closes us). Either
+    // way the user gets feedback instead of a blank pause on /app.
+    setCreating(true);
     onGenerate(workout);
-    onOpenChange(false);
   };
 
   const previewHighlights = React.useMemo(() => {
@@ -513,13 +520,27 @@ export function WorkoutWizard({
           </DialogFooter>
         ) : (
           <DialogFooter className="flex-row gap-2">
-            <Button variant="outline" className="flex-1 gap-2" onClick={() => setStep("form")}>
+            <Button
+              variant="outline"
+              className="flex-1 gap-2"
+              disabled={creating}
+              onClick={() => setStep("form")}
+            >
               <ArrowLeft className="size-4" />
               Back
             </Button>
-            <Button className="flex-1 gap-2" onClick={handleChoose}>
-              <Check className="size-4" />
-              Use this
+            <Button className="flex-1 gap-2" disabled={creating} onClick={handleChoose}>
+              {creating ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <Check className="size-4" />
+                  Use this
+                </>
+              )}
             </Button>
           </DialogFooter>
         )}
