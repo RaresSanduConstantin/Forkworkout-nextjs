@@ -9,6 +9,7 @@ export type HomeEquipmentKey =
   | "dumbbells"
   | "kettlebells"
   | "bands"
+  | "pullupBar"
   | "medicineBall"
   | "exerciseBall";
 
@@ -25,6 +26,9 @@ export const HOME_EQUIPMENT_ITEMS: HomeEquipmentItem[] = [
   { key: "dumbbells", label: "Dumbbells", lib: ["dumbbell", "e-z curl bar"], weighted: true },
   { key: "kettlebells", label: "Kettlebells", lib: ["kettlebells"], weighted: true },
   { key: "bands", label: "Resistance bands", lib: ["bands"], weighted: false },
+  // A pull-up bar unlocks bar-requiring bodyweight moves (pull-ups, chin-ups,
+  // hanging raises); it maps to no library equipment value of its own.
+  { key: "pullupBar", label: "Pull-up bar", lib: [], weighted: false },
   { key: "medicineBall", label: "Medicine ball", lib: ["medicine ball"], weighted: false },
   { key: "exerciseBall", label: "Stability ball", lib: ["exercise ball"], weighted: false },
 ];
@@ -77,7 +81,7 @@ export function saveHomeEquipment(value: HomeEquipment): boolean {
  */
 export function resolveHomeEquipment(
   eq: HomeEquipment
-): { allowed: string[]; maxKg: Record<string, number> } {
+): { allowed: string[]; maxKg: Record<string, number>; pullupBar: boolean } {
   const allowed: string[] = [];
   const maxKg: Record<string, number> = {};
   for (const key of eq.owned) {
@@ -89,5 +93,5 @@ export function resolveHomeEquipment(
       if (cap != null) for (const lib of item.lib) maxKg[lib] = cap;
     }
   }
-  return { allowed, maxKg };
+  return { allowed, maxKg, pullupBar: eq.owned.includes("pullupBar") };
 }

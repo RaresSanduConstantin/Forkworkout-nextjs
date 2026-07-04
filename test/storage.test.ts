@@ -35,6 +35,13 @@ describe("home equipment storage", () => {
     expect(r.maxKg["dumbbell"]).toBe(10);
     expect(r.maxKg["bands"]).toBeUndefined(); // bands aren't weighted
   });
+
+  it("carries the pull-up bar flag through resolve + persistence", () => {
+    expect(resolveHomeEquipment({ owned: ["pullupBar"] }).pullupBar).toBe(true);
+    expect(resolveHomeEquipment({ owned: ["dumbbells"] }).pullupBar).toBe(false);
+    saveHomeEquipment({ owned: ["pullupBar"] });
+    expect(getHomeEquipment().owned).toContain("pullupBar");
+  });
 });
 
 describe("body profile storage", () => {

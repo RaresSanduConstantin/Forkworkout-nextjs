@@ -149,6 +149,34 @@ describe("generateWorkout — weights", () => {
   });
 });
 
+describe("generateWorkout — pull-up bar gate", () => {
+  const BAR_RE = /pull-?up|chin-?up|muscle-?up|hanging/i;
+
+  it("excludes bar-requiring moves at home without a pull-up bar", () => {
+    const home = resolveHomeEquipment({ owned: [] });
+    const w = generateWorkout(library, {
+      ...base,
+      equipment: "home",
+      homeEquipment: home,
+      targetMuscles: ["lats"],
+      goal: "muscle",
+    });
+    for (const ex of w.exercises) expect(BAR_RE.test(ex.name)).toBe(false);
+  });
+
+  it("allows pull-ups once a pull-up bar is owned", () => {
+    const home = resolveHomeEquipment({ owned: ["pullupBar"] });
+    const w = generateWorkout(library, {
+      ...base,
+      equipment: "home",
+      homeEquipment: home,
+      targetMuscles: ["lats"],
+      goal: "muscle",
+    });
+    expect(w.exercises.some((ex) => BAR_RE.test(ex.name))).toBe(true);
+  });
+});
+
 describe("generateWorkout — variants", () => {
   it("different seeds yield different selections when the pool is large", () => {
     const opts = { ...base, targetMuscles: ["chest", "triceps"], goal: "muscle" as const };

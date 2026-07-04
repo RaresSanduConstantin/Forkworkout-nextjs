@@ -42,6 +42,8 @@ export type GeneratorOptions = {
     allowed: string[];
     /** Max kg per library `equipment` value (weighted gear only). */
     maxKg?: Record<string, number>;
+    /** Whether a pull-up bar is available (gates bar-requiring bodyweight moves). */
+    pullupBar?: boolean;
   };
 };
 
@@ -94,6 +96,13 @@ export function suggestStartingWeightKg(
 
 function isBodyweight(ex: LibraryExercise): boolean {
   return !ex.equipment || ex.equipment.toLowerCase() === "body only";
+}
+
+// Bodyweight moves that can't be done without a pull-up bar (they're tagged
+// "body only" in the library, so they'd otherwise slip through the home filter).
+const PULLUP_BAR_RE = /pull-?up|chin-?up|muscle-?up|hanging|toes to bar|front lever/i;
+function needsPullupBar(ex: LibraryExercise): boolean {
+  return PULLUP_BAR_RE.test(ex.name);
 }
 
 function scoreExercise(
@@ -187,7 +196,11 @@ export function generateWorkout(
   const equipmentOk = (ex: LibraryExercise) => {
     if (!homeAllowed) return matchesEquipment(ex, opts.equipment);
     const eq = (ex.equipment ?? "body only").toLowerCase();
-    return eq === "body only" || eq === "none" || homeAllowed.has(eq);
+    const base = eq === "body only" || eq === "none" || homeAllowed.has(eq);
+    if (!base) return false;
+    // Bar-requiring bodyweight moves need a pull-up bar.
+    if (!opts.homeEquipment?.pullupBar && needsPullupBar(ex)) return false;
+    return true;
   };
 
   const pool = library.filter(
