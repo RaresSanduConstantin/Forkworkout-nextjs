@@ -103,5 +103,8 @@ export function restoreAutoBackup(): boolean {
   if (b.bundle.settings && typeof b.bundle.settings === "object") {
     writeJson(STORAGE_KEYS.settings, b.bundle.settings);
   }
+  if (b.bundle.homeEquipment && typeof b.bundle.homeEquipment === "object") {
+    writeJson(STORAGE_KEYS.homeEquipment, b.bundle.homeEquipment);
+  }
   return true;
 }

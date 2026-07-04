@@ -5,6 +5,11 @@ import { getBodyMetrics } from "./body-storage";
 import { getBodyProfile, updateBodyProfile, type BodyProfile } from "./profile";
 import { getSettings, type AppSettings } from "./settings";
 import {
+  getHomeEquipment,
+  saveHomeEquipment,
+  type HomeEquipment,
+} from "./home-equipment";
+import {
   getCustomExercises,
   saveCustomExercises,
   type CustomExercise,
@@ -21,6 +26,7 @@ export type ExportBundle = {
   customExercises: CustomExercise[];
   bodyProfile?: BodyProfile;
   settings?: AppSettings;
+  homeEquipment?: HomeEquipment;
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -34,6 +40,7 @@ export function buildExport(): ExportBundle {
     customExercises: getCustomExercises(),
     bodyProfile: getBodyProfile(),
     settings: getSettings(),
+    homeEquipment: getHomeEquipment(),
   };
 }
 
@@ -63,6 +70,7 @@ export function mergeImport(text: string): {
   bodyAdded: number;
   exercisesAdded: number;
   profileRestored: boolean;
+  homeEquipmentRestored: boolean;
 } {
   let parsed: unknown;
   try {
@@ -149,5 +157,28 @@ export function mergeImport(text: string): {
     }
   }
 
-  return { workoutsAdded, historyAdded, bodyAdded, exercisesAdded, profileRestored };
+  // Restore home equipment only when this device has none set yet, so an import
+  // never overwrites gear the user already configured here.
+  let homeEquipmentRestored = false;
+  const he = bundle.homeEquipment;
+  if (he && typeof he === "object") {
+    const current = getHomeEquipment();
+    const localEmpty =
+      current.owned.length === 0 &&
+      current.dumbbellMaxKg === undefined &&
+      current.kettlebellMaxKg === undefined;
+    if (localEmpty) {
+      saveHomeEquipment(he);
+      homeEquipmentRestored = true;
+    }
+  }
+
+  return {
+    workoutsAdded,
+    historyAdded,
+    bodyAdded,
+    exercisesAdded,
+    profileRestored,
+    homeEquipmentRestored,
+  };
 }
