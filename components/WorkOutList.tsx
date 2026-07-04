@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Download, Dumbbell, Flame, Plus, Scale, Share2, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
+import { CalendarDays, Download, Dumbbell, Flame, Play, Plus, Scale, Share2, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -54,6 +55,12 @@ const WorkoutList = () => {
   const [shareMessage, setShareMessage] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
+  const [lastWorkoutId, setLastWorkoutId] = useState<string | null>(null);
+
+  // Derive from current workouts so the card hides if that workout is deleted.
+  const lastWorkout = lastWorkoutId
+    ? workouts.find((w) => w.id === lastWorkoutId) ?? null
+    : null;
 
   const moveWorkout = (from: number, to: number) => {
     setWorkouts((prev) => {
@@ -72,7 +79,14 @@ const WorkoutList = () => {
     const loaded = getWorkouts();
     setWorkouts(loaded);
     setStreak(computeStreak(getCompletedDayKeys()));
-    setTotalCompleted(getCompletedWorkouts().length);
+    const history = getCompletedWorkouts();
+    setTotalCompleted(history.length);
+
+    // Most recently completed workout, for the "repeat" quick-start.
+    const recent = [...history].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    )[0];
+    setLastWorkoutId(recent?.workoutId ?? null);
 
     // First-run onboarding: only when the user hasn't seen it and has no
     // workouts yet. Read after mount to avoid hydration mismatches.
@@ -208,6 +222,22 @@ const WorkoutList = () => {
 
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-6 pb-24 space-y-8">
+      {/* Repeat last workout — one-tap quick start */}
+      {lastWorkout && (
+        <Card className="border-primary/30 bg-primary/5 py-0">
+          <CardContent className="flex items-center justify-between gap-3 p-4">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Jump back in</p>
+              <p className="truncate text-lg font-semibold">{lastWorkout.title}</p>
+            </div>
+            <Button className="shrink-0 gap-1.5" onClick={() => handleStart(lastWorkout.id)}>
+              <Play className="size-4" />
+              Start
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Progress summary */}
       <div className="space-y-3">
         <WeeklyGoalCard key={`goal-${totalCompleted}`} />
