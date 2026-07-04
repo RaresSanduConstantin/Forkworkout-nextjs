@@ -20,12 +20,17 @@ import {
   MUSCLE_GROUPS,
   EQUIPMENT_OPTIONS,
   EXPERIENCE_OPTIONS,
+  GOAL_OPTIONS,
   type MuscleGroup,
   type EquipmentAccess,
   type Experience,
+  type Goal,
   type LibraryExercise,
 } from "@/lib/exercises";
 import { generateWorkout } from "@/lib/workout-generator";
+import { getBodyProfile } from "@/lib/storage/profile";
+import { getBodyMetrics } from "@/lib/storage/body-storage";
+import { suggestNextWeight, getLastPerformance } from "@/lib/history-stats";
 import type { Workout } from "@/lib/types";
 
 const TIME_OPTIONS = [15, 30, 45, 60];
@@ -57,6 +62,7 @@ export function WorkoutWizard({
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [muscleGroups, setMuscleGroups] = React.useState<MuscleGroup[]>([]);
   const [secondaryGroups, setSecondaryGroups] = React.useState<MuscleGroup[]>([]);
+  const [goal, setGoal] = React.useState<Goal>("muscle");
   const [equipment, setEquipment] = React.useState<EquipmentAccess>("gym");
   const [experience, setExperience] = React.useState<Experience>("beginner");
   const [minutes, setMinutes] = React.useState(30);
@@ -77,12 +83,21 @@ export function WorkoutWizard({
       toast.error("Pick at least one muscle group.");
       return;
     }
+    const profile = getBodyProfile();
+    const latestWeight = [...getBodyMetrics()]
+      .reverse()
+      .find((m) => m.weightKg !== undefined)?.weightKg;
     const workout = generateWorkout(library, {
       muscleGroups,
       secondaryGroups,
       equipment,
       experience,
       minutes,
+      goal,
+      sex: profile.sex ?? "unspecified",
+      bodyweightKg: latestWeight,
+      historyWeightKg: (name) =>
+        suggestNextWeight(name) ?? getLastPerformance(name)?.topWeightKg ?? null,
     });
     if (workout.exercises.length === 0) {
       toast.error("No matching exercises — try different equipment or muscle groups.");
@@ -106,6 +121,22 @@ export function WorkoutWizard({
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          <Field label="Your goal">
+            <ToggleGroup
+              type="single"
+              value={goal}
+              onValueChange={(v) => v && setGoal(v as Goal)}
+              variant="outline"
+              className="flex flex-wrap gap-2"
+            >
+              {GOAL_OPTIONS.map((o) => (
+                <ToggleGroupItem key={o.value} value={o.value} className={chipItemClass} title={o.hint}>
+                  {o.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </Field>
+
           <Field label="Primary muscle groups">
             <ToggleGroup
               type="multiple"

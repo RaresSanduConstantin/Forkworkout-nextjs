@@ -178,6 +178,17 @@ export function allowsLevel(exLevel: string, exp: Experience): boolean {
   return true; // advanced: includes expert
 }
 
+// ---- Goal ----------------------------------------------------------------
+
+export type Goal = "strength" | "muscle" | "fatloss" | "fitness";
+
+export const GOAL_OPTIONS: { value: Goal; label: string; hint: string }[] = [
+  { value: "muscle", label: "Build muscle", hint: "Moderate reps, hypertrophy" },
+  { value: "strength", label: "Get stronger", hint: "Heavy, low reps, long rest" },
+  { value: "fatloss", label: "Lose fat", hint: "Higher reps, short rest" },
+  { value: "fitness", label: "General fitness", hint: "Balanced" },
+];
+
 // ---- Recommendation ------------------------------------------------------
 
 /**

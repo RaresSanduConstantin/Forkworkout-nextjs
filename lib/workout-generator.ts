@@ -1,4 +1,4 @@
-import type { SetUnit, Workout } from "./types";
+import type { SetType, SetUnit, Workout } from "./types";
 import { v4 as uuidv4 } from "uuid";
 import { estimateWorkoutSeconds } from "./workout";
 import {
@@ -6,10 +6,13 @@ import {
   type MuscleGroup,
   type EquipmentAccess,
   type Experience,
+  type Goal,
   matchesEquipment,
   allowsLevel,
   groupsForExercise,
 } from "./exercises";
+
+export type Sex = "male" | "female" | "unspecified";
 
 export type GeneratorOptions = {
   muscleGroups: MuscleGroup[];
@@ -17,67 +20,141 @@ export type GeneratorOptions = {
   equipment: EquipmentAccess;
   experience: Experience;
   minutes: number;
+  goal?: Goal;
+  /** Only bodyweight exercises when false. */
+  useWeights?: boolean;
+  /** For calibrating suggested starting weights. */
+  sex?: Sex;
+  bodyweightKg?: number;
+  /** Real weight (kg) from history for an exercise, if known — preferred over the heuristic. */
+  historyWeightKg?: (name: string) => number | null;
 };
 
-// Sets/reps/rest scheme per experience. Reps increase with level; a rough
-// starting weight (kg) is scaled by experience and compound vs isolation.
-const SCHEME: Record<
-  Experience,
-  { sets: number; reps: number; rest: string; compoundKg: number; isolationKg: number }
-> = {
-  beginner: { sets: 3, reps: 8, rest: "60", compoundKg: 20, isolationKg: 6 },
-  intermediate: { sets: 3, reps: 10, rest: "75", compoundKg: 35, isolationKg: 10 },
-  advanced: { sets: 4, reps: 12, rest: "90", compoundKg: 50, isolationKg: 12 },
+// Sets / reps / rest per goal. Volume is later modulated by experience & time.
+const GOAL_SCHEME: Record<Goal, { sets: number; reps: number; rest: string }> = {
+  strength: { sets: 4, reps: 5, rest: "150" },
+  muscle: { sets: 3, reps: 10, rest: "75" },
+  fatloss: { sets: 3, reps: 15, rest: "40" },
+  fitness: { sets: 3, reps: 12, rest: "60" },
 };
 
-/** Rough starting weight (kg) for a non-bodyweight exercise, as a string. */
-function startingWeight(ex: LibraryExercise, experience: Experience): string {
-  const scheme = SCHEME[experience];
-  const kg = ex.mechanic === "compound" ? scheme.compoundKg : scheme.isolationKg;
-  return String(kg);
-}
+// --- Starting-weight calibration -----------------------------------------
 
-function shuffle<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-function titleFor(groups: MuscleGroup[]): string {
-  if (groups.length === 0) return "Custom Workout";
-  if (groups.length >= 4) return "Full Body Workout";
-  return `${groups.join(" & ")} Workout`;
+/** Rough load as a fraction of bodyweight, by dominant muscle group + mechanic. */
+function bodyweightFraction(ex: LibraryExercise): number {
+  const g = groupsForExercise(ex);
+  const compound = ex.mechanic === "compound";
+  const has = (m: MuscleGroup) => g.includes(m);
+  if (has("Legs")) return compound ? 0.6 : 0.15;
+  if (has("Back")) return compound ? 0.45 : 0.12;
+  if (has("Chest")) return compound ? 0.45 : 0.12;
+  if (has("Shoulders")) return compound ? 0.25 : 0.08;
+  if (has("Arms")) return 0.1;
+  if (has("Core")) return 0.05;
+  return compound ? 0.35 : 0.1;
 }
 
 /**
- * Builds a workout from the exercise library: filter by equipment + experience,
- * spread exercises across the chosen muscle groups (primary weighted heavier
- * than secondary), and size the routine so its estimated time (via the shared
- * `estimateWorkoutSeconds`) matches the chosen time budget. Fully editable after.
+ * A conservative, editable starting weight (kg). Scales a bodyweight-relative
+ * base by experience and sex. Prefer real history over this when available.
+ */
+export function suggestStartingWeightKg(
+  ex: LibraryExercise,
+  opts: { experience: Experience; sex?: Sex; bodyweightKg?: number }
+): number {
+  const bw =
+    opts.bodyweightKg && opts.bodyweightKg > 0
+      ? opts.bodyweightKg
+      : opts.sex === "female"
+      ? 65
+      : 78;
+  const expF =
+    opts.experience === "beginner" ? 0.7 : opts.experience === "advanced" ? 1.3 : 1.0;
+  const sexF = opts.sex === "female" ? 0.65 : opts.sex === "male" ? 1.0 : 0.8;
+  const raw = bw * bodyweightFraction(ex) * expF * sexF;
+  return Math.max(2.5, Math.round(raw / 2.5) * 2.5);
+}
+
+// --- Selection scoring -----------------------------------------------------
+
+function isBodyweight(ex: LibraryExercise): boolean {
+  return !ex.equipment || ex.equipment.toLowerCase() === "body only";
+}
+
+function scoreExercise(
+  ex: LibraryExercise,
+  primarySet: Set<MuscleGroup>,
+  experience: Experience
+): number {
+  let s = 0;
+  if (ex.mechanic === "compound") s += 3;
+  if (ex.category === "strength") s += 1;
+  if (groupsForExercise(ex).some((g) => primarySet.has(g))) s += 2;
+  if (experience === "beginner") {
+    const eq = (ex.equipment ?? "body only").toLowerCase();
+    if (["body only", "dumbbell", "machine", "cable", "kettlebells"].includes(eq)) s += 1;
+    if (ex.level === "beginner") s += 1;
+  }
+  return s;
+}
+
+function titleFor(groups: MuscleGroup[], goal?: Goal): string {
+  const g =
+    groups.length === 0
+      ? "Custom"
+      : groups.length >= 4
+      ? "Full Body"
+      : groups.join(" & ");
+  const suffix =
+    goal === "strength"
+      ? "Strength"
+      : goal === "fatloss"
+      ? "Burn"
+      : goal === "muscle"
+      ? "Workout"
+      : "Workout";
+  return `${g} ${suffix}`;
+}
+
+/**
+ * Builds a workout from the library with a deterministic, quality-ordered
+ * selection (compound-first, primary muscles favoured, balanced across groups),
+ * goal-based set/rep/rest, and calibrated starting weights (history preferred).
+ * Fully editable after. An optional `seed` shifts choices to create variants.
  */
 export function generateWorkout(
   library: LibraryExercise[],
-  opts: GeneratorOptions
+  opts: GeneratorOptions,
+  seed = 0
 ): Workout {
-  const scheme = SCHEME[opts.experience];
+  const goal: Goal = opts.goal ?? "fitness";
+  const base = GOAL_SCHEME[goal];
+  // Modulate volume by experience.
+  const sets = Math.max(
+    2,
+    base.sets + (opts.experience === "beginner" ? -1 : opts.experience === "advanced" ? 1 : 0)
+  );
+  const scheme = { ...base, sets };
+
   const primary = opts.muscleGroups;
   const secondary = (opts.secondaryGroups ?? []).filter((g) => !primary.includes(g));
   const allGroups = [...primary, ...secondary];
+  const primarySet = new Set(primary);
   const groupSet = new Set(allGroups);
 
   const pool = library.filter(
     (ex) =>
       matchesEquipment(ex, opts.equipment) &&
       allowsLevel(ex.level, opts.experience) &&
+      (opts.useWeights === false ? isBodyweight(ex) : true) &&
       ["strength", "plyometrics", "cardio", "powerlifting", "olympic weightlifting"].includes(
         ex.category
       ) &&
       groupsForExercise(ex).some((g) => groupSet.has(g))
   );
 
-  // Bucket candidates by muscle group and shuffle for variety.
+  // Bucket by group, ordered best-first (score desc). `seed` rotates the list
+  // so variants pick different-but-still-good exercises.
   const byGroup = new Map<MuscleGroup, LibraryExercise[]>();
   for (const g of allGroups) byGroup.set(g, []);
   for (const ex of pool) {
@@ -85,32 +162,60 @@ export function generateWorkout(
       if (byGroup.has(g)) byGroup.get(g)!.push(ex);
     }
   }
-  for (const list of byGroup.values()) shuffle(list);
+  for (const [g, list] of byGroup) {
+    list.sort(
+      (a, b) =>
+        scoreExercise(b, primarySet, opts.experience) -
+        scoreExercise(a, primarySet, opts.experience) || a.name.localeCompare(b.name)
+    );
+    if (seed > 0 && list.length > 1) {
+      const shift = seed % list.length;
+      byGroup.set(g, [...list.slice(shift), ...list.slice(0, shift)]);
+    }
+  }
 
-  // Weighted round-robin order: each primary group appears twice per cycle,
-  // each secondary group once, so primary muscles get more exercises.
+  // Weighted round-robin: primary groups twice per cycle, secondary once.
   const order: MuscleGroup[] = [];
   for (const g of primary) order.push(g, g);
   for (const g of secondary) order.push(g);
   if (order.length === 0) order.push(...byGroup.keys());
 
-  const buildExercise = (ex: LibraryExercise) => {
-    const bodyweight = !ex.equipment || ex.equipment === "body only";
+  const buildExercise = (ex: LibraryExercise, withWarmup = false) => {
+    const bodyweight = isBodyweight(ex);
     const unit: SetUnit = bodyweight ? "bw" : "kg";
-    return {
+    const weight = bodyweight
+      ? "BW"
+      : String(
+          opts.historyWeightKg?.(ex.name) ??
+            suggestStartingWeightKg(ex, {
+              experience: opts.experience,
+              sex: opts.sex,
+              bodyweightKg: opts.bodyweightKg,
+            })
+        );
+    const working = Array.from({ length: scheme.sets }, () => ({
       id: uuidv4(),
-      name: ex.name,
-      sets: Array.from({ length: scheme.sets }, () => ({
-        id: uuidv4(),
-        reps: scheme.reps,
-        value: bodyweight ? "BW" : startingWeight(ex, opts.experience),
-        unit,
-      })),
-    };
+      reps: scheme.reps,
+      value: weight,
+      unit,
+    }));
+    const sets =
+      withWarmup && !bodyweight
+        ? [
+            {
+              id: uuidv4(),
+              reps: Math.min(12, scheme.reps + 4),
+              value: String(Math.max(2.5, Math.round((Number(weight) * 0.5) / 2.5) * 2.5)),
+              unit,
+              type: "warmup" as SetType,
+            },
+            ...working,
+          ]
+        : working;
+    return { id: uuidv4(), name: ex.name, sets };
   };
 
-  // Greedily add exercises (round-robin, weighted) until the estimated time
-  // reaches the budget, so a "30 min" pick estimates ~30 min. Cap at 10.
+  // Greedily add best-first per group until the estimated time meets the budget.
   const targetSec = opts.minutes * 60;
   const chosen: LibraryExercise[] = [];
   const used = new Set<string>();
@@ -123,13 +228,12 @@ export function generateWorkout(
     chosen.push(next);
     used.add(next.name);
     if (chosen.length >= 3) {
-      const est = estimateWorkoutSeconds(chosen.map(buildExercise), scheme.rest);
+      const est = estimateWorkoutSeconds(chosen.map((e) => buildExercise(e)), scheme.rest);
       if (est >= targetSec) break;
     }
   }
-  // Fallback: ensure at least 3 exercises even if groups were sparse.
   if (chosen.length < 3) {
-    for (const ex of shuffle([...pool])) {
+    for (const ex of pool) {
       if (chosen.length >= 3) break;
       if (!used.has(ex.name)) {
         chosen.push(ex);
@@ -138,13 +242,19 @@ export function generateWorkout(
     }
   }
 
+  // Final order: compounds before isolations (a natural session flow).
+  chosen.sort(
+    (a, b) => (b.mechanic === "compound" ? 1 : 0) - (a.mechanic === "compound" ? 1 : 0)
+  );
+
+  const warmupGoal = goal === "strength" || goal === "muscle";
   const now = new Date().toISOString();
   return {
     id: uuidv4(),
-    title: titleFor(primary),
+    title: titleFor(primary, goal),
     rest: scheme.rest,
     createdAt: now,
     updatedAt: now,
-    exercises: chosen.map(buildExercise),
+    exercises: chosen.map((ex, i) => buildExercise(ex, warmupGoal && i === 0)),
   };
 }
