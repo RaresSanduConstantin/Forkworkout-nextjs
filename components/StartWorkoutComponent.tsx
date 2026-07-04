@@ -185,6 +185,14 @@ const StartWorkoutComponent = () => {
   const [finishCalories, setFinishCalories] = useState("");
   const [finishAvgBpm, setFinishAvgBpm] = useState("");
   const [finishMaxBpm, setFinishMaxBpm] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
+  const [summary, setSummary] = useState<{
+    volume: number;
+    totalReps: number;
+    setsDone: number;
+    durationSec?: number;
+    prs: string[];
+  } | null>(null);
 
   // Keep the phone screen awake during the workout.
   useWakeLock(true);
@@ -800,8 +808,22 @@ const StartWorkoutComponent = () => {
     }
 
     clearActiveSession();
-    toast.success("Workout complete! 🎉");
-    router.push(ROUTES.dashboard);
+
+    // Show a celebratory summary instead of navigating away immediately.
+    const setsDone = workout.exercises.reduce(
+      (s, ex) => s + ex.sets.filter((x) => x.status === "done").length,
+      0
+    );
+    const prs = [
+      ...new Set(
+        workout.exercises
+          .filter((ex) => ex.name.trim() && celebratedRef.current.has(normalizeExName(ex.name)))
+          .map((ex) => ex.name)
+      ),
+    ];
+    setSummary({ volume: Math.round(volume), totalReps, setsDone, durationSec, prs });
+    setShowFinishConfirm(false);
+    setShowSummary(true);
   };
 
   const requestExit = () => {
@@ -1654,6 +1676,79 @@ const StartWorkoutComponent = () => {
               }}
             >
               Finish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workout summary — celebratory recap */}
+      <Dialog
+        open={showSummary}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowSummary(false);
+            router.push(ROUTES.dashboard);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto text-center sm:max-w-md">
+          <DialogHeader className="text-center sm:text-center">
+            <DialogTitle className="text-2xl">
+              {honkFont("Workout complete!")} 🎉
+            </DialogTitle>
+            <DialogDescription>Nice work — here&apos;s how it went.</DialogDescription>
+          </DialogHeader>
+
+          {summary && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border p-3">
+                  <div className="text-2xl font-bold tabular-nums">
+                    {summary.durationSec != null ? formatClock(summary.durationSec) : "—"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Time</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-2xl font-bold tabular-nums">{summary.setsDone}</div>
+                  <div className="text-xs text-muted-foreground">Sets done</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-2xl font-bold tabular-nums">
+                    {summary.volume.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Volume (kg)</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-2xl font-bold tabular-nums">{summary.totalReps}</div>
+                  <div className="text-xs text-muted-foreground">Total reps</div>
+                </div>
+              </div>
+
+              {summary.prs.length > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  <p className="font-semibold">🏆 New personal record{summary.prs.length > 1 ? "s" : ""}!</p>
+                  <p className="mt-0.5 text-muted-foreground">{summary.prs.join(", ")}</p>
+                </div>
+              )}
+
+              {muscleHighlightData && muscleHighlightData.length > 0 && (
+                <div>
+                  <p className="mb-1 text-sm font-medium">Muscles worked</p>
+                  <MuscleMapView highlights={muscleHighlightData} />
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              className="w-full"
+              onClick={() => {
+                setShowSummary(false);
+                router.push(ROUTES.dashboard);
+              }}
+            >
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>
