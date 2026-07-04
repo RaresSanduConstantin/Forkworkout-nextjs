@@ -4,9 +4,13 @@ import { estimateWorkoutSeconds } from "./workout";
 import {
   type LibraryExercise,
   type MuscleGroup,
+  type MuscleTargetKey,
   type EquipmentAccess,
   type Experience,
   type Goal,
+  TARGET_BY_KEY,
+  targetsForGroup,
+  libMusclesForTargets,
   matchesEquipment,
   allowsLevel,
   groupsForExercise,
@@ -15,7 +19,10 @@ import {
 export type Sex = "male" | "female" | "unspecified";
 
 export type GeneratorOptions = {
-  muscleGroups: MuscleGroup[];
+  /** Fine-grained muscle targets (preferred). */
+  targetMuscles?: MuscleTargetKey[];
+  /** Coarse groups — expanded to their muscles when targetMuscles is absent. */
+  muscleGroups?: MuscleGroup[];
   secondaryGroups?: MuscleGroup[];
   equipment: EquipmentAccess;
   experience: Experience;
@@ -83,13 +90,15 @@ function isBodyweight(ex: LibraryExercise): boolean {
 
 function scoreExercise(
   ex: LibraryExercise,
-  primarySet: Set<MuscleGroup>,
+  targetLib: Set<string>,
   experience: Experience
 ): number {
   let s = 0;
   if (ex.mechanic === "compound") s += 3;
   if (ex.category === "strength") s += 1;
-  if (groupsForExercise(ex).some((g) => primarySet.has(g))) s += 2;
+  // Reward exercises whose PRIMARY work is the target muscle (precision).
+  const primHits = (ex.primaryMuscles ?? []).filter((m) => targetLib.has(m.toLowerCase())).length;
+  s += Math.min(primHits, 2) * 2;
   if (experience === "beginner") {
     const eq = (ex.equipment ?? "body only").toLowerCase();
     if (["body only", "dumbbell", "machine", "cable", "kettlebells"].includes(eq)) s += 1;
@@ -136,11 +145,30 @@ export function generateWorkout(
   );
   const scheme = { ...base, sets };
 
-  const primary = opts.muscleGroups;
-  const secondary = (opts.secondaryGroups ?? []).filter((g) => !primary.includes(g));
-  const allGroups = [...primary, ...secondary];
-  const primarySet = new Set(primary);
-  const groupSet = new Set(allGroups);
+  const primary = opts.muscleGroups ?? [];
+
+  // Resolve fine-grained muscle targets: use explicit targets, else expand the
+  // coarse groups into their constituent muscles.
+  const targets: MuscleTargetKey[] =
+    opts.targetMuscles && opts.targetMuscles.length > 0
+      ? opts.targetMuscles
+      : primary.flatMap((g) => targetsForGroup(g));
+  const groups = [
+    ...new Set(
+      targets
+        .map((k) => TARGET_BY_KEY.get(k)?.group)
+        .filter((g): g is MuscleGroup => Boolean(g))
+    ),
+  ];
+
+  // Per-target library-muscle sets + the union for pool filtering.
+  const targetLib = new Map<MuscleTargetKey, Set<string>>();
+  for (const k of targets) targetLib.set(k, libMusclesForTargets([k]));
+  const unionLib = libMusclesForTargets(targets);
+  const primaryHit = (ex: LibraryExercise) =>
+    (ex.primaryMuscles ?? []).some((m) => unionLib.has(m.toLowerCase()));
+  const secondaryHit = (ex: LibraryExercise) =>
+    (ex.secondaryMuscles ?? []).some((m) => unionLib.has(m.toLowerCase()));
 
   const pool = library.filter(
     (ex) =>
@@ -150,35 +178,37 @@ export function generateWorkout(
       ["strength", "plyometrics", "cardio", "powerlifting", "olympic weightlifting"].includes(
         ex.category
       ) &&
-      groupsForExercise(ex).some((g) => groupSet.has(g))
+      (primaryHit(ex) || secondaryHit(ex))
   );
 
-  // Bucket by group, ordered best-first (score desc). `seed` rotates the list
-  // so variants pick different-but-still-good exercises.
-  const byGroup = new Map<MuscleGroup, LibraryExercise[]>();
-  for (const g of allGroups) byGroup.set(g, []);
-  for (const ex of pool) {
-    for (const g of groupsForExercise(ex)) {
-      if (byGroup.has(g)) byGroup.get(g)!.push(ex);
-    }
-  }
-  for (const [g, list] of byGroup) {
+  // Bucket by target, ordered best-first (score desc). Prefer exercises that hit
+  // the target as a PRIMARY muscle; fall back to secondary only if none exist.
+  // `seed` rotates each list so variants pick different-but-still-good choices.
+  const byTarget = new Map<MuscleTargetKey, LibraryExercise[]>();
+  for (const k of targets) {
+    const lib = targetLib.get(k)!;
+    const prim = pool.filter((ex) =>
+      (ex.primaryMuscles ?? []).some((m) => lib.has(m.toLowerCase()))
+    );
+    const list =
+      prim.length > 0
+        ? prim
+        : pool.filter((ex) => (ex.secondaryMuscles ?? []).some((m) => lib.has(m.toLowerCase())));
     list.sort(
       (a, b) =>
-        scoreExercise(b, primarySet, opts.experience) -
-        scoreExercise(a, primarySet, opts.experience) || a.name.localeCompare(b.name)
+        scoreExercise(b, lib, opts.experience) - scoreExercise(a, lib, opts.experience) ||
+        a.name.localeCompare(b.name)
     );
     if (seed > 0 && list.length > 1) {
       const shift = seed % list.length;
-      byGroup.set(g, [...list.slice(shift), ...list.slice(0, shift)]);
+      byTarget.set(k, [...list.slice(shift), ...list.slice(0, shift)]);
+    } else {
+      byTarget.set(k, list);
     }
   }
 
-  // Weighted round-robin: primary groups twice per cycle, secondary once.
-  const order: MuscleGroup[] = [];
-  for (const g of primary) order.push(g, g);
-  for (const g of secondary) order.push(g);
-  if (order.length === 0) order.push(...byGroup.keys());
+  // Round-robin over the selected muscles (each once per cycle).
+  const order: MuscleTargetKey[] = [...targets];
 
   const buildExercise = (ex: LibraryExercise, withWarmup = false) => {
     const bodyweight = isBodyweight(ex);
@@ -215,15 +245,15 @@ export function generateWorkout(
     return { id: uuidv4(), name: ex.name, sets };
   };
 
-  // Greedily add best-first per group until the estimated time meets the budget.
+  // Greedily add best-first per target until the estimated time meets the budget.
   const targetSec = opts.minutes * 60;
   const chosen: LibraryExercise[] = [];
   const used = new Set<string>();
   let guard = 0;
-  while (chosen.length < 10 && guard < order.length * 30) {
-    const g = order[guard % order.length];
+  while (chosen.length < 10 && order.length > 0 && guard < order.length * 30) {
+    const k = order[guard % order.length];
     guard++;
-    const next = (byGroup.get(g) || []).find((ex) => !used.has(ex.name));
+    const next = (byTarget.get(k) || []).find((ex) => !used.has(ex.name));
     if (!next) continue;
     chosen.push(next);
     used.add(next.name);
@@ -251,7 +281,7 @@ export function generateWorkout(
   const now = new Date().toISOString();
   return {
     id: uuidv4(),
-    title: titleFor(primary, goal),
+    title: titleFor(groups, goal),
     rest: scheme.rest,
     createdAt: now,
     updatedAt: now,

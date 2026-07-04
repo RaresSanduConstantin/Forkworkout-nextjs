@@ -24,10 +24,12 @@ import {
   loadExerciseLibrary,
   getCachedLibrary,
   MUSCLE_GROUPS,
+  MUSCLE_TARGETS,
   EQUIPMENT_OPTIONS,
   EXPERIENCE_OPTIONS,
   GOAL_OPTIONS,
-  type MuscleGroup,
+  targetsForGroup,
+  type MuscleTargetKey,
   type EquipmentAccess,
   type Experience,
   type Goal,
@@ -88,8 +90,7 @@ export function WorkoutWizard({
   onGenerate: (workout: Workout) => void;
 }) {
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
-  const [muscleGroups, setMuscleGroups] = React.useState<MuscleGroup[]>([]);
-  const [secondaryGroups, setSecondaryGroups] = React.useState<MuscleGroup[]>([]);
+  const [targetMuscles, setTargetMuscles] = React.useState<MuscleTargetKey[]>([]);
   const [goal, setGoal] = React.useState<Goal>("muscle");
   const [equipment, setEquipment] = React.useState<EquipmentAccess>("gym");
   const [experience, setExperience] = React.useState<Experience>("beginner");
@@ -101,8 +102,17 @@ export function WorkoutWizard({
   const [selected, setSelected] = React.useState(0);
   const [gender, setGender] = React.useState<"male" | "female">("male");
 
-  const toggleMuscleGroup = (g: MuscleGroup) =>
-    setMuscleGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+  const toggleMuscle = (k: MuscleTargetKey) =>
+    setTargetMuscles((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+
+  // Quick-add a whole region: select all its muscles, or clear them if all set.
+  const toggleRegion = (keys: MuscleTargetKey[]) =>
+    setTargetMuscles((prev) => {
+      const allSet = keys.every((k) => prev.includes(k));
+      return allSet
+        ? prev.filter((k) => !keys.includes(k))
+        : [...prev, ...keys.filter((k) => !prev.includes(k))];
+    });
 
   const handleSex = (g: "male" | "female") => {
     setGender(g);
@@ -125,8 +135,8 @@ export function WorkoutWizard({
   }, [open]);
 
   const handleGenerate = () => {
-    if (muscleGroups.length === 0) {
-      toast.error("Pick at least one muscle group.");
+    if (targetMuscles.length === 0) {
+      toast.error("Pick at least one muscle.");
       return;
     }
     const profile = getBodyProfile();
@@ -134,8 +144,7 @@ export function WorkoutWizard({
       .reverse()
       .find((m) => m.weightKg !== undefined)?.weightKg;
     const opts = {
-      muscleGroups,
-      secondaryGroups,
+      targetMuscles,
       equipment,
       experience,
       minutes,
@@ -240,46 +249,50 @@ export function WorkoutWizard({
             </p>
           </Field>
 
-          <Field label="Primary muscle groups">
-            <MuscleMapPicker value={muscleGroups} onToggle={toggleMuscleGroup} gender={gender} />
-            <p className="text-xs text-muted-foreground">Tap the body or the chips below.</p>
-            <ToggleGroup
-              type="multiple"
-              value={muscleGroups}
-              onValueChange={(v) => setMuscleGroups(v as MuscleGroup[])}
-              variant="outline"
-              className="flex flex-wrap justify-start gap-2"
-            >
-              {MUSCLE_GROUPS.map((g) => (
-                <ToggleGroupItem
-                  key={g}
-                  value={g}
-                  className={chipItemClass}
-                >
-                  {g}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Field>
-
-          <Field label="Secondary groups (optional)">
-            <ToggleGroup
-              type="multiple"
-              value={secondaryGroups}
-              onValueChange={(v) => setSecondaryGroups(v as MuscleGroup[])}
-              variant="outline"
-              className="flex flex-wrap justify-start gap-2"
-            >
-              {MUSCLE_GROUPS.filter((g) => !muscleGroups.includes(g)).map((g) => (
-                <ToggleGroupItem
-                  key={g}
-                  value={g}
-                  className={chipItemClass}
-                >
-                  {g}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+          <Field label="Target muscles">
+            <MuscleMapPicker value={targetMuscles} onToggle={toggleMuscle} gender={gender} />
+            <p className="text-xs text-muted-foreground">
+              Tap muscles on the body, or use the chips below.
+            </p>
+            <div className="space-y-3">
+              {MUSCLE_GROUPS.map((group) => {
+                const regionKeys = targetsForGroup(group);
+                if (regionKeys.length === 0) return null;
+                const allSet = regionKeys.every((k) => targetMuscles.includes(k));
+                return (
+                  <div key={group} className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">{group}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleRegion(regionKeys)}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        {allSet ? "Clear" : "All"}
+                      </button>
+                    </div>
+                    <ToggleGroup
+                      type="multiple"
+                      value={targetMuscles.filter((k) => regionKeys.includes(k))}
+                      onValueChange={(v) =>
+                        setTargetMuscles((prev) => [
+                          ...prev.filter((k) => !regionKeys.includes(k)),
+                          ...(v as MuscleTargetKey[]),
+                        ])
+                      }
+                      variant="outline"
+                      className="flex flex-wrap justify-start gap-2"
+                    >
+                      {MUSCLE_TARGETS.filter((t) => t.group === group).map((t) => (
+                        <ToggleGroupItem key={t.key} value={t.key} className={chipItemClass}>
+                          {t.label}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </div>
+                );
+              })}
+            </div>
           </Field>
 
           <Field label="Equipment">

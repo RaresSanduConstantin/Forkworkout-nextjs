@@ -3,41 +3,25 @@
 import * as React from "react";
 
 import type { Muscle, MuscleMapWidget } from "@abdofallah/musclemap-js";
-import { MUSCLE_GROUPS, type MuscleGroup } from "@/lib/exercises";
-import { HEAT_COLOR } from "@/lib/muscle-map";
-
-// Coarse muscle group -> the SDK base-muscle slugs it covers (used to paint a
-// whole region when its group is selected).
-const GROUP_TO_SDK: Record<MuscleGroup, Muscle[]> = {
-  Chest: ["chest"],
-  Back: ["upper-back", "lower-back", "trapezius", "rhomboids"],
-  Legs: ["quadriceps", "hamstring", "gluteal", "calves", "tibialis"],
-  Shoulders: ["deltoids", "rotator-cuff"],
-  Arms: ["biceps", "triceps", "forearm"],
-  Core: ["abs", "obliques", "serratus"],
-};
-
-// SDK base-muscle slug -> coarse group (inverse of GROUP_TO_SDK).
-const SDK_TO_GROUP: Partial<Record<string, MuscleGroup>> = {};
-for (const g of MUSCLE_GROUPS) {
-  for (const slug of GROUP_TO_SDK[g]) SDK_TO_GROUP[slug] = g;
-}
+import type { MuscleTargetKey } from "@/lib/exercises";
+import { HEAT_COLOR, TARGET_TO_SDK, SDK_TO_TARGET } from "@/lib/muscle-map";
 
 const SELECTED_OPACITY = 0.85;
 
 /**
- * Interactive body map for picking target muscle groups. Tapping any muscle
- * toggles its whole coarse group; the selection is rendered as a red overlay we
- * fully control (the SDK's own single-muscle selection is overwritten each
- * render). Stays in sync with the chip toggles via the shared `value`.
+ * Interactive body map for picking individual target muscles. Tapping a muscle
+ * toggles just that muscle (e.g. triceps, not the whole arm), rendered as a red
+ * overlay we fully control. Stays in sync with the muscle chips via the shared
+ * `value`. Sub-muscle taps resolve to their parent; the SDK's own selection
+ * paint is cleared so only our overlay shows.
  */
 export function MuscleMapPicker({
   value,
   onToggle,
   gender = "male",
 }: {
-  value: MuscleGroup[];
-  onToggle: (group: MuscleGroup) => void;
+  value: MuscleTargetKey[];
+  onToggle: (key: MuscleTargetKey) => void;
   gender?: "male" | "female";
 }) {
   const frontRef = React.useRef<HTMLDivElement>(null);
@@ -52,9 +36,9 @@ export function MuscleMapPicker({
   const valueRef = React.useRef(value);
   valueRef.current = value;
 
-  const applyHighlights = React.useCallback((groups: MuscleGroup[]) => {
-    const data = groups.flatMap((g) =>
-      GROUP_TO_SDK[g].map((muscle) => ({ muscle, color: HEAT_COLOR, opacity: SELECTED_OPACITY }))
+  const applyHighlights = React.useCallback((keys: MuscleTargetKey[]) => {
+    const data = keys.flatMap((k) =>
+      TARGET_TO_SDK[k].map((muscle) => ({ muscle, color: HEAT_COLOR, opacity: SELECTED_OPACITY }))
     );
     frontMap.current?.setHighlightData(data);
     backMap.current?.setHighlightData(data);
@@ -67,16 +51,19 @@ export function MuscleMapPicker({
       if (!mounted || !frontRef.current || !backRef.current) return;
       const handleClick = (muscle: Muscle) => {
         const base = getParentGroup(muscle) ?? muscle;
-        const group = SDK_TO_GROUP[base];
-        if (!group) return;
-        const cur = valueRef.current;
-        const next = cur.includes(group) ? cur.filter((x) => x !== group) : [...cur, group];
-        toggleRef.current(group);
+        const key = SDK_TO_TARGET[base];
         // The SDK paints its own (green) selection overlay from `selectedMuscles`,
-        // independent of highlights. Clear it so only our red overlay shows, then
-        // repaint synchronously (React state updates async and would flash first).
+        // independent of highlights. Always clear it so no stray green remains,
+        // then repaint our red overlay synchronously (React state is async).
         frontMap.current?.clearSelection();
         backMap.current?.clearSelection();
+        if (!key) {
+          applyHighlights(valueRef.current);
+          return;
+        }
+        const cur = valueRef.current;
+        const next = cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key];
+        toggleRef.current(key);
         applyHighlights(next);
       };
       const opts = {

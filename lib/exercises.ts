@@ -189,6 +189,70 @@ export const GOAL_OPTIONS: { value: Goal; label: string; hint: string }[] = [
   { value: "fitness", label: "General fitness", hint: "Balanced" },
 ];
 
+// ---- Individual muscle targets -------------------------------------------
+// Finer-grained than the 6 coarse groups: what the body-map picker lets the
+// user tap (e.g. triceps vs biceps). Each maps to the exercise-library muscle
+// vocabulary used for matching, and belongs to a coarse group (for titles).
+
+export type MuscleTargetKey =
+  | "chest"
+  | "lats"
+  | "lowerback"
+  | "traps"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "forearms"
+  | "abs"
+  | "obliques"
+  | "quads"
+  | "hamstrings"
+  | "glutes"
+  | "calves";
+
+export type MuscleTarget = {
+  key: MuscleTargetKey;
+  label: string;
+  group: MuscleGroup;
+  /** Library primary/secondary muscle names this target matches. */
+  lib: string[];
+};
+
+export const MUSCLE_TARGETS: MuscleTarget[] = [
+  { key: "chest", label: "Chest", group: "Chest", lib: ["chest"] },
+  { key: "lats", label: "Lats / upper back", group: "Back", lib: ["lats", "middle back"] },
+  { key: "lowerback", label: "Lower back", group: "Back", lib: ["lower back"] },
+  { key: "traps", label: "Traps", group: "Back", lib: ["traps", "neck"] },
+  { key: "shoulders", label: "Shoulders", group: "Shoulders", lib: ["shoulders"] },
+  { key: "biceps", label: "Biceps", group: "Arms", lib: ["biceps"] },
+  { key: "triceps", label: "Triceps", group: "Arms", lib: ["triceps"] },
+  { key: "forearms", label: "Forearms", group: "Arms", lib: ["forearms"] },
+  { key: "abs", label: "Abs", group: "Core", lib: ["abdominals"] },
+  { key: "obliques", label: "Obliques", group: "Core", lib: ["abdominals"] },
+  { key: "quads", label: "Quads", group: "Legs", lib: ["quadriceps", "adductors"] },
+  { key: "hamstrings", label: "Hamstrings", group: "Legs", lib: ["hamstrings"] },
+  { key: "glutes", label: "Glutes", group: "Legs", lib: ["glutes", "abductors"] },
+  { key: "calves", label: "Calves", group: "Legs", lib: ["calves"] },
+];
+
+export const TARGET_BY_KEY: Map<MuscleTargetKey, MuscleTarget> = new Map(
+  MUSCLE_TARGETS.map((t) => [t.key, t])
+);
+
+/** All target keys that belong to a coarse group (for "select whole region"). */
+export function targetsForGroup(group: MuscleGroup): MuscleTargetKey[] {
+  return MUSCLE_TARGETS.filter((t) => t.group === group).map((t) => t.key);
+}
+
+/** Union of library muscle names for a set of target keys (lowercased). */
+export function libMusclesForTargets(keys: MuscleTargetKey[]): Set<string> {
+  const set = new Set<string>();
+  for (const k of keys) {
+    for (const m of TARGET_BY_KEY.get(k)?.lib ?? []) set.add(m.toLowerCase());
+  }
+  return set;
+}
+
 // ---- Recommendation ------------------------------------------------------
 
 /**

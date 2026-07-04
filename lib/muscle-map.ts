@@ -4,7 +4,7 @@
 // -> deeper red) up to a saturation point.
 
 import type { Muscle } from "@abdofallah/musclemap-js";
-import type { LibraryExercise } from "./exercises";
+import type { LibraryExercise, MuscleTargetKey } from "./exercises";
 import type { SetStatus, SetType } from "./types";
 
 /** Exercise-library muscle names (and legacy coarse group labels) -> SDK slugs. */
@@ -58,6 +58,32 @@ const MIN_VISIBLE = 0.12;
 export const HEAT_COLOR = "#ef4444"; // red-500
 
 export type MuscleHighlight = { muscle: Muscle; color: string; opacity: number };
+
+// ---- Individual muscle-target <-> SDK slug mapping (for the body picker) ----
+
+/** Target key -> the SDK body slugs it paints. */
+export const TARGET_TO_SDK: Record<MuscleTargetKey, Muscle[]> = {
+  chest: ["chest"],
+  lats: ["upper-back", "rhomboids"],
+  lowerback: ["lower-back"],
+  traps: ["trapezius"],
+  shoulders: ["deltoids", "rotator-cuff"],
+  biceps: ["biceps"],
+  triceps: ["triceps"],
+  forearms: ["forearm"],
+  abs: ["abs"],
+  obliques: ["obliques", "serratus"],
+  quads: ["quadriceps"],
+  hamstrings: ["hamstring"],
+  glutes: ["gluteal"],
+  calves: ["calves", "tibialis"],
+};
+
+/** SDK base slug -> the target key it toggles when tapped. */
+export const SDK_TO_TARGET: Partial<Record<string, MuscleTargetKey>> = {};
+for (const [key, slugs] of Object.entries(TARGET_TO_SDK)) {
+  for (const s of slugs) SDK_TO_TARGET[s] = key as MuscleTargetKey;
+}
 
 function mapMuscle(name: string): Muscle[] {
   return LIBRARY_TO_SDK[name.trim().toLowerCase()] ?? [];
