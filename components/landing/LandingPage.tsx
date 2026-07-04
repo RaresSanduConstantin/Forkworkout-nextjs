@@ -7,6 +7,7 @@ import {
   Flame,
   ListChecks,
   ShieldCheck,
+  Sparkles,
   TrendingUp,
   LineChart,
   PlayCircle,
@@ -28,6 +29,11 @@ import { ROUTES } from "@/lib/routes";
 import { STARTER_TEMPLATES } from "@/lib/templates";
 
 const FEATURES = [
+  {
+    icon: Sparkles,
+    title: "Guided workout builder",
+    body: "Not sure what to do? Tap the muscles you want to train, pick a goal and your gear — we build a routine with sensible sets, reps and starting weights.",
+  },
   {
     icon: Dumbbell,
     title: "Build workouts fast",
@@ -172,11 +178,22 @@ export default function LandingPage() {
               </span>
             </h1>
             <p className="mx-auto max-w-md text-lg text-muted-foreground md:mx-0">
-              ForkWorkout is a fast, mobile-first workout tracker: build
-              routines, log sets with last-time hints, track PRs and progress
-              charts, and keep your streak alive — installable, works offline,
-              no account required.
+              ForkWorkout is a fast, mobile-first workout tracker. Tap the muscles
+              you want to train and let the guided builder plan a routine — then
+              log sets with last-time hints, track PRs and progress charts, and
+              keep your streak alive. Installable, offline, no account.
             </p>
+            <div className="grid grid-cols-2 justify-items-center gap-x-4 gap-y-2 text-sm font-medium text-muted-foreground md:flex md:flex-wrap md:justify-start">
+              <span className="inline-flex items-center gap-1.5">
+                <Dumbbell className="size-4 text-primary" /> 800+ exercises
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Smartphone className="size-4 text-primary" /> Works offline
+              </span>
+              <span className="col-span-2 inline-flex items-center gap-1.5 md:col-span-1">
+                <ShieldCheck className="size-4 text-primary" /> No account
+              </span>
+            </div>
             <div className="flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
               <Button asChild size="lg" className="gap-2">
                 <Link href={ROUTES.dashboard}>
