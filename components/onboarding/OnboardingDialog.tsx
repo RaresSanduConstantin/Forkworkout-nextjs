@@ -29,7 +29,7 @@ export function OnboardingDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (result: { addedWorkout?: Workout }) => void;
+  onComplete: (result: { addedWorkout?: Workout; openWizard?: boolean }) => void;
 }) {
   const [step, setStep] = React.useState(0);
   const [goal, setGoal] = React.useState(3);
@@ -48,7 +48,7 @@ export function OnboardingDialog({
 
   const changeGoal = (next: number) => setGoal(Math.min(7, Math.max(1, next)));
 
-  const finish = (template?: WorkoutTemplate) => {
+  const finish = (template?: WorkoutTemplate, opts?: { openWizard?: boolean }) => {
     if (finishedRef.current) return;
     finishedRef.current = true;
 
@@ -59,7 +59,7 @@ export function OnboardingDialog({
       addedWorkout = instantiateTemplate(template);
       upsertWorkout(addedWorkout);
     }
-    onComplete({ addedWorkout });
+    onComplete({ addedWorkout, openWizard: opts?.openWizard });
     onOpenChange(false);
   };
 
@@ -140,11 +140,33 @@ export function OnboardingDialog({
             <DialogHeader className="text-left">
               <DialogTitle>Start with a ready-made workout?</DialogTitle>
               <DialogDescription>
-                Pick one to add it now — you can edit or delete it anytime. Or skip and build your
-                own.
+                Let us build one for you, pick a ready-made routine, or skip and build your own.
+                You can edit or delete anything later.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => finish(undefined, { openWizard: true })}
+                className="flex w-full items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Sparkles className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium leading-tight">Build one for me</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Answer a few quick questions and we&apos;ll plan a routine.
+                  </span>
+                </span>
+              </button>
+
+              <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or pick a ready-made one
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
               {STARTER_TEMPLATES.map((t) => {
                 const isSel = selected === t.key;
                 return (

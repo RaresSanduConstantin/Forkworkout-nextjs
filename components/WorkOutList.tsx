@@ -431,7 +431,7 @@ const WorkoutList = () => {
       <OnboardingDialog
         open={showOnboarding}
         onOpenChange={setShowOnboarding}
-        onComplete={({ addedWorkout }) => {
+        onComplete={({ addedWorkout, openWizard }) => {
           if (addedWorkout) {
             setWorkouts((prev) => [...prev, addedWorkout]);
             toast.success(`Added “${addedWorkout.title}”`, {
@@ -441,6 +441,9 @@ const WorkoutList = () => {
               },
             });
           }
+          // Open the guided builder once onboarding has fully closed (avoids
+          // overlapping dialog focus traps).
+          if (openWizard) setTimeout(() => setShowWizard(true), 150);
         }}
       />
 
