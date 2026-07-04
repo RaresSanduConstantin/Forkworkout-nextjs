@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Plus, SkipForward, Target, Timer, Vibrate, VibrateOff, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Minus, Plus, SkipForward, Target, Timer, Vibrate, VibrateOff, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -428,6 +428,17 @@ const StartWorkoutComponent = () => {
 
   const updateSetValue = (exIdx: number, setIdx: number, value: string) =>
     updateSet(exIdx, setIdx, (s) => ({ ...s, value }));
+
+  // Quick +/- steppers (manual entry still works).
+  const stepReps = (exIdx: number, setIdx: number, delta: number) => {
+    const cur = workout?.exercises[exIdx]?.sets[setIdx]?.reps ?? 0;
+    updateSetReps(exIdx, setIdx, Math.max(1, cur + delta));
+  };
+  const stepValue = (exIdx: number, setIdx: number, delta: number) => {
+    const cur = parseFloat(workout?.exercises[exIdx]?.sets[setIdx]?.value ?? "") || 0;
+    const next = Math.max(0, Math.round((cur + delta) * 100) / 100);
+    updateSetValue(exIdx, setIdx, String(next));
+  };
 
   const updateSetType = (exIdx: number, setIdx: number, type: SetType) =>
     updateSet(exIdx, setIdx, (s) => ({ ...s, type }));
@@ -1031,17 +1042,35 @@ const StartWorkoutComponent = () => {
                                 })()}
                               </td>
                               <td className="px-1 py-1.5">
-                                <Input
-                                  type="number"
-                                  inputMode="numeric"
-                                  min={1}
-                                  value={set.reps}
-                                  onChange={(e) =>
-                                    updateSetReps(exIdx, setIdx, parseInt(e.target.value) || 0)
-                                  }
-                                  className="h-8 w-full text-center"
-                                  aria-label={`Reps for set ${setIdx + 1}`}
-                                />
+                                <div className="flex items-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => stepReps(exIdx, setIdx, -1)}
+                                    className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
+                                    aria-label="Decrease reps"
+                                  >
+                                    <Minus className="size-3.5" />
+                                  </button>
+                                  <Input
+                                    type="number"
+                                    inputMode="numeric"
+                                    min={1}
+                                    value={set.reps}
+                                    onChange={(e) =>
+                                      updateSetReps(exIdx, setIdx, parseInt(e.target.value) || 0)
+                                    }
+                                    className="h-8 w-full min-w-0 px-0.5 text-center"
+                                    aria-label={`Reps for set ${setIdx + 1}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => stepReps(exIdx, setIdx, 1)}
+                                    className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
+                                    aria-label="Increase reps"
+                                  >
+                                    <Plus className="size-3.5" />
+                                  </button>
+                                </div>
                                 {lastRef && exUnit !== "time" && (
                                   <div className="mt-0.5 text-center text-[10px] leading-none text-muted-foreground">
                                     last {lastRef.reps}
@@ -1063,16 +1092,38 @@ const StartWorkoutComponent = () => {
                                     aria-label="Value"
                                   />
                                 ) : (
-                                  <NumberInput
-                                    decimal
-                                    value={set.value}
-                                    onChange={(e) =>
-                                      updateSetValue(exIdx, setIdx, e.target.value)
-                                    }
-                                    className="h-8 w-full text-center"
-                                    placeholder={lastRef?.value || unitPlaceholder(exUnit)}
-                                    aria-label="Value"
-                                  />
+                                  <div className="flex items-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        stepValue(exIdx, setIdx, exUnit === "km" ? -0.5 : -2.5)
+                                      }
+                                      className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
+                                      aria-label="Decrease value"
+                                    >
+                                      <Minus className="size-3.5" />
+                                    </button>
+                                    <NumberInput
+                                      decimal
+                                      value={set.value}
+                                      onChange={(e) =>
+                                        updateSetValue(exIdx, setIdx, e.target.value)
+                                      }
+                                      className="h-8 w-full min-w-0 px-0.5 text-center"
+                                      placeholder={lastRef?.value || unitPlaceholder(exUnit)}
+                                      aria-label="Value"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        stepValue(exIdx, setIdx, exUnit === "km" ? 0.5 : 2.5)
+                                      }
+                                      className="flex h-8 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
+                                      aria-label="Increase value"
+                                    >
+                                      <Plus className="size-3.5" />
+                                    </button>
+                                  </div>
                                 )}
                                 {lastRef && exUnit !== "bw" && lastRef.value && lastRef.value !== "BW" && (
                                   <div className="mt-0.5 text-center text-[10px] leading-none text-muted-foreground">
