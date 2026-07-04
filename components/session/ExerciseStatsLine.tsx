@@ -21,9 +21,12 @@ import {
 export function ExerciseStatsLine({
   name,
   history,
+  onApply,
 }: {
   name: string;
   history: CompletedWorkout[];
+  /** Apply the suggested progressive-overload weight (kg) to the exercise. */
+  onApply?: (weightKg: number) => void;
 }) {
   const { last, prLabel, suggest } = React.useMemo(() => {
     const clean = name.trim();
@@ -65,12 +68,28 @@ export function ExerciseStatsLine({
           PR: <span className="font-medium text-foreground">{prLabel}</span>
         </span>
       )}
-      {suggest != null && (
-        <Badge variant="secondary" className="gap-1 font-medium">
-          <TrendingUp className="size-3" aria-hidden />
-          Try {suggest} kg
-        </Badge>
-      )}
+      {suggest != null &&
+        (onApply ? (
+          <button
+            type="button"
+            onClick={() => onApply(suggest)}
+            className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Apply suggested weight ${suggest} kg to this exercise`}
+          >
+            <Badge
+              variant="secondary"
+              className="cursor-pointer gap-1 font-medium transition-colors hover:bg-primary hover:text-primary-foreground"
+            >
+              <TrendingUp className="size-3" aria-hidden />
+              Try {suggest} kg
+            </Badge>
+          </button>
+        ) : (
+          <Badge variant="secondary" className="gap-1 font-medium">
+            <TrendingUp className="size-3" aria-hidden />
+            Try {suggest} kg
+          </Badge>
+        ))}
     </div>
   );
 }

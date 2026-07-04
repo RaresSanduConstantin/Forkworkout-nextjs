@@ -505,6 +505,20 @@ const StartWorkoutComponent = () => {
   const updateSetType = (exIdx: number, setIdx: number, type: SetType) =>
     updateSet(exIdx, setIdx, (s) => ({ ...s, type }));
 
+  // Progressive overload: fill every non-warm-up kg set of an exercise with the
+  // suggested next weight (one tap from the "Try X kg" hint).
+  const applySuggestedWeight = (exIdx: number, weightKg: number) => {
+    const ex = workout?.exercises[exIdx];
+    if (!ex) return;
+    ex.sets.forEach((s, setIdx) => {
+      const unit = s.unit ?? inferUnit(s.value);
+      if (unit === "kg" && s.type !== "warmup") {
+        updateSetValue(exIdx, setIdx, String(weightKg));
+      }
+    });
+    toast.success(`Set to ${weightKg} kg — go beat it 💪`);
+  };
+
   // Label of the next set to do after the one at (exIdx, setIdx), for the rest
   // timer's "next up" preview.
   const nextUpLabel = (exIdx: number, setIdx: number): string | null => {
@@ -1050,7 +1064,11 @@ const StartWorkoutComponent = () => {
               </div>
 
               {exercise.name.trim() && (
-                <ExerciseStatsLine name={exercise.name} history={history} />
+                <ExerciseStatsLine
+                  name={exercise.name}
+                  history={history}
+                  onApply={(w) => applySuggestedWeight(exIdx, w)}
+                />
               )}
 
               {(() => {
