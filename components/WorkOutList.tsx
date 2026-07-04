@@ -251,9 +251,9 @@ const WorkoutList = () => {
 
       {/* Your workouts */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="space-y-3">
           <h2 className="text-3xl">{honkFont("Your Workouts")}</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {workouts.length > 1 && (
               <Button
                 variant="outline"

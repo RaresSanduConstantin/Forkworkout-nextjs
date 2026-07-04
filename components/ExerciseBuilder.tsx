@@ -56,11 +56,14 @@ function SetRow({
   const handleUnit = (next: string) => {
     if (!next) return; // ignore deselect from the toggle group
     const nextUnit = next as SetUnit;
-    setValue(`${base}.unit`, nextUnit, { shouldValidate: true, shouldDirty: true });
+    // Only validate once the user has tried to submit, so switching units on an
+    // untouched set doesn't flag the (still-empty) value input as invalid.
+    const shouldValidate = form.formState.isSubmitted;
+    setValue(`${base}.unit`, nextUnit, { shouldValidate, shouldDirty: true });
     if (nextUnit === "bw") {
-      setValue(`${base}.value`, "BW", { shouldValidate: true });
+      setValue(`${base}.value`, "BW", { shouldValidate, shouldDirty: true });
     } else if (unit === "bw") {
-      setValue(`${base}.value`, "", { shouldValidate: true });
+      setValue(`${base}.value`, "", { shouldValidate, shouldDirty: true });
     }
   };
 
