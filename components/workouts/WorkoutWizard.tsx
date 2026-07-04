@@ -31,6 +31,7 @@ import { generateWorkout } from "@/lib/workout-generator";
 import { estimateWorkoutSeconds } from "@/lib/workout";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
+import { MuscleMapPicker } from "@/components/workouts/MuscleMapPicker";
 import { getBodyProfile } from "@/lib/storage/profile";
 import { getBodyMetrics } from "@/lib/storage/body-storage";
 import { suggestNextWeight, getLastPerformance } from "@/lib/history-stats";
@@ -77,11 +78,15 @@ export function WorkoutWizard({
   const [selected, setSelected] = React.useState(0);
   const [gender, setGender] = React.useState<"male" | "female">("male");
 
+  const toggleMuscleGroup = (g: MuscleGroup) =>
+    setMuscleGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+
   React.useEffect(() => {
     if (!open) {
       setStep("form");
       return;
     }
+    setGender(getBodyProfile().sex === "female" ? "female" : "male");
     let active = true;
     loadExerciseLibrary().then((lib) => {
       if (active) setLibrary(lib);
@@ -189,6 +194,8 @@ export function WorkoutWizard({
           </Field>
 
           <Field label="Primary muscle groups">
+            <MuscleMapPicker value={muscleGroups} onToggle={toggleMuscleGroup} gender={gender} />
+            <p className="text-xs text-muted-foreground">Tap the body or the chips below.</p>
             <ToggleGroup
               type="multiple"
               value={muscleGroups}
