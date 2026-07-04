@@ -15,6 +15,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   loadExerciseLibrary,
   getCachedLibrary,
   MUSCLE_GROUPS,
@@ -53,6 +59,22 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+/** Short per-exercise set summary, e.g. "3×10 · 25kg" or "3×12 · BW". */
+function setSummary(ex: Workout["exercises"][number]): string {
+  const working = ex.sets.filter((s) => s.type !== "warmup");
+  const s = working[0] ?? ex.sets[0];
+  if (!s) return "";
+  const load =
+    s.unit === "bw"
+      ? "BW"
+      : s.unit === "time"
+        ? s.value
+        : s.unit === "km"
+          ? `${s.value}km`
+          : `${s.value}kg`;
+  return `${working.length}×${s.reps} · ${load}`;
 }
 
 /** Guided workout generator: pick muscles, equipment, experience & time. */
@@ -338,42 +360,61 @@ export function WorkoutWizard({
                 </p>
               </div>
 
-              <div className="space-y-2">
+              <Accordion
+                type="single"
+                collapsible
+                value={`opt-${selected}`}
+                onValueChange={(v) => {
+                  if (v) setSelected(Number(v.split("-")[1]));
+                }}
+                className="space-y-2"
+              >
                 {variants.map((w, i) => {
                   const secs = estimateWorkoutSeconds(w.exercises, w.rest);
                   const isSelected = i === selected;
                   return (
-                    <button
+                    <AccordionItem
                       key={w.id}
-                      type="button"
-                      onClick={() => setSelected(i)}
+                      value={`opt-${i}`}
                       className={cn(
-                        "w-full rounded-lg border p-3 text-left transition-colors",
-                        isSelected
-                          ? "border-primary bg-primary/5 ring-1 ring-primary"
-                          : "hover:bg-muted/50"
+                        "rounded-lg border border-b px-3 last:border-b",
+                        isSelected && "border-primary bg-primary/5 ring-1 ring-primary"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">Option {i + 1}</span>
-                        {isSelected && <Check className="size-4 text-primary" />}
-                      </div>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Dumbbell className="size-3.5" />
-                          {w.exercises.length} exercises
+                      <AccordionTrigger className="py-3 hover:no-underline">
+                        <span className="flex flex-1 items-center justify-between gap-2 pr-2">
+                          <span className="font-medium">Option {i + 1}</span>
+                          <span className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Dumbbell className="size-3.5" />
+                              {w.exercises.length}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="size-3.5" />~{Math.round(secs / 60)}m
+                            </span>
+                            {isSelected && <Check className="size-4 text-primary" />}
+                          </span>
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="size-3.5" />~{Math.round(secs / 60)} min
-                        </span>
-                      </div>
-                      <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">
-                        {w.exercises.map((e) => e.name).join(" · ")}
-                      </p>
-                    </button>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <ul className="space-y-1.5">
+                          {w.exercises.map((ex) => (
+                            <li
+                              key={ex.id}
+                              className="flex items-center justify-between gap-3 text-sm"
+                            >
+                              <span className="truncate">{ex.name}</span>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {setSummary(ex)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
                   );
                 })}
-              </div>
+              </Accordion>
             </div>
 
             <DialogFooter className="flex-row gap-2">
