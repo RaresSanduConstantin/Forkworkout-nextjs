@@ -159,6 +159,8 @@ const StartWorkoutComponent = () => {
   const router = useRouter();
 
   const [workout, setWorkout] = useState<ActiveSession | null>(null);
+  // Id of a just-added exercise, to scroll to & briefly highlight it.
+  const [highlightExId, setHighlightExId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<CompletedWorkout[]>([]);
 
@@ -632,6 +634,7 @@ const StartWorkoutComponent = () => {
   };
 
   const addExercise = () => {
+    const id = uuidv4();
     setWorkout((prev) =>
       prev
         ? {
@@ -639,7 +642,7 @@ const StartWorkoutComponent = () => {
             exercises: [
               ...prev.exercises,
               {
-                id: uuidv4(),
+                id,
                 name: "",
                 sets: [{ id: uuidv4(), reps: 1, value: "", unit: "kg", status: "pending" }],
               },
@@ -647,6 +650,17 @@ const StartWorkoutComponent = () => {
           }
         : prev
     );
+    // Bring the new exercise into view (and briefly highlight it) so adding one
+    // mid-workout keeps you in place instead of leaving it below the fold.
+    setHighlightExId(id);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        document
+          .querySelector(`[data-exercise-id="${id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      })
+    );
+    window.setTimeout(() => setHighlightExId((cur) => (cur === id ? null : cur)), 1800);
   };
 
   const addSet = (exIdx: number, copyPrevious: boolean) => {
@@ -970,6 +984,7 @@ const StartWorkoutComponent = () => {
           return (
             <div
               key={exercise.id ?? exIdx}
+              data-exercise-id={exercise.id}
               className={cn(inGroup && "rounded-l-lg border-l-2 border-primary/60 pl-2")}
             >
               {isGroupStart && (
@@ -978,7 +993,12 @@ const StartWorkoutComponent = () => {
                   Superset {group} · no rest between these
                 </div>
               )}
-              <Card>
+              <Card
+                className={cn(
+                  exercise.id === highlightExId &&
+                    "ring-2 ring-primary ring-offset-2 transition-shadow"
+                )}
+              >
                 <CardContent className="space-y-3 p-4">
                   <ExerciseCombobox
                     value={exercise.name}
