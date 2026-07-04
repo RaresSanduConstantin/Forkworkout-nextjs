@@ -5,15 +5,16 @@ import * as React from "react";
 import type { Muscle, MuscleMapWidget } from "@abdofallah/musclemap-js";
 import type { MuscleTargetKey } from "@/lib/exercises";
 import { HEAT_COLOR, TARGET_TO_SDK, SDK_TO_TARGET } from "@/lib/muscle-map";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const SELECTED_OPACITY = 0.85;
 
 /**
- * Interactive body map for picking individual target muscles. Tapping a muscle
- * toggles just that muscle (e.g. triceps, not the whole arm), rendered as a red
- * overlay we fully control. Stays in sync with the muscle chips via the shared
- * `value`. Sub-muscle taps resolve to their parent; the SDK's own selection
- * paint is cleared so only our overlay shows.
+ * Interactive body map for picking individual target muscles. Shows one large
+ * body at a time (Front/Back toggle) so muscles are big, thumb-friendly tap
+ * targets. Tapping a muscle toggles just that muscle (e.g. triceps, not the
+ * whole arm), rendered as a red overlay we fully control. Stays in sync with the
+ * muscle chips via the shared `value`; sub-muscle taps resolve to their parent.
  */
 export function MuscleMapPicker({
   value,
@@ -24,13 +25,12 @@ export function MuscleMapPicker({
   onToggle: (key: MuscleTargetKey) => void;
   gender?: "male" | "female";
 }) {
-  const frontRef = React.useRef<HTMLDivElement>(null);
-  const backRef = React.useRef<HTMLDivElement>(null);
-  const frontMap = React.useRef<MuscleMapWidget | null>(null);
-  const backMap = React.useRef<MuscleMapWidget | null>(null);
+  const [side, setSide] = React.useState<"front" | "back">("front");
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const mapRef = React.useRef<MuscleMapWidget | null>(null);
   const ready = React.useRef(false);
 
-  // Always call the latest handler without rebinding the widget listener.
+  // Always call the latest handler / read latest value without rebinding.
   const toggleRef = React.useRef(onToggle);
   toggleRef.current = onToggle;
   const valueRef = React.useRef(value);
@@ -44,53 +44,41 @@ export function MuscleMapPicker({
     const data = keys.flatMap((k) =>
       TARGET_TO_SDK[k].map((muscle) => ({ muscle, color: HEAT_COLOR, opacity: SELECTED_OPACITY }))
     );
-    frontMap.current?.setHighlightData(data);
-    backMap.current?.setHighlightData(data);
+    mapRef.current?.setHighlightData(data);
   }, []);
 
   React.useEffect(() => {
     let mounted = true;
     let cleanup = () => {};
     import("@abdofallah/musclemap-js").then(({ MuscleMapWidget: Widget, getParentGroup }) => {
-      if (!mounted || !frontRef.current || !backRef.current) return;
-      const clearStraySelection = () => {
-        // The SDK paints its own (green) selection from `selectedMuscles`, which
-        // in the renderer overrides our highlight — so clear it. Only redraw the
-        // widget that actually holds a selection (the tapped one).
-        if (frontMap.current?.getSelectedMuscles().length) frontMap.current.clearSelection();
-        if (backMap.current?.getSelectedMuscles().length) backMap.current.clearSelection();
-      };
+      if (!mounted || !containerRef.current) return;
       const handleClick = (muscle: Muscle) => {
         const base = getParentGroup(muscle) ?? muscle;
         const key = SDK_TO_TARGET[base];
-        if (!key) {
-          clearStraySelection();
-          return;
-        }
+        // The SDK paints its own selection from `selectedMuscles`, which the
+        // renderer draws OVER our highlight — so clear it every tap.
+        if (mapRef.current?.getSelectedMuscles().length) mapRef.current.clearSelection();
+        if (!key) return;
         const cur = valueRef.current;
         const next = cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key];
         // Paint immediately for snappy feedback, and skip the value-effect's
         // duplicate repaint that the state update below will trigger.
         paintedByTap.current = true;
-        clearStraySelection();
         applyHighlights(next);
         toggleRef.current(key);
       };
-      const opts = {
+      mapRef.current = new Widget(containerRef.current, {
+        side,
         gender,
         interactive: true,
         multiSelect: true,
         onMuscleClick: handleClick,
-      } as const;
-      frontMap.current = new Widget(frontRef.current, { side: "front", ...opts });
-      backMap.current = new Widget(backRef.current, { side: "back", ...opts });
+      });
       ready.current = true;
       applyHighlights(valueRef.current);
       cleanup = () => {
-        frontMap.current?.destroy();
-        backMap.current?.destroy();
-        frontMap.current = null;
-        backMap.current = null;
+        mapRef.current?.destroy();
+        mapRef.current = null;
         ready.current = false;
       };
     });
@@ -98,9 +86,9 @@ export function MuscleMapPicker({
       mounted = false;
       cleanup();
     };
-    // gender re-creates the widgets; handlers read latest state via refs.
+    // gender/side re-create the widget; handlers read latest state via refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gender]);
+  }, [gender, side]);
 
   // Re-paint when the selection changes from the chips (map taps paint eagerly).
   React.useEffect(() => {
@@ -112,15 +100,31 @@ export function MuscleMapPicker({
   }, [value, applyHighlights]);
 
   return (
-    <div className="flex items-end justify-center gap-3 rounded-lg border bg-muted/30 py-3">
-      <figure className="flex flex-col items-center gap-1">
-        <div ref={frontRef} className="h-72 w-32 cursor-pointer" />
-        <figcaption className="text-xs text-muted-foreground">Front</figcaption>
-      </figure>
-      <figure className="flex flex-col items-center gap-1">
-        <div ref={backRef} className="h-72 w-32 cursor-pointer" />
-        <figcaption className="text-xs text-muted-foreground">Back</figcaption>
-      </figure>
+    <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+      <ToggleGroup
+        type="single"
+        value={side}
+        onValueChange={(v) => v && setSide(v as "front" | "back")}
+        variant="outline"
+        className="flex justify-center gap-2"
+      >
+        <ToggleGroupItem
+          value="front"
+          className="!flex-none !rounded-md !border-l px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+        >
+          Front
+        </ToggleGroupItem>
+        <ToggleGroupItem
+          value="back"
+          className="!flex-none !rounded-md !border-l px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+        >
+          Back
+        </ToggleGroupItem>
+      </ToggleGroup>
+      <div ref={containerRef} className="mx-auto aspect-[1/2] w-full max-w-[240px] cursor-pointer" />
+      <p className="text-center text-xs text-muted-foreground">
+        Tap muscles to target them{value.length > 0 ? ` · ${value.length} selected` : ""}
+      </p>
     </div>
   );
 }

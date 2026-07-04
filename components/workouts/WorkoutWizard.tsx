@@ -226,7 +226,7 @@ export function WorkoutWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+      <DialogContent className="!flex max-h-[90vh] max-w-md !flex-col overflow-hidden">
         <DialogHeader className="text-left">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="size-5 text-primary" />
@@ -239,9 +239,9 @@ export function WorkoutWizard({
           </DialogDescription>
         </DialogHeader>
 
-        {step === "form" ? (
-          <>
-            <div className="space-y-5 py-2">
+        <div className="-mx-6 flex-1 overflow-y-auto px-6">
+          {step === "form" ? (
+            <div className="space-y-5 py-1">
           <Field label="Your goal">
             <ToggleGroup
               type="single"
@@ -436,17 +436,8 @@ export function WorkoutWizard({
             </ToggleGroup>
           </Field>
             </div>
-
-            <DialogFooter>
-              <Button className="w-full gap-2" onClick={handleGenerate}>
-                <Sparkles className="size-4" />
-                Show me options
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            <div className="space-y-4 py-2">
+          ) : (
+            <div className="space-y-4 py-1">
               <div className="rounded-lg border bg-muted/30 p-2">
                 <MuscleMapView highlights={previewHighlights} gender={gender} />
                 <p className="mt-1 text-center text-xs text-muted-foreground">
@@ -510,18 +501,27 @@ export function WorkoutWizard({
                 })}
               </Accordion>
             </div>
+          )}
+        </div>
 
-            <DialogFooter className="flex-row gap-2">
-              <Button variant="outline" className="flex-1 gap-2" onClick={() => setStep("form")}>
-                <ArrowLeft className="size-4" />
-                Back
-              </Button>
-              <Button className="flex-1 gap-2" onClick={handleChoose}>
-                <Check className="size-4" />
-                Use this
-              </Button>
-            </DialogFooter>
-          </>
+        {step === "form" ? (
+          <DialogFooter>
+            <Button className="w-full gap-2" onClick={handleGenerate}>
+              <Sparkles className="size-4" />
+              Show me options
+            </Button>
+          </DialogFooter>
+        ) : (
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" className="flex-1 gap-2" onClick={() => setStep("form")}>
+              <ArrowLeft className="size-4" />
+              Back
+            </Button>
+            <Button className="flex-1 gap-2" onClick={handleChoose}>
+              <Check className="size-4" />
+              Use this
+            </Button>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>
