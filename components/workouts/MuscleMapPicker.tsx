@@ -36,6 +36,10 @@ export function MuscleMapPicker({
   const valueRef = React.useRef(value);
   valueRef.current = value;
 
+  // When true, the next `value`-effect repaint is skipped because a map tap
+  // already painted synchronously (avoids a redundant full canvas redraw).
+  const paintedByTap = React.useRef(false);
+
   const applyHighlights = React.useCallback((keys: MuscleTargetKey[]) => {
     const data = keys.flatMap((k) =>
       TARGET_TO_SDK[k].map((muscle) => ({ muscle, color: HEAT_COLOR, opacity: SELECTED_OPACITY }))
@@ -49,22 +53,28 @@ export function MuscleMapPicker({
     let cleanup = () => {};
     import("@abdofallah/musclemap-js").then(({ MuscleMapWidget: Widget, getParentGroup }) => {
       if (!mounted || !frontRef.current || !backRef.current) return;
+      const clearStraySelection = () => {
+        // The SDK paints its own (green) selection from `selectedMuscles`, which
+        // in the renderer overrides our highlight — so clear it. Only redraw the
+        // widget that actually holds a selection (the tapped one).
+        if (frontMap.current?.getSelectedMuscles().length) frontMap.current.clearSelection();
+        if (backMap.current?.getSelectedMuscles().length) backMap.current.clearSelection();
+      };
       const handleClick = (muscle: Muscle) => {
         const base = getParentGroup(muscle) ?? muscle;
         const key = SDK_TO_TARGET[base];
-        // The SDK paints its own (green) selection overlay from `selectedMuscles`,
-        // independent of highlights. Always clear it so no stray green remains,
-        // then repaint our red overlay synchronously (React state is async).
-        frontMap.current?.clearSelection();
-        backMap.current?.clearSelection();
         if (!key) {
-          applyHighlights(valueRef.current);
+          clearStraySelection();
           return;
         }
         const cur = valueRef.current;
         const next = cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key];
-        toggleRef.current(key);
+        // Paint immediately for snappy feedback, and skip the value-effect's
+        // duplicate repaint that the state update below will trigger.
+        paintedByTap.current = true;
+        clearStraySelection();
         applyHighlights(next);
+        toggleRef.current(key);
       };
       const opts = {
         gender,
@@ -92,19 +102,23 @@ export function MuscleMapPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gender]);
 
-  // Re-paint whenever the selected groups change (from map taps or chips).
+  // Re-paint when the selection changes from the chips (map taps paint eagerly).
   React.useEffect(() => {
+    if (paintedByTap.current) {
+      paintedByTap.current = false;
+      return;
+    }
     if (ready.current) applyHighlights(value);
   }, [value, applyHighlights]);
 
   return (
-    <div className="flex items-end justify-center gap-4 rounded-lg border bg-muted/30 py-2">
+    <div className="flex items-end justify-center gap-3 rounded-lg border bg-muted/30 py-3">
       <figure className="flex flex-col items-center gap-1">
-        <div ref={frontRef} className="h-52 w-24 cursor-pointer" />
+        <div ref={frontRef} className="h-72 w-32 cursor-pointer" />
         <figcaption className="text-xs text-muted-foreground">Front</figcaption>
       </figure>
       <figure className="flex flex-col items-center gap-1">
-        <div ref={backRef} className="h-52 w-24 cursor-pointer" />
+        <div ref={backRef} className="h-72 w-32 cursor-pointer" />
         <figcaption className="text-xs text-muted-foreground">Back</figcaption>
       </figure>
     </div>
