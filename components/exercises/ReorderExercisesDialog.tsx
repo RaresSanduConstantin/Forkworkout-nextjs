@@ -71,11 +71,15 @@ export function ReorderExercisesDialog({
   onOpenChange,
   items,
   onMove,
+  title = "Reorder exercises",
+  description = "Drag the handles to change the order.",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   items: ReorderItem[];
   onMove: (from: number, to: number) => void;
+  title?: string;
+  description?: string;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -94,8 +98,8 @@ export function ReorderExercisesDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] max-w-md overflow-hidden">
         <DialogHeader className="text-left">
-          <DialogTitle>Reorder exercises</DialogTitle>
-          <DialogDescription>Drag the handles to change the order.</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="-mx-1 max-h-[60vh] overflow-y-auto px-1">

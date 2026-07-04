@@ -28,6 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { ExerciseCombobox } from "./ExerciseCombobox";
@@ -54,7 +59,7 @@ import {
 import { getSettings, updateSettings } from "@/lib/storage/settings";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, EXERCISE_REST_OPTIONS } from "@/lib/workout";
+import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, SET_TYPES, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
@@ -69,7 +74,7 @@ import {
 } from "@/components/ui/accordion";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { ROUTES } from "@/lib/routes";
-import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetUnit } from "@/lib/types";
+import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
 // Type for exercise details from JSON
@@ -122,6 +127,7 @@ const StartWorkoutComponent = () => {
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
+  const [typeMenuFor, setTypeMenuFor] = useState<string | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [finishNotes, setFinishNotes] = useState("");
   const [finishRpe, setFinishRpe] = useState<number | null>(null);
@@ -422,6 +428,9 @@ const StartWorkoutComponent = () => {
 
   const updateSetValue = (exIdx: number, setIdx: number, value: string) =>
     updateSet(exIdx, setIdx, (s) => ({ ...s, value }));
+
+  const updateSetType = (exIdx: number, setIdx: number, type: SetType) =>
+    updateSet(exIdx, setIdx, (s) => ({ ...s, type }));
 
   // Reorder exercises (drag-and-drop modal). Persisted via the save effect.
   const moveExercise = (from: number, to: number) => {
@@ -972,15 +981,54 @@ const StartWorkoutComponent = () => {
                               key={set.id ?? setIdx}
                               className={`border-b last:border-b-0 ${rowStyle}`}
                             >
-                              <td className="px-1 py-1.5 text-center text-muted-foreground">
-                                <div className="flex flex-col items-center leading-tight">
-                                  <span>{setIdx + 1}</span>
-                                  {setTypeShort(set.type) && (
-                                    <span className="text-[10px] font-medium uppercase text-amber-600">
-                                      {setTypeShort(set.type)}
-                                    </span>
-                                  )}
-                                </div>
+                              <td className="px-1 py-1.5 text-center">
+                                {(() => {
+                                  const setKey = `${exIdx}-${setIdx}`;
+                                  const curType = set.type ?? "working";
+                                  return (
+                                    <Popover
+                                      open={typeMenuFor === setKey}
+                                      onOpenChange={(o) => setTypeMenuFor(o ? setKey : null)}
+                                    >
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="mx-auto flex flex-col items-center rounded px-1.5 py-0.5 leading-tight hover:bg-accent"
+                                          aria-label={`Set ${setIdx + 1} type — tap to change`}
+                                        >
+                                          <span className="text-muted-foreground">{setIdx + 1}</span>
+                                          {setTypeShort(set.type) && (
+                                            <span className="text-[10px] font-medium uppercase text-amber-600">
+                                              {setTypeShort(set.type)}
+                                            </span>
+                                          )}
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent align="start" className="w-40 p-1">
+                                        <p className="px-2 py-1 text-xs text-muted-foreground">
+                                          Set type
+                                        </p>
+                                        {SET_TYPES.map((t) => (
+                                          <button
+                                            key={t.value}
+                                            type="button"
+                                            onClick={() => {
+                                              updateSetType(exIdx, setIdx, t.value);
+                                              setTypeMenuFor(null);
+                                            }}
+                                            className={cn(
+                                              "flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-accent",
+                                              curType === t.value && "font-medium text-primary"
+                                            )}
+                                          >
+                                            {t.label}
+                                            {curType === t.value && <Check className="size-4" />}
+                                          </button>
+                                        ))}
+                                      </PopoverContent>
+                                    </Popover>
+                                  );
+                                })()}
                               </td>
                               <td className="px-1 py-1.5">
                                 <Input

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Download, Dumbbell, Flame, Plus, Scale, Share2, Sparkles, Trash2, Trophy } from "lucide-react";
+import { CalendarDays, Download, Dumbbell, Flame, Plus, Scale, Share2, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,9 @@ import { WorkoutCard } from "@/components/workouts/WorkoutCard";
 import { StarterWorkouts } from "@/components/workouts/StarterWorkouts";
 import { WeeklyGoalCard } from "@/components/dashboard/WeeklyGoalCard";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
+import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
-import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle } from "@/lib/storage/workout-storage";
+import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle, saveWorkouts } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import { buildShareUrl, decodeWorkout } from "@/lib/storage/share";
 import { clearAllData } from "@/lib/storage/reset";
@@ -52,6 +53,20 @@ const WorkoutList = () => {
   const [shareTarget, setShareTarget] = useState<Workout | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
+
+  const moveWorkout = (from: number, to: number) => {
+    setWorkouts((prev) => {
+      if (from === to || from < 0 || to < 0 || from >= prev.length || to >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      saveWorkouts(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const loaded = getWorkouts();
@@ -238,10 +253,23 @@ const WorkoutList = () => {
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-3xl">{honkFont("Your Workouts")}</h2>
-          <Button variant="secondary" className="gap-2" onClick={() => setShowWizard(true)}>
-            <Sparkles className="size-4" />
-            Help me create
-          </Button>
+          <div className="flex items-center gap-2">
+            {workouts.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setReorderOpen(true)}
+              >
+                <ArrowUpDown className="size-4" />
+                Reorder
+              </Button>
+            )}
+            <Button variant="secondary" className="gap-2" onClick={() => setShowWizard(true)}>
+              <Sparkles className="size-4" />
+              Help me create
+            </Button>
+          </div>
         </div>
 
         {workouts.length === 0 ? (
@@ -360,6 +388,15 @@ const WorkoutList = () => {
       </Dialog>
 
       <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
+
+      <ReorderExercisesDialog
+        open={reorderOpen}
+        onOpenChange={setReorderOpen}
+        title="Reorder workouts"
+        description="Drag the handles to reorder your workouts."
+        items={workouts.map((w) => ({ id: w.id, title: w.title || "Untitled workout" }))}
+        onMove={moveWorkout}
+      />
 
       <OnboardingDialog
         open={showOnboarding}
