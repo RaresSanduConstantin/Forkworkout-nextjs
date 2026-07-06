@@ -418,6 +418,18 @@ export default function LandingPage() {
           >
             Credits &amp; licenses
           </Link>
+          <Link
+            href={ROUTES.privacy}
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Privacy
+          </Link>
+          <Link
+            href={ROUTES.terms}
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            Terms
+          </Link>
           <a
             href={FEEDBACK_MAILTO}
             className="underline underline-offset-4 hover:text-foreground"

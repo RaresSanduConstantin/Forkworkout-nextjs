@@ -10,6 +10,8 @@ export const ROUTES = {
   editWorkout: (id: string) => `/create-workout/${id}`,
   startWorkout: (id: string) => `/start-workout/${id}`,
   credits: "/credits",
+  privacy: "/privacy",
+  terms: "/terms",
 } as const;
 
 // The four sections that show the bottom tab bar.
