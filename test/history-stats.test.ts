@@ -7,6 +7,7 @@ import {
   getLastPerformance,
   getExercisePR,
   suggestNextWeight,
+  getTypicalDurationSec,
 } from "@/lib/history-stats";
 
 function session(date: string, name: string, sets: CompletedWorkout["exercises"][number]["sets"]): CompletedWorkout {
@@ -67,5 +68,41 @@ describe("suggestNextWeight (progressive overload)", () => {
     ];
     expect(suggestNextWeight("Push-Up", bwHistory)).toBeNull();
     expect(suggestNextWeight("Unknown", history)).toBeNull();
+  });
+});
+
+describe("getTypicalDurationSec", () => {
+  const withDur = (id: string, date: string, durationSec?: number): CompletedWorkout =>
+    ({ workoutId: id, title: "W", date, durationSec, exercises: [] } as CompletedWorkout);
+
+  it("averages recent completed durations for the workout", () => {
+    const h = [
+      withDur("push", "2026-01-01T10:00:00.000Z", 2400), // 40m
+      withDur("push", "2026-01-08T10:00:00.000Z", 3000), // 50m
+      withDur("leg", "2026-01-05T10:00:00.000Z", 9999), // different workout, ignored
+    ];
+    expect(getTypicalDurationSec("push", h)).toBe(2700); // avg of 2400 & 3000
+  });
+
+  it("ignores sessions with no/zero duration", () => {
+    const h = [
+      withDur("push", "2026-01-01T10:00:00.000Z", 2400),
+      withDur("push", "2026-01-02T10:00:00.000Z", 0),
+      withDur("push", "2026-01-03T10:00:00.000Z", undefined),
+    ];
+    expect(getTypicalDurationSec("push", h)).toBe(2400);
+  });
+
+  it("only samples the most recent N sessions", () => {
+    const h = [
+      withDur("push", "2026-01-01T10:00:00.000Z", 6000), // oldest, excluded when N=2
+      withDur("push", "2026-01-02T10:00:00.000Z", 2400),
+      withDur("push", "2026-01-03T10:00:00.000Z", 3000),
+    ];
+    expect(getTypicalDurationSec("push", h, 2)).toBe(2700); // two newest only
+  });
+
+  it("returns null when the workout was never completed", () => {
+    expect(getTypicalDurationSec("push", [])).toBeNull();
   });
 });

@@ -207,6 +207,27 @@ export function suggestNextWeight(name: string, history?: CompletedWorkout[]): n
   return Math.round((last.topWeightKg + 2.5) * 10) / 10;
 }
 
+/**
+ * Typical real duration (seconds) of a workout, from the average of its most
+ * recent completed sessions. Lets the live tracker show a target based on how
+ * long it actually takes you rather than a naive estimate. Returns null when
+ * the workout has never been completed (no recorded duration).
+ */
+export function getTypicalDurationSec(
+  workoutId: string,
+  history: CompletedWorkout[] = getCompletedWorkouts(),
+  sampleSize = 5
+): number | null {
+  const durations = history
+    .filter((w) => w.workoutId === workoutId && (w.durationSec ?? 0) > 0)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, sampleSize)
+    .map((w) => w.durationSec as number);
+  if (durations.length === 0) return null;
+  const avg = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+  return Math.round(avg);
+}
+
 /** Short human label for a session's headline set (e.g. "60 kg × 8", "45s"). */
 export function describeTopSet(stat: ExerciseSessionStat): string {
   if (stat.kind === "kg" && stat.topWeightKg > 0) {

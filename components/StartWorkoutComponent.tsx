@@ -63,7 +63,7 @@ import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, uni
 import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
-import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName } from "@/lib/history-stats";
+import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName, getTypicalDurationSec } from "@/lib/history-stats";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 import { useMannequinGender } from "@/lib/use-body-gender";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
@@ -347,6 +347,14 @@ const StartWorkoutComponent = () => {
     if (!workout) return 0;
     return estimateWorkoutSeconds(workout.exercises, restSeconds ? String(restSeconds) : "");
   }, [workout, restSeconds]);
+
+  // Prefer the real time this workout usually takes you (avg of recent sessions)
+  // over the naive estimate; fall back to the estimate before any history.
+  const typicalSec = useMemo(
+    () => (workout ? getTypicalDurationSec(workout.workoutId, history) : null),
+    [workout, history]
+  );
+  const targetSec = typicalSec ?? estimateSec;
 
   // Last-session sets per exercise, for the "beat your last numbers" hints.
   // Keyed on exercise names so it only recomputes when names (not set values)
@@ -941,7 +949,11 @@ const StartWorkoutComponent = () => {
         <div className="mb-1.5 flex items-center justify-between text-sm text-muted-foreground">
           <span className="tabular-nums">
             ⏱ {formatClock(elapsedSec)}
-            <span className="text-muted-foreground/70"> / {formatEstimate(estimateSec)}</span>
+            <span className="text-muted-foreground/70">
+              {" "}
+              / {formatEstimate(targetSec)}
+              {typicalSec != null && " (your avg)"}
+            </span>
           </span>
           <span>
             {progress.handled} / {progress.total} sets
