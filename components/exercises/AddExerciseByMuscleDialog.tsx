@@ -12,12 +12,13 @@ import {
 import { MuscleMapPicker } from "@/components/workouts/MuscleMapPicker";
 import { ExerciseLibraryBrowser } from "@/components/exercises/ExerciseLibraryBrowser";
 import { useMannequinGender } from "@/lib/use-body-gender";
-import { TARGET_BY_KEY, type MuscleGroup, type MuscleTargetKey } from "@/lib/exercises";
+import { type MuscleTargetKey } from "@/lib/exercises";
 
 /**
  * Pick an exercise by tapping the muscle you want to train on the body map, then
- * choosing from the exercises for that muscle group. Used from the live session
- * "Add Exercise" flow for when you know the muscle but not the exercise name.
+ * choosing from the exercises whose primary muscle is that one. Used from the
+ * live session and builder "Add Exercise" flows for when you know the muscle but
+ * not the exercise name.
  */
 export function AddExerciseByMuscleDialog({
   open,
@@ -34,10 +35,6 @@ export function AddExerciseByMuscleDialog({
   React.useEffect(() => {
     if (!open) setSelected(null);
   }, [open]);
-
-  const group: MuscleGroup | null = selected
-    ? (TARGET_BY_KEY.get(selected)?.group ?? null)
-    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -56,10 +53,9 @@ export function AddExerciseByMuscleDialog({
             gender={gender}
           />
 
-          {group ? (
+          {selected ? (
             <ExerciseLibraryBrowser
-              key={group}
-              initialGroup={group}
+              muscleFilter={selected}
               hideGroupFilter
               onPick={(name) => {
                 onPick(name);

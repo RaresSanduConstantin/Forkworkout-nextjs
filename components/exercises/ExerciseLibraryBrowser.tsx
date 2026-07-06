@@ -22,6 +22,7 @@ import {
   getCachedLibrary,
   MUSCLE_GROUPS,
   groupsForExercise,
+  libMusclesForTargets,
   TARGET_BY_KEY,
   type LibraryExercise,
   type MuscleGroup,
@@ -37,20 +38,25 @@ const chipClass =
 
 /**
  * Searchable, filterable browser over the full exercise library (built-in +
- * custom). Filter by name, muscle group and equipment. When `onPick` is given,
- * tapping an exercise selects it (used by the add-exercise-by-muscle flow);
+ * custom). Filter by name, muscle and equipment. Muscle filtering can be a
+ * coarse group (chips) or a specific muscle (`muscleFilter` / the body map),
+ * which matches the exercise's PRIMARY muscle so e.g. "triceps" doesn't return
+ * biceps curls. When `onPick` is given, tapping an exercise selects it;
  * otherwise an info button opens the how-to dialog via `onInfo`.
  */
 export function ExerciseLibraryBrowser({
   onPick,
   onInfo,
   initialGroup,
+  muscleFilter,
   hideGroupFilter = false,
   enableMuscleMap = false,
 }: {
   onPick?: (name: string) => void;
   onInfo?: (name: string) => void;
   initialGroup?: MuscleGroup | null;
+  /** Controlled specific-muscle filter (matches primary muscle). */
+  muscleFilter?: MuscleTargetKey | null;
   hideGroupFilter?: boolean;
   enableMuscleMap?: boolean;
 }) {
@@ -61,6 +67,9 @@ export function ExerciseLibraryBrowser({
   const [equipment, setEquipment] = React.useState<string>("");
   const [showMap, setShowMap] = React.useState(false);
   const [mapKey, setMapKey] = React.useState<MuscleTargetKey | null>(null);
+
+  // The active fine-grained muscle: the controlled prop wins, else the map tap.
+  const activeMuscle = muscleFilter ?? mapKey;
 
   React.useEffect(() => {
     let active = true;
@@ -81,15 +90,22 @@ export function ExerciseLibraryBrowser({
 
   const results = React.useMemo(() => {
     const q = search.trim().toLowerCase();
+    // A specific muscle filters by PRIMARY muscle (precise); a coarse group
+    // falls back to any-muscle-in-group.
+    const muscleLib = activeMuscle ? libMusclesForTargets([activeMuscle]) : null;
     const filtered = library.filter((ex) => {
       if (q && !ex.name.toLowerCase().includes(q)) return false;
-      if (group && !groupsForExercise(ex).includes(group)) return false;
+      if (muscleLib) {
+        if (!(ex.primaryMuscles ?? []).some((m) => muscleLib.has(m.toLowerCase()))) return false;
+      } else if (group && !groupsForExercise(ex).includes(group)) {
+        return false;
+      }
       if (equipment && (ex.equipment ?? "").toLowerCase() !== equipment) return false;
       return true;
     });
     filtered.sort((a, b) => a.name.localeCompare(b.name));
     return filtered;
-  }, [library, search, group, equipment]);
+  }, [library, search, group, equipment, activeMuscle]);
 
   const shown = results.slice(0, MAX_RESULTS);
 
@@ -119,15 +135,21 @@ export function ExerciseLibraryBrowser({
             {showMap ? "Hide body map" : "Search by muscle"}
           </Button>
           {showMap && (
-            <MuscleMapPicker
-              value={mapKey ? [mapKey] : []}
-              onToggle={(key) => {
-                setMapKey((cur) => (cur === key ? null : key));
-                const g = TARGET_BY_KEY.get(key)?.group ?? "";
-                setGroup((cur) => (cur === g ? "" : g));
-              }}
-              gender={gender}
-            />
+            <>
+              <MuscleMapPicker
+                value={mapKey ? [mapKey] : []}
+                onToggle={(key) => {
+                  setMapKey((cur) => (cur === key ? null : key));
+                  setGroup(""); // a specific muscle supersedes the coarse group
+                }}
+                gender={gender}
+              />
+              {mapKey && (
+                <p className="text-center text-xs text-muted-foreground">
+                  Showing {TARGET_BY_KEY.get(mapKey)?.label} exercises
+                </p>
+              )}
+            </>
           )}
         </div>
       )}
@@ -135,7 +157,10 @@ export function ExerciseLibraryBrowser({
       <ToggleGroup
         type="single"
         value={group}
-        onValueChange={(v) => setGroup((v as MuscleGroup) || "")}
+        onValueChange={(v) => {
+          setGroup((v as MuscleGroup) || "");
+          setMapKey(null); // picking a coarse group clears the specific-muscle filter
+        }}
         variant="outline"
         className={`flex flex-wrap justify-start gap-2 ${hideGroupFilter ? "hidden" : ""}`}
       >
