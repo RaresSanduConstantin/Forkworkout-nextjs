@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Info } from "lucide-react";
+import { Search, Info, Target } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,13 @@ import {
   getCachedLibrary,
   MUSCLE_GROUPS,
   groupsForExercise,
+  TARGET_BY_KEY,
   type LibraryExercise,
   type MuscleGroup,
+  type MuscleTargetKey,
 } from "@/lib/exercises";
+import { MuscleMapPicker } from "@/components/workouts/MuscleMapPicker";
+import { useMannequinGender } from "@/lib/use-body-gender";
 
 const MAX_RESULTS = 80;
 
@@ -42,16 +46,21 @@ export function ExerciseLibraryBrowser({
   onInfo,
   initialGroup,
   hideGroupFilter = false,
+  enableMuscleMap = false,
 }: {
   onPick?: (name: string) => void;
   onInfo?: (name: string) => void;
   initialGroup?: MuscleGroup | null;
   hideGroupFilter?: boolean;
+  enableMuscleMap?: boolean;
 }) {
+  const gender = useMannequinGender();
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [search, setSearch] = React.useState("");
   const [group, setGroup] = React.useState<MuscleGroup | "">(initialGroup ?? "");
   const [equipment, setEquipment] = React.useState<string>("");
+  const [showMap, setShowMap] = React.useState(false);
+  const [mapKey, setMapKey] = React.useState<MuscleTargetKey | null>(null);
 
   React.useEffect(() => {
     let active = true;
@@ -96,6 +105,32 @@ export function ExerciseLibraryBrowser({
           aria-label="Search exercises"
         />
       </div>
+
+      {enableMuscleMap && (
+        <div className="space-y-3">
+          <Button
+            type="button"
+            variant={showMap ? "secondary" : "outline"}
+            className="w-full gap-2"
+            onClick={() => setShowMap((v) => !v)}
+            aria-pressed={showMap}
+          >
+            <Target className="size-4" />
+            {showMap ? "Hide body map" : "Search by muscle"}
+          </Button>
+          {showMap && (
+            <MuscleMapPicker
+              value={mapKey ? [mapKey] : []}
+              onToggle={(key) => {
+                setMapKey((cur) => (cur === key ? null : key));
+                const g = TARGET_BY_KEY.get(key)?.group ?? "";
+                setGroup((cur) => (cur === g ? "" : g));
+              }}
+              gender={gender}
+            />
+          )}
+        </div>
+      )}
 
       <ToggleGroup
         type="single"

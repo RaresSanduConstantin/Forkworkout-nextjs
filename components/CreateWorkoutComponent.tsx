@@ -27,13 +27,14 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { BottomActionBar } from "@/components/layout/BottomActionBar";
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
+import { AddExerciseByMuscleDialog } from "@/components/exercises/AddExerciseByMuscleDialog";
 
 import { honkFont } from "@/lib/honkFont";
 import { motion, MotionConfig } from "motion/react";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUpDown, Layers, Plus, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Layers, Plus, Save, Sparkles, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { useRouter, useParams } from "next/navigation";
@@ -45,7 +46,7 @@ import { ROUTES } from "@/lib/routes";
 import type { Workout } from "@/lib/types";
 
 const newSet = () => ({ id: uuidv4(), reps: 1, value: "", unit: "kg" as const });
-const newExercise = () => ({ id: uuidv4(), name: "", sets: [newSet()] });
+const newExercise = (name = "") => ({ id: uuidv4(), name, sets: [newSet()] });
 
 const CreateWorkoutComponent = () => {
   const params = useParams();
@@ -83,6 +84,7 @@ const CreateWorkoutComponent = () => {
 
   const hasInitialized = React.useRef(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [showAddByMuscle, setShowAddByMuscle] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
 
   // Live exercise names for the reorder modal (updates as you type).
@@ -291,15 +293,32 @@ const CreateWorkoutComponent = () => {
             </div>
           </MotionConfig>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full gap-2 border-dashed"
-            onClick={() => appendExercise(newExercise())}
-          >
-            <Plus className="size-4" />
-            Add Exercise
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-2 border-dashed"
+              onClick={() => appendExercise(newExercise())}
+            >
+              <Plus className="size-4" />
+              Add Exercise
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-2 border-dashed"
+              onClick={() => setShowAddByMuscle(true)}
+            >
+              <Target className="size-4" />
+              Add by muscle
+            </Button>
+          </div>
+
+          <AddExerciseByMuscleDialog
+            open={showAddByMuscle}
+            onOpenChange={setShowAddByMuscle}
+            onPick={(name) => appendExercise(newExercise(name))}
+          />
 
           <BottomActionBar>
             <Button

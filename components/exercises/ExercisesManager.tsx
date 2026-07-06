@@ -72,7 +72,7 @@ export function ExercisesManager() {
         </TabsList>
 
         <TabsContent value="library" className="mt-4">
-          <ExerciseLibraryBrowser onInfo={(name) => setInfoName(name)} />
+          <ExerciseLibraryBrowser enableMuscleMap onInfo={(name) => setInfoName(name)} />
         </TabsContent>
 
         <TabsContent value="mine" className="mt-4 space-y-4">
