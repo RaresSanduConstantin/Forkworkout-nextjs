@@ -29,7 +29,7 @@ const CREDITS: Credit[] = [
     title: "Muscle map",
     used: "The interactive body map used to pick and visualize muscles.",
     license: "MIT",
-    href: "https://github.com/abdofallah/musclemap-js",
+    href: "https://github.com/abdofallah/MuscleMapJS",
   },
   {
     title: "Icons",
