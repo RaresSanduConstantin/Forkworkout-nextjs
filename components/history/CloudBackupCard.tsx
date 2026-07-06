@@ -144,9 +144,7 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
           <Cloud className="size-4 text-primary" />
           <p className="text-sm font-semibold">Cloud backup (Google Drive)</p>
         </div>
-        {clientId ? (
-          <Badge variant="secondary" className="shrink-0">Connected</Badge>
-        ) : (
+        {!clientId && (
           <Badge variant="outline" className="shrink-0">Optional · advanced</Badge>
         )}
       </div>
