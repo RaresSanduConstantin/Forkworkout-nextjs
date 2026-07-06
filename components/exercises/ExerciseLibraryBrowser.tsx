@@ -41,10 +41,12 @@ export function ExerciseLibraryBrowser({
   onPick,
   onInfo,
   initialGroup,
+  hideGroupFilter = false,
 }: {
   onPick?: (name: string) => void;
   onInfo?: (name: string) => void;
   initialGroup?: MuscleGroup | null;
+  hideGroupFilter?: boolean;
 }) {
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [search, setSearch] = React.useState("");
@@ -100,7 +102,7 @@ export function ExerciseLibraryBrowser({
         value={group}
         onValueChange={(v) => setGroup((v as MuscleGroup) || "")}
         variant="outline"
-        className="flex flex-wrap justify-start gap-2"
+        className={`flex flex-wrap justify-start gap-2 ${hideGroupFilter ? "hidden" : ""}`}
       >
         {MUSCLE_GROUPS.map((g) => (
           <ToggleGroupItem key={g} value={g} className={chipClass}>

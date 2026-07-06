@@ -73,6 +73,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
+import { AddExerciseByMuscleDialog } from "@/components/exercises/AddExerciseByMuscleDialog";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
@@ -183,6 +184,7 @@ const StartWorkoutComponent = () => {
   const [exercises, setExercises] = useState<ExerciseDetails[]>([]);
   const [library, setLibrary] = useState<LibraryExercise[]>(getCachedLibrary());
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showAddByMuscle, setShowAddByMuscle] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
   const [typeMenuFor, setTypeMenuFor] = useState<string | null>(null);
@@ -655,7 +657,7 @@ const StartWorkoutComponent = () => {
     return next !== group;
   };
 
-  const addExercise = () => {
+  const addExercise = (name = "") => {
     const id = uuidv4();
     setWorkout((prev) =>
       prev
@@ -665,7 +667,7 @@ const StartWorkoutComponent = () => {
               ...prev.exercises,
               {
                 id,
-                name: "",
+                name,
                 sets: [{ id: uuidv4(), reps: 1, value: "", unit: "kg", status: "pending" }],
               },
             ],
@@ -1359,15 +1361,32 @@ const StartWorkoutComponent = () => {
         })}
       </div>
 
-      <Button
-        type="button"
-        variant="outline"
-        onClick={addExercise}
-        className="mt-4 w-full gap-2 border-dashed"
-      >
-        <Plus className="size-4" />
-        Add Exercise
-      </Button>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => addExercise()}
+          className="flex-1 gap-2 border-dashed"
+        >
+          <Plus className="size-4" />
+          Add Exercise
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setShowAddByMuscle(true)}
+          className="flex-1 gap-2 border-dashed"
+        >
+          <Target className="size-4" />
+          Add by muscle
+        </Button>
+      </div>
+
+      <AddExerciseByMuscleDialog
+        open={showAddByMuscle}
+        onOpenChange={setShowAddByMuscle}
+        onPick={(name) => addExercise(name)}
+      />
 
       {/* Exercise Info Modal */}
       <Dialog open={showInfoModal} onOpenChange={setShowInfoModal}>
