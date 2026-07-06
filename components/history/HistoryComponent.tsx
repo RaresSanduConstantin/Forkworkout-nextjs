@@ -23,6 +23,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { HistoryList } from "@/components/history/HistoryList";
+import { CloudBackupCard } from "@/components/history/CloudBackupCard";
 import {
   getCompletedWorkouts,
   deleteCompletedWorkout,
@@ -160,6 +161,7 @@ const HistoryComponent = () => {
           The JSON backup is what you restore from. Excel is a read-only snapshot to view or
           analyze — it can&apos;t be imported.
         </p>
+        <CloudBackupCard onRestored={refresh} />
       </div>
 
       {backup && autoBackupHasData(backup) && (
