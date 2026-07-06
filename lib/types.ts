@@ -99,6 +99,15 @@ export type ActiveSession = {
   title: string;
   exercises: SessionExercise[];
   startedAt: string;
+  // Active rest countdown, if one is running. Stored as an absolute end time so
+  // it survives navigation/refresh and can be shown in the global "in progress"
+  // bar and resumed (still counting down) when returning to the session.
+  restTimer?: ActiveRestTimer | null;
+};
+
+export type ActiveRestTimer = {
+  endsAt: number; // epoch ms when the rest finishes
+  nextLabel?: string; // e.g. "Bench Press · set 2"
 };
 
 // Body-metrics log entry (bodyweight + optional measurements in cm).

@@ -168,6 +168,7 @@ const StartWorkoutComponent = () => {
   const [restMinimized, setRestMinimized] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
   const [countdown, setCountdown] = useState(0);
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [restVibration, setRestVibration] = useState(true);
   const restVibrationRef = useRef(true);
   restVibrationRef.current = restVibration;
@@ -280,6 +281,16 @@ const StartWorkoutComponent = () => {
     const saved = getActiveSessionFor(workoutId);
     if (saved) {
       setWorkout(saved);
+      // Resume a still-running rest countdown (minimized), or drop a stale one.
+      if (saved.restTimer && saved.restTimer.endsAt > Date.now()) {
+        setRestEndsAt(saved.restTimer.endsAt);
+        setRestNextLabel(saved.restTimer.nextLabel ?? null);
+        setCountdown(Math.max(0, Math.round((saved.restTimer.endsAt - Date.now()) / 1000)));
+        setRestMinimized(true);
+        setResting(true);
+      } else if (saved.restTimer) {
+        setWorkout((prev) => (prev ? { ...prev, restTimer: null } : prev));
+      }
     } else if (found) {
       setWorkout({
         workoutId: found.id,
@@ -319,28 +330,58 @@ const StartWorkoutComponent = () => {
     );
   }, []);
 
-  // Rest countdown timer with cleanup and end sound + vibration. Runs while the
-  // rest is active regardless of whether the dialog is expanded or minimized.
+  // Persist the rest countdown into the active session (absolute end time) so it
+  // shows in the global "in progress" bar and resumes when returning here.
+  const persistRestTimer = (timer: { endsAt: number; nextLabel?: string } | null) => {
+    setWorkout((prev) => (prev ? { ...prev, restTimer: timer } : prev));
+  };
+
+  // Rest countdown timer with cleanup and end sound + vibration. Derives the
+  // remaining seconds from the absolute end time, so it stays correct across
+  // navigation, refresh and device sleep. Runs whether expanded or minimized.
   useEffect(() => {
-    if (!resting) return;
-    if (countdown <= 0) {
+    if (!resting || restEndsAt == null) return;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
       setResting(false);
       setRestMinimized(false);
+      setRestEndsAt(null);
+      setCountdown(0);
+      persistRestTimer(null);
       playAudio(restEndAudioRef.current);
       if (restVibrationRef.current && typeof navigator !== "undefined") {
         navigator.vibrate?.([180, 80, 180]);
       }
-      return;
-    }
-    const timer = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [countdown, resting]);
+    };
+    const tick = () => {
+      const remaining = Math.max(0, Math.round((restEndsAt - Date.now()) / 1000));
+      setCountdown(remaining);
+      if (remaining <= 0) finish();
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [resting, restEndsAt]);
 
   // Stop resting entirely (skip): closes the dialog/pill and resets the count.
   const stopRest = () => {
     setResting(false);
     setRestMinimized(false);
     setCountdown(0);
+    setRestEndsAt(null);
+    persistRestTimer(null);
+  };
+
+  // Add/subtract time by moving the absolute end time (floored at "now").
+  const adjustRest = (deltaSec: number) => {
+    setRestEndsAt((cur) => {
+      const base = cur ?? Date.now();
+      const next = Math.max(Date.now(), base + deltaSec * 1000);
+      persistRestTimer({ endsAt: next, nextLabel: restNextLabel ?? undefined });
+      return next;
+    });
   };
 
   const progress = useMemo(() => {
@@ -810,10 +851,14 @@ const StartWorkoutComponent = () => {
       restSeconds ? String(restSeconds) : ""
     );
     if (!eff) return;
-    setRestNextLabel(nextUpLabel(exIdx, setIdx));
+    const label = nextUpLabel(exIdx, setIdx);
+    const endsAt = Date.now() + eff * 1000;
+    setRestNextLabel(label);
     setCountdown(eff);
+    setRestEndsAt(endsAt);
     setRestMinimized(false);
     setResting(true);
+    persistRestTimer({ endsAt, nextLabel: label ?? undefined });
     // This runs from a user tap, so play the start sound and unlock the end
     // sound so it can autoplay when the rest timer finishes.
     playAudio(restStartAudioRef.current);
@@ -1657,7 +1702,7 @@ const StartWorkoutComponent = () => {
               variant="outline"
               size="lg"
               className="flex-1"
-              onClick={() => setCountdown((c) => Math.max(0, c - 10))}
+              onClick={() => adjustRest(-10)}
             >
               −10s
             </Button>
@@ -1665,7 +1710,7 @@ const StartWorkoutComponent = () => {
               variant="outline"
               size="lg"
               className="flex-1"
-              onClick={() => setCountdown((c) => c + 10)}
+              onClick={() => adjustRest(10)}
             >
               +10s
             </Button>
