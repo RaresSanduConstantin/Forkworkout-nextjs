@@ -164,6 +164,7 @@ const StartWorkoutComponent = () => {
   const [history, setHistory] = useState<CompletedWorkout[]>([]);
 
   const [resting, setResting] = useState(false);
+  const [restMinimized, setRestMinimized] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
   const [countdown, setCountdown] = useState(0);
   const [restVibration, setRestVibration] = useState(true);
@@ -315,11 +316,13 @@ const StartWorkoutComponent = () => {
     );
   }, []);
 
-  // Rest countdown timer with cleanup and end sound + vibration.
+  // Rest countdown timer with cleanup and end sound + vibration. Runs while the
+  // rest is active regardless of whether the dialog is expanded or minimized.
   useEffect(() => {
     if (!resting) return;
     if (countdown <= 0) {
       setResting(false);
+      setRestMinimized(false);
       playAudio(restEndAudioRef.current);
       if (restVibrationRef.current && typeof navigator !== "undefined") {
         navigator.vibrate?.([180, 80, 180]);
@@ -329,6 +332,13 @@ const StartWorkoutComponent = () => {
     const timer = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
     return () => clearTimeout(timer);
   }, [countdown, resting]);
+
+  // Stop resting entirely (skip): closes the dialog/pill and resets the count.
+  const stopRest = () => {
+    setResting(false);
+    setRestMinimized(false);
+    setCountdown(0);
+  };
 
   const progress = useMemo(() => {
     if (!workout) return { done: 0, skipped: 0, handled: 0, total: 0, percent: 0 };
@@ -778,6 +788,7 @@ const StartWorkoutComponent = () => {
     if (!eff) return;
     setRestNextLabel(nextUpLabel(exIdx, setIdx));
     setCountdown(eff);
+    setRestMinimized(false);
     setResting(true);
     // This runs from a user tap, so play the start sound and unlock the end
     // sound so it can autoplay when the rest timer finishes.
@@ -1550,15 +1561,18 @@ const StartWorkoutComponent = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Rest Timer */}
+      {/* Rest Timer — full dialog (minimizes to a pill instead of closing) */}
       <Dialog
-        open={resting}
+        open={resting && !restMinimized}
         onOpenChange={(open) => {
-          setResting(open);
-          if (!open) setCountdown(0);
+          // Tapping outside / X minimizes to the pill; the countdown keeps going.
+          if (!open) setRestMinimized(true);
         }}
       >
-        <DialogContent className="space-y-4 text-center">
+        <DialogContent
+          className="space-y-4 text-center"
+          onInteractOutside={() => setRestMinimized(true)}
+        >
           <DialogDescription className="sr-only">Rest timer countdown</DialogDescription>
           <DialogTitle className="text-2xl font-bold">{honkFont("Rest Time")}</DialogTitle>
           <div className="font-mono text-6xl font-bold text-primary tabular-nums">
@@ -1590,16 +1604,14 @@ const StartWorkoutComponent = () => {
               +10s
             </Button>
           </div>
-          <Button
-            variant="ghost"
-            className="w-full"
-            onClick={() => {
-              setResting(false);
-              setCountdown(0);
-            }}
-          >
-            Skip Rest
-          </Button>
+          <div className="flex items-center justify-center gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => setRestMinimized(true)}>
+              Minimize
+            </Button>
+            <Button variant="ghost" className="flex-1" onClick={stopRest}>
+              Skip Rest
+            </Button>
+          </div>
           <div className="flex flex-col items-center gap-1.5">
             <button
               type="button"
@@ -1638,8 +1650,32 @@ const StartWorkoutComponent = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Exit confirmation */}
-      {/* Leave-session prompt: keep going, leave (resumable), or leave & delete. */}
+      {/* Minimized rest timer — floating pill that keeps counting down */}
+      {resting && restMinimized && (
+        <div className="fixed inset-x-0 bottom-20 z-50 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-full border bg-background/95 py-2 pl-4 pr-2 shadow-lg backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setRestMinimized(false)}
+              className="flex items-center gap-2 text-sm font-medium"
+              aria-label="Reopen rest timer"
+            >
+              <Timer className="size-4 text-primary" />
+              <span className="font-mono tabular-nums text-primary">Rest {countdown}s</span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-full text-muted-foreground hover:text-destructive"
+              onClick={stopRest}
+              aria-label="Skip rest"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Dialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
         <DialogContent className="max-w-sm">
           <DialogHeader className="text-left">
