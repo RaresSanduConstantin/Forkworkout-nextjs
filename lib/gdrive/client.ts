@@ -114,6 +114,12 @@ export async function requestAccessToken(clientId: string): Promise<string> {
         if (settled) return;
         settled = true;
         if (resp.access_token) resolve(resp.access_token);
+        else if (resp.error === "access_denied")
+          reject(
+            new Error(
+              "Google blocked access (403). Add your account under Test users in the Google Auth Platform → Audience screen, then try again."
+            )
+          );
         else reject(new Error(resp.error || "Google sign-in was cancelled"));
       },
       error_callback: (err) => {

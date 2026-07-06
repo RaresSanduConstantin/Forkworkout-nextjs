@@ -217,8 +217,19 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
               , create a project and enable the <strong>Google Drive API</strong>.
             </li>
             <li>
-              Configure the OAuth consent screen (External). Add yourself as a
-              test user, or publish. Scope: <code>drive.file</code>.
+              Configure the OAuth consent screen (External), scope{" "}
+              <code>drive.file</code>. Then — this is the step most people miss —
+              open{" "}
+              <a
+                href="https://console.cloud.google.com/auth/audience"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-0.5 font-medium text-primary underline"
+              >
+                Audience <ExternalLink className="size-3" />
+              </a>{" "}
+              and add your Google account under <strong>Test users</strong>
+              {" "}(otherwise Google returns <code>Error 403: access_denied</code>).
             </li>
             <li>
               Create an OAuth <strong>Client ID → Web application</strong>. Under
