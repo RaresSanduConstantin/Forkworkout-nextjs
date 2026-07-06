@@ -12,12 +12,15 @@ export type AppSettings = {
   onboardingDone: boolean;
   /** Vibrate the device when the rest timer ends. */
   restVibration: boolean;
+  /** Play a sound when the rest timer starts/ends. */
+  restSound: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   weeklyGoal: 3,
   onboardingDone: false,
   restVibration: true,
+  restSound: true,
 };
 
 function normalize(raw: unknown): AppSettings {
@@ -34,6 +37,7 @@ function normalize(raw: unknown): AppSettings {
     onboardingDone: r.onboardingDone === true,
     // Default true unless explicitly disabled.
     restVibration: r.restVibration !== false,
+    restSound: r.restSound !== false,
   };
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Minus, Plus, SkipForward, Target, Timer, Vibrate, VibrateOff, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Minus, Plus, SkipForward, Target, Timer, Vibrate, VibrateOff, Volume2, VolumeX, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,6 +170,9 @@ const StartWorkoutComponent = () => {
   const [restVibration, setRestVibration] = useState(true);
   const restVibrationRef = useRef(true);
   restVibrationRef.current = restVibration;
+  const [restSound, setRestSound] = useState(true);
+  const restSoundRef = useRef(true);
+  restSoundRef.current = restSound;
   const [vibrationSupported, setVibrationSupported] = useState(false);
   const [restNextLabel, setRestNextLabel] = useState<string | null>(null);
 
@@ -219,7 +222,7 @@ const StartWorkoutComponent = () => {
   }, []);
 
   const playAudio = (el: HTMLAudioElement | null) => {
-    if (!el) return;
+    if (!el || !restSoundRef.current) return;
     try {
       el.currentTime = 0;
       void el.play().catch(() => {});
@@ -303,9 +306,11 @@ const StartWorkoutComponent = () => {
     if (loaded && workout) saveActiveSession(workout);
   }, [workout, loaded]);
 
-  // Load the rest-vibration preference once (client-side).
+  // Load the rest-vibration / sound preferences once (client-side).
   useEffect(() => {
-    setRestVibration(getSettings().restVibration);
+    const s = getSettings();
+    setRestVibration(s.restVibration);
+    setRestSound(s.restSound);
     setVibrationSupported(
       typeof navigator !== "undefined" && typeof navigator.vibrate === "function"
     );
@@ -1593,26 +1598,41 @@ const StartWorkoutComponent = () => {
           >
             Skip Rest
           </Button>
-          {vibrationSupported ? (
+          <div className="flex flex-col items-center gap-1.5">
             <button
               type="button"
               onClick={() => {
-                const next = !restVibration;
-                setRestVibration(next);
-                updateSettings({ restVibration: next });
+                const next = !restSound;
+                setRestSound(next);
+                updateSettings({ restSound: next });
               }}
-              className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              aria-pressed={restVibration}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              aria-pressed={restSound}
             >
-              {restVibration ? <Vibrate className="size-3.5" /> : <VibrateOff className="size-3.5" />}
-              Vibrate when rest ends: {restVibration ? "On" : "Off"}
+              {restSound ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
+              Sound when rest ends: {restSound ? "On" : "Off"}
             </button>
-          ) : (
-            <p className="mx-auto flex items-center gap-1.5 text-center text-xs text-muted-foreground">
-              <VibrateOff className="size-3.5 shrink-0" />
-              Vibration isn&apos;t supported on this device — a sound plays instead.
-            </p>
-          )}
+            {vibrationSupported ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !restVibration;
+                  setRestVibration(next);
+                  updateSettings({ restVibration: next });
+                }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                aria-pressed={restVibration}
+              >
+                {restVibration ? <Vibrate className="size-3.5" /> : <VibrateOff className="size-3.5" />}
+                Vibrate when rest ends: {restVibration ? "On" : "Off"}
+              </button>
+            ) : (
+              <p className="flex items-center gap-1.5 text-center text-xs text-muted-foreground">
+                <VibrateOff className="size-3.5 shrink-0" />
+                Vibration isn&apos;t supported on this device.
+              </p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -71,4 +71,12 @@ describe("settings storage", () => {
     updateSettings({ weeklyGoal: 0 });
     expect(getSettings().weeklyGoal).toBe(1);
   });
+
+  it("defaults restSound/restVibration to true and persists disabling them", () => {
+    expect(getSettings().restSound).toBe(true);
+    expect(getSettings().restVibration).toBe(true);
+    updateSettings({ restSound: false, restVibration: false });
+    expect(getSettings().restSound).toBe(false);
+    expect(getSettings().restVibration).toBe(false);
+  });
 });
