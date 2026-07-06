@@ -5,7 +5,7 @@ import { Flame, CalendarCheck, Trophy } from "lucide-react";
 import { StatCard } from "@/components/shared/StatCard";
 import { getCompletedWorkouts, getCompletedDayKeys } from "@/lib/storage/history-storage";
 import { computeStreak } from "@/lib/date/streak";
-import { toDayKey } from "@/lib/date/day-key";
+import { currentWeekDayKeys } from "@/lib/date/day-key";
 
 /** Summary stat cards: current streak, workouts this week, and all-time total. */
 export function StreakSummary() {
@@ -18,14 +18,9 @@ export function StreakSummary() {
     setStreak(computeStreak(dayKeys));
     setTotal(getCompletedWorkouts().length);
 
-    // Count distinct workout days within the last 7 calendar days.
-    const recent = new Set<string>();
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      recent.add(toDayKey(d));
-    }
-    setThisWeek(dayKeys.filter((k) => recent.has(k)).length);
+    // Count distinct workout days in the current calendar week (Mon–Sun).
+    const week = currentWeekDayKeys();
+    setThisWeek(dayKeys.filter((k) => week.has(k)).length);
   }, []);
 
   return (

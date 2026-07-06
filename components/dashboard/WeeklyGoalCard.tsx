@@ -13,14 +13,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { getCompletedDayKeys } from "@/lib/storage/history-storage";
-import { toDayKey } from "@/lib/date/day-key";
+import { currentWeekDayKeys } from "@/lib/date/day-key";
 import { getSettings, updateSettings } from "@/lib/storage/settings";
 
 /**
- * Dashboard card that tracks distinct workout days in the last 7 days against a
- * user-set weekly goal. The goal is editable inline (tap "Goal") and persisted
- * via the settings store. All storage reads happen after mount to avoid
- * hydration mismatches.
+ * Dashboard card that tracks distinct workout days in the current calendar week
+ * (Mon–Sun) against a user-set weekly goal. The goal is editable inline (tap
+ * "Goal") and persisted via the settings store. All storage reads happen after
+ * mount to avoid hydration mismatches.
  */
 export function WeeklyGoalCard() {
   const [goal, setGoal] = React.useState(3);
@@ -31,13 +31,8 @@ export function WeeklyGoalCard() {
     setGoal(getSettings().weeklyGoal);
 
     const dayKeys = getCompletedDayKeys();
-    const recent = new Set<string>();
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      recent.add(toDayKey(d));
-    }
-    setThisWeek(dayKeys.filter((k) => recent.has(k)).length);
+    const week = currentWeekDayKeys();
+    setThisWeek(dayKeys.filter((k) => week.has(k)).length);
     setLoaded(true);
   }, []);
 
