@@ -189,6 +189,7 @@ const StartWorkoutComponent = () => {
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
   const [typeMenuFor, setTypeMenuFor] = useState<string | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [confirmRemoveExIdx, setConfirmRemoveExIdx] = useState<number | null>(null);
   const [finishNotes, setFinishNotes] = useState("");
   const [finishRpe, setFinishRpe] = useState<number | null>(null);
   const [finishCalories, setFinishCalories] = useState("");
@@ -687,6 +688,27 @@ const StartWorkoutComponent = () => {
     window.setTimeout(() => setHighlightExId((cur) => (cur === id ? null : cur)), 1800);
   };
 
+  const removeExercise = (exIdx: number) => {
+    setWorkout((prev) =>
+      prev
+        ? { ...prev, exercises: prev.exercises.filter((_, i) => i !== exIdx) }
+        : prev
+    );
+  };
+
+  const requestRemoveExercise = (exIdx: number) => {
+    const ex = workout?.exercises[exIdx];
+    if (!ex) return;
+    const hasData =
+      !!ex.name.trim() ||
+      ex.sets.some((s) => s.status === "done" || s.status === "skipped");
+    if (hasData) {
+      setConfirmRemoveExIdx(exIdx);
+    } else {
+      removeExercise(exIdx);
+    }
+  };
+
   const addSet = (exIdx: number, copyPrevious: boolean) => {
     setWorkout((prev) =>
       prev
@@ -920,6 +942,17 @@ const StartWorkoutComponent = () => {
   };
 
   const requestFinish = () => {
+    // Block finishing while an exercise is incomplete (no name, or a set with no value).
+    const incomplete = workout?.exercises.some((ex) => {
+      if (!ex.name.trim()) return true;
+      return ex.sets.some((s) => s.unit !== "bw" && !String(s.value ?? "").trim());
+    });
+    if (incomplete) {
+      toast.error("Finish incomplete exercise", {
+        description: "Name every exercise and fill in each set — or remove the empty one.",
+      });
+      return;
+    }
     // Always open the finish dialog so notes / RPE can be logged.
     setShowFinishConfirm(true);
   };
@@ -1032,19 +1065,33 @@ const StartWorkoutComponent = () => {
                 )}
               >
                 <CardContent className="space-y-3 p-4">
-                  <ExerciseCombobox
-                    value={exercise.name}
-                    onChange={(value) => updateExerciseName(exIdx, value)}
-                    placeholder="Search for an exercise..."
-                    recommendForName={
-                      exercise.name ||
-                      workout.exercises
-                        .slice(0, exIdx)
-                        .reverse()
-                        .find((e) => e.name)?.name ||
-                      ""
-                    }
-                  />
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <ExerciseCombobox
+                        value={exercise.name}
+                        onChange={(value) => updateExerciseName(exIdx, value)}
+                        placeholder="Search for an exercise..."
+                        recommendForName={
+                          exercise.name ||
+                          workout.exercises
+                            .slice(0, exIdx)
+                            .reverse()
+                            .find((e) => e.name)?.name ||
+                          ""
+                        }
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      aria-label="Remove exercise"
+                      onClick={() => requestRemoveExercise(exIdx)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
@@ -1694,6 +1741,34 @@ const StartWorkoutComponent = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={confirmRemoveExIdx !== null} onOpenChange={(o) => !o && setConfirmRemoveExIdx(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Remove this exercise?</DialogTitle>
+            <DialogDescription>
+              {confirmRemoveExIdx !== null && workout?.exercises[confirmRemoveExIdx]?.name
+                ? `"${workout.exercises[confirmRemoveExIdx].name}" and its sets will be removed from this session.`
+                : "This exercise and its sets will be removed from this session."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button variant="outline" onClick={() => setConfirmRemoveExIdx(null)}>
+              Keep it
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                if (confirmRemoveExIdx !== null) removeExercise(confirmRemoveExIdx);
+                setConfirmRemoveExIdx(null);
+              }}
+            >
+              Remove exercise
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
         <DialogContent className="max-w-sm">
