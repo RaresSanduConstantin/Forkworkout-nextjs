@@ -26,6 +26,11 @@ import {
 } from "@/lib/storage/gdrive-config";
 import { requestAccessToken, uploadBackup, downloadBackup } from "@/lib/gdrive/client";
 
+// App-wide Google OAuth Client ID (public — safe to embed). When set, users get
+// one-tap "Back up / Restore" with no setup. When unset, the card falls back to
+// the bring-your-own-Client-ID flow for power users.
+const APP_CLIENT_ID = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "").trim();
+
 /**
  * Opt-in Google Drive backup for power users. Bring-your-own OAuth Client ID:
  * the user pastes their own Web Client ID, then can back up / restore a single
@@ -50,7 +55,10 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
   // (avoids a hydration mismatch).
   if (config === null) return null;
 
-  const clientId = config.clientId;
+  // Prefer the app-wide Client ID (one-tap for everyone); otherwise use the
+  // user's own (bring-your-own power-user flow).
+  const clientId = APP_CLIENT_ID || config.clientId;
+  const canManage = !APP_CLIENT_ID; // nothing to manage when the app provides the ID
 
   const saveClientId = () => {
     const id = clientIdInput.trim();
@@ -164,20 +172,22 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
             <p className="text-xs text-muted-foreground">
               {config.lastSyncAt
                 ? `Last synced ${format(new Date(config.lastSyncAt), "MMM d, HH:mm")}`
-                : "Saves a single forkworkout-backup.json in your Drive."}
+                : "Sign in with Google to save a forkworkout-backup.json in your Drive."}
             </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-auto gap-1 px-1 text-xs text-muted-foreground"
-              onClick={() => {
-                setClientIdInput(clientId);
-                setSetupOpen(true);
-              }}
-            >
-              <Settings2 className="size-3.5" />
-              Manage
-            </Button>
+            {canManage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto gap-1 px-1 text-xs text-muted-foreground"
+                onClick={() => {
+                  setClientIdInput(clientId);
+                  setSetupOpen(true);
+                }}
+              >
+                <Settings2 className="size-3.5" />
+                Manage
+              </Button>
+            )}
           </div>
         </>
       ) : (
