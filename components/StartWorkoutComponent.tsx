@@ -45,7 +45,6 @@ import {
 } from "@/components/ui/carousel";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { BottomActionBar } from "@/components/layout/BottomActionBar";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { honkFont } from "@/lib/honkFont";
 import { cn } from "@/lib/utils";
 
@@ -896,12 +895,15 @@ const StartWorkoutComponent = () => {
   };
 
   const requestExit = () => {
-    if (progress.handled > 0) {
-      setShowExitConfirm(true);
-    } else {
-      clearActiveSession();
-      router.push(ROUTES.dashboard);
-    }
+    // Always confirm once a session is underway — the timer is running even if
+    // no sets are checked yet, so leaving silently would lose that progress.
+    setShowExitConfirm(true);
+  };
+
+  const leaveSession = (deleteSession: boolean) => {
+    setShowExitConfirm(false);
+    if (deleteSession) clearActiveSession();
+    router.push(ROUTES.dashboard);
   };
 
   const requestFinish = () => {
@@ -1637,18 +1639,30 @@ const StartWorkoutComponent = () => {
       </Dialog>
 
       {/* Exit confirmation */}
-      <ConfirmDialog
-        open={showExitConfirm}
-        onOpenChange={setShowExitConfirm}
-        title="Leave this workout?"
-        description="Your progress is saved on this device — you can resume it later from the workout."
-        confirmLabel="Leave"
-        cancelLabel="Keep going"
-        onConfirm={() => {
-          setShowExitConfirm(false);
-          router.push(ROUTES.dashboard);
-        }}
-      />
+      {/* Leave-session prompt: keep going, leave (resumable), or leave & delete. */}
+      <Dialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Leave this workout?</DialogTitle>
+            <DialogDescription>
+              You can keep it in progress and resume later, or discard it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => setShowExitConfirm(false)}>Keep going</Button>
+            <Button variant="outline" onClick={() => leaveSession(false)}>
+              Leave &amp; keep for later
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => leaveSession(true)}
+            >
+              Leave &amp; delete session
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ReorderExercisesDialog
         open={reorderOpen}
