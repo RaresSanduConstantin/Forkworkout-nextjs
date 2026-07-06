@@ -13,7 +13,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -21,6 +23,7 @@ import {
   loadExerciseLibrary,
   getCachedLibrary,
   MUSCLE_GROUPS,
+  MUSCLE_TARGETS,
   groupsForExercise,
   libMusclesForTargets,
   TARGET_BY_KEY,
@@ -172,6 +175,36 @@ export function ExerciseLibraryBrowser({
       </ToggleGroup>
 
       <div className="flex items-center gap-2">
+        {!hideGroupFilter && (
+          <Select
+            value={mapKey ?? "all"}
+            onValueChange={(v) => {
+              setMapKey(v === "all" ? null : (v as MuscleTargetKey));
+              if (v !== "all") setGroup(""); // a specific muscle supersedes the coarse group
+            }}
+          >
+            <SelectTrigger className="w-full" aria-label="Filter by muscle">
+              <SelectValue placeholder="Any muscle" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any muscle</SelectItem>
+              {MUSCLE_GROUPS.map((g) => {
+                const targets = MUSCLE_TARGETS.filter((t) => t.group === g);
+                if (targets.length === 0) return null;
+                return (
+                  <SelectGroup key={g}>
+                    <SelectLabel>{g}</SelectLabel>
+                    {targets.map((t) => (
+                      <SelectItem key={t.key} value={t.key}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={equipment || "all"} onValueChange={(v) => setEquipment(v === "all" ? "" : v)}>
           <SelectTrigger className="w-full" aria-label="Filter by equipment">
             <SelectValue placeholder="Any equipment" />
