@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   pickLatestFileId,
   buildMultipartBody,
+  driveFileUrl,
   findBackupFileId,
   uploadBackup,
   downloadBackup,
@@ -70,6 +71,10 @@ describe("gdrive pure helpers", () => {
     expect(body).toContain('"name":"forkworkout-backup.json"');
     expect(body).toContain('{"a":1}');
     expect(body.trimEnd().endsWith("--BOUND--")).toBe(true);
+  });
+
+  it("builds a Drive web URL from a file id", () => {
+    expect(driveFileUrl("abc123")).toBe("https://drive.google.com/file/d/abc123/view");
   });
 });
 

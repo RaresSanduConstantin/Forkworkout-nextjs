@@ -48,6 +48,13 @@ export function buildMultipartBody(
   );
 }
 
+/**
+ * A user-facing Drive URL for a file id (opens the file in the Drive web UI).
+ */
+export function driveFileUrl(fileId: string): string {
+  return `https://drive.google.com/file/d/${fileId}/view`;
+}
+
 // --- Browser-only: GIS token flow ---------------------------------------
 
 type TokenResponse = { access_token?: string; error?: string };

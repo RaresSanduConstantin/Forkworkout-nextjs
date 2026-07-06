@@ -24,7 +24,7 @@ import {
   clearGDriveConfig,
   type GDriveConfig,
 } from "@/lib/storage/gdrive-config";
-import { requestAccessToken, uploadBackup, downloadBackup } from "@/lib/gdrive/client";
+import { requestAccessToken, uploadBackup, downloadBackup, driveFileUrl } from "@/lib/gdrive/client";
 
 // App-wide Google OAuth Client ID (public — safe to embed). When set, users get
 // one-tap "Back up / Restore" with no setup. When unset, the card falls back to
@@ -88,7 +88,12 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
       const fileId = await uploadBackup(token, json, config.fileId);
       const next = updateGDriveConfig({ fileId, lastSyncAt: new Date().toISOString() });
       setConfig(next);
-      toast.success("Backed up to Google Drive.");
+      toast.success("Backed up to Google Drive.", {
+        action: {
+          label: "Open in Drive",
+          onClick: () => window.open(driveFileUrl(fileId), "_blank", "noopener,noreferrer"),
+        },
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Backup failed.");
     } finally {
@@ -169,16 +174,29 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
             </Button>
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
-              {config.lastSyncAt
-                ? `Last synced ${format(new Date(config.lastSyncAt), "MMM d, HH:mm")}`
-                : "Sign in with Google to save a forkworkout-backup.json in your Drive."}
-            </p>
+            <div className="min-w-0">
+              <p className="truncate text-xs text-muted-foreground">
+                {config.lastSyncAt
+                  ? `Last synced ${format(new Date(config.lastSyncAt), "MMM d, HH:mm")}`
+                  : "Sign in with Google to save a forkworkout-backup.json in your Drive."}
+              </p>
+              {config.fileId && (
+                <a
+                  href={driveFileUrl(config.fileId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary underline"
+                >
+                  <ExternalLink className="size-3" />
+                  Open in Drive
+                </a>
+              )}
+            </div>
             {canManage && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-auto gap-1 px-1 text-xs text-muted-foreground"
+                className="h-auto shrink-0 gap-1 px-1 text-xs text-muted-foreground"
                 onClick={() => {
                   setClientIdInput(clientId);
                   setSetupOpen(true);
