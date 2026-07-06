@@ -274,7 +274,7 @@ const WorkoutList = () => {
         <Button asChild variant="outline" className="w-full gap-2">
           <Link href={ROUTES.exercises}>
             <Dumbbell className="size-4" />
-            Create &amp; edit your exercises
+            Browse &amp; manage exercises
           </Link>
         </Button>
       </div>

@@ -1,7 +1,7 @@
 import { ExercisesManager } from "@/components/exercises/ExercisesManager";
 
 export const metadata = {
-  title: "Your exercises",
+  title: "Exercises",
 };
 
 export default function ExercisesPage() {

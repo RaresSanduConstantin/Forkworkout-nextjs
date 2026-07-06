@@ -1,0 +1,179 @@
+"use client";
+
+import * as React from "react";
+import { Search, Info } from "lucide-react";
+
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  loadExerciseLibrary,
+  getCachedLibrary,
+  MUSCLE_GROUPS,
+  groupsForExercise,
+  type LibraryExercise,
+  type MuscleGroup,
+} from "@/lib/exercises";
+
+const MAX_RESULTS = 80;
+
+const chipClass =
+  "!flex-none !rounded-md !border-l px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground";
+
+/**
+ * Searchable, filterable browser over the full exercise library (built-in +
+ * custom). Filter by name, muscle group and equipment. When `onPick` is given,
+ * tapping an exercise selects it (used by the add-exercise-by-muscle flow);
+ * otherwise an info button opens the how-to dialog via `onInfo`.
+ */
+export function ExerciseLibraryBrowser({
+  onPick,
+  onInfo,
+  initialGroup,
+}: {
+  onPick?: (name: string) => void;
+  onInfo?: (name: string) => void;
+  initialGroup?: MuscleGroup | null;
+}) {
+  const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
+  const [search, setSearch] = React.useState("");
+  const [group, setGroup] = React.useState<MuscleGroup | "">(initialGroup ?? "");
+  const [equipment, setEquipment] = React.useState<string>("");
+
+  React.useEffect(() => {
+    let active = true;
+    loadExerciseLibrary().then((lib) => {
+      if (active) setLibrary(lib);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Distinct equipment values present in the library (for the filter dropdown).
+  const equipmentOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const ex of library) if (ex.equipment) set.add(ex.equipment.toLowerCase());
+    return [...set].sort();
+  }, [library]);
+
+  const results = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = library.filter((ex) => {
+      if (q && !ex.name.toLowerCase().includes(q)) return false;
+      if (group && !groupsForExercise(ex).includes(group)) return false;
+      if (equipment && (ex.equipment ?? "").toLowerCase() !== equipment) return false;
+      return true;
+    });
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
+    return filtered;
+  }, [library, search, group, equipment]);
+
+  const shown = results.slice(0, MAX_RESULTS);
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search exercises…"
+          className="pl-9"
+          aria-label="Search exercises"
+        />
+      </div>
+
+      <ToggleGroup
+        type="single"
+        value={group}
+        onValueChange={(v) => setGroup((v as MuscleGroup) || "")}
+        variant="outline"
+        className="flex flex-wrap justify-start gap-2"
+      >
+        {MUSCLE_GROUPS.map((g) => (
+          <ToggleGroupItem key={g} value={g} className={chipClass}>
+            {g}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+
+      <div className="flex items-center gap-2">
+        <Select value={equipment || "all"} onValueChange={(v) => setEquipment(v === "all" ? "" : v)}>
+          <SelectTrigger className="w-full" aria-label="Filter by equipment">
+            <SelectValue placeholder="Any equipment" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any equipment</SelectItem>
+            {equipmentOptions.map((eq) => (
+              <SelectItem key={eq} value={eq} className="capitalize">
+                {eq}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {results.length} exercise{results.length === 1 ? "" : "s"}
+        {results.length > MAX_RESULTS && ` (showing ${MAX_RESULTS} — refine to see more)`}
+      </p>
+
+      <ul className="space-y-2">
+        {shown.map((ex) => (
+          <li key={ex.name}>
+            <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
+              <button
+                type="button"
+                onClick={() => onPick?.(ex.name)}
+                disabled={!onPick}
+                className="min-w-0 flex-1 text-left disabled:cursor-default"
+              >
+                <p className="break-words font-medium">{ex.name}</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {ex.primaryMuscles.slice(0, 3).map((m) => (
+                    <Badge key={m} variant="secondary" className="capitalize">
+                      {m}
+                    </Badge>
+                  ))}
+                  {ex.equipment && (
+                    <Badge variant="outline" className="capitalize">
+                      {ex.equipment}
+                    </Badge>
+                  )}
+                </div>
+              </button>
+              {onInfo && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  aria-label={`How to do ${ex.name}`}
+                  onClick={() => onInfo(ex.name)}
+                >
+                  <Info className="size-4" />
+                </Button>
+              )}
+            </div>
+          </li>
+        ))}
+        {shown.length === 0 && (
+          <li className="py-8 text-center text-sm text-muted-foreground">
+            No exercises match your filters.
+          </li>
+        )}
+      </ul>
+    </div>
+  );
+}
