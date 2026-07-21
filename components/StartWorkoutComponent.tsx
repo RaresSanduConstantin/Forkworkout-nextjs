@@ -223,11 +223,23 @@ const StartWorkoutComponent = () => {
     restEndAudioRef.current = new Audio(SOUNDS.restEnd);
     restStartAudioRef.current.preload = "auto";
     restEndAudioRef.current.preload = "auto";
+    restStartAudioRef.current.setAttribute("playsinline", "");
+    restEndAudioRef.current.setAttribute("playsinline", "");
   }, []);
 
   const playAudio = (el: HTMLAudioElement | null) => {
     if (!el || !restSoundRef.current) return;
     try {
+      // On iOS Safari, ambient mixes short cues with other media instead of
+      // taking over the audio session and pausing background music.
+      const nav = navigator as Navigator & {
+        audioSession?: {
+          type?: string;
+        };
+      };
+      if (nav.audioSession && nav.audioSession.type !== "ambient") {
+        nav.audioSession.type = "ambient";
+      }
       el.currentTime = 0;
       void el.play().catch(() => {});
     } catch {
@@ -239,6 +251,14 @@ const StartWorkoutComponent = () => {
   const unlockAudio = (el: HTMLAudioElement | null) => {
     if (!el) return;
     try {
+      const nav = navigator as Navigator & {
+        audioSession?: {
+          type?: string;
+        };
+      };
+      if (nav.audioSession && nav.audioSession.type !== "ambient") {
+        nav.audioSession.type = "ambient";
+      }
       el.muted = true;
       void el
         .play()
