@@ -27,6 +27,8 @@ export type Exercise = {
   sets: WorkoutSet[];
   rest?: string; // per-exercise rest override (seconds as string); falls back to Workout.rest
   superset?: string; // optional superset group label (e.g. "A"); shared label = grouped
+  movementPattern?: string;
+  unilateral?: boolean;
 };
 
 export type Workout = {
@@ -38,6 +40,16 @@ export type Workout = {
   updatedAt?: string;
   shared?: boolean; // imported from a share link
   sharedMessage?: string; // optional message from whoever shared it
+  strategy?: "balanced" | "progressive" | "low-fatigue";
+  recommendationSummary?: string;
+  recommendation?: {
+    title: string;
+    summary: string;
+    reasons: string[];
+    warnings: string[];
+    estimatedMinutes: number;
+    historyConfidence: "none" | "low" | "medium" | "high";
+  };
 };
 
 // A completed workout entry as stored in the `completedWorkouts` key.
@@ -92,6 +104,8 @@ export type SessionExercise = {
   sets: SessionSet[];
   rest?: string; // per-exercise rest override
   superset?: string; // optional superset group label
+  movementPattern?: string;
+  unilateral?: boolean;
 };
 
 export type ActiveSession = {
@@ -128,4 +142,3 @@ export type BodyMetricEntry = {
   measurements?: BodyMeasurements;
   note?: string;
 };
-

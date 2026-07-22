@@ -1,13 +1,10 @@
 import type { ActiveSession } from "@/lib/types";
+import { STORAGE_KEYS } from "./keys";
 import { readJson, writeJson } from "./safe-storage";
-
-// Namespaced key for the in-progress session (new data, so it can be namespaced
-// without affecting the legacy `workouts` / `completedWorkouts` keys).
-const ACTIVE_SESSION_KEY = "forkworkout:active-session";
 
 /** Returns the saved active session, or null if none / corrupted. */
 export function getActiveSession(): ActiveSession | null {
-  const raw = readJson<ActiveSession | null>(ACTIVE_SESSION_KEY, null);
+  const raw = readJson<ActiveSession | null>(STORAGE_KEYS.activeSession, null);
   if (!raw || typeof raw !== "object" || typeof raw.workoutId !== "string") {
     return null;
   }
@@ -23,10 +20,16 @@ export function getActiveSessionFor(workoutId: string): ActiveSession | null {
 
 /** Persists the active session so progress survives a refresh. */
 export function saveActiveSession(session: ActiveSession): boolean {
-  return writeJson(ACTIVE_SESSION_KEY, session);
+  return writeJson(STORAGE_KEYS.activeSession, session);
 }
 
 /** Clears the active session (on finish or discard). */
 export function clearActiveSession(): boolean {
-  return writeJson(ACTIVE_SESSION_KEY, null);
+  if (typeof window === "undefined") return false;
+  try {
+    window.localStorage.removeItem(STORAGE_KEYS.activeSession);
+    return true;
+  } catch {
+    return false;
+  }
 }

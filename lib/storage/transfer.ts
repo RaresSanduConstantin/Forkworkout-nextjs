@@ -16,6 +16,21 @@ import {
 } from "./custom-exercises";
 import { STORAGE_KEYS } from "./keys";
 import { writeJson } from "./safe-storage";
+import {
+  getExercisePreferences,
+  saveExercisePreferences,
+  type ExercisePreference,
+} from "./exercise-preferences";
+import {
+  getPerformanceFeedback,
+  savePerformanceFeedback,
+  type ExercisePerformanceFeedback,
+} from "./performance-feedback";
+import {
+  getDailyTrainingStates,
+  saveDailyTrainingState,
+  type DailyTrainingState,
+} from "./daily-training-state";
 
 export type ExportBundle = {
   version: number;
@@ -24,6 +39,9 @@ export type ExportBundle = {
   completedWorkouts: CompletedWorkout[];
   bodyMetrics: BodyMetricEntry[];
   customExercises: CustomExercise[];
+  exercisePreferences?: ExercisePreference[];
+  performanceFeedback?: ExercisePerformanceFeedback[];
+  dailyTrainingStates?: DailyTrainingState[];
   bodyProfile?: BodyProfile;
   settings?: AppSettings;
   homeEquipment?: HomeEquipment;
@@ -38,6 +56,9 @@ export function buildExport(): ExportBundle {
     completedWorkouts: getCompletedWorkouts(),
     bodyMetrics: getBodyMetrics(),
     customExercises: getCustomExercises(),
+    exercisePreferences: getExercisePreferences(),
+    performanceFeedback: getPerformanceFeedback(),
+    dailyTrainingStates: getDailyTrainingStates(),
     bodyProfile: getBodyProfile(),
     settings: getSettings(),
     homeEquipment: getHomeEquipment(),
@@ -137,6 +158,36 @@ export function mergeImport(text: string): {
     }
   }
   saveCustomExercises(exercises);
+
+  // Keep the newest preference per stable exercise id.
+  const importedPreferences = Array.isArray(bundle.exercisePreferences)
+    ? bundle.exercisePreferences
+    : [];
+  const preferences = new Map(
+    getExercisePreferences().map((preference) => [preference.exerciseId, preference])
+  );
+  for (const preference of importedPreferences) {
+    if (!preference || typeof preference.exerciseId !== "string") continue;
+    const existing = preferences.get(preference.exerciseId);
+    if (
+      !existing ||
+      Date.parse(preference.updatedAt ?? "") > Date.parse(existing.updatedAt ?? "")
+    ) {
+      preferences.set(preference.exerciseId, preference);
+    }
+  }
+  saveExercisePreferences(Array.from(preferences.values()));
+
+  // Performance feedback is event data. The storage writer validates,
+  // de-duplicates, sorts, and applies its bounded-history limit.
+  const importedFeedback = Array.isArray(bundle.performanceFeedback)
+    ? bundle.performanceFeedback
+    : [];
+  savePerformanceFeedback([...getPerformanceFeedback(), ...importedFeedback]);
+
+  if (Array.isArray(bundle.dailyTrainingStates)) {
+    for (const dailyState of bundle.dailyTrainingStates) saveDailyTrainingState(dailyState);
+  }
 
   // Restore body profile: only fill fields that aren't already set locally, so
   // an import never clobbers the current device's profile. (Settings are

@@ -11,10 +11,25 @@ import {
   TARGET_BY_KEY,
   targetsForGroup,
   libMusclesForTargets,
-  matchesEquipment,
-  allowsLevel,
   groupsForExercise,
+  getExerciseStableId,
 } from "./exercises";
+import type { ExercisePreference } from "./storage/exercise-preferences";
+import type { ReadinessLevel } from "./storage/daily-training-state";
+import {
+  checkExerciseEligibility,
+  isBodyweightExercise,
+} from "./smart-workout/exercise-eligibility";
+import { scoreExercise } from "./smart-workout/exercise-scoring";
+import {
+  getStrategyDefinition,
+  type WorkoutStrategy,
+} from "./smart-workout/types";
+import {
+  getMovementPattern,
+  MOVEMENT_PATTERN_LIMITS,
+} from "./smart-workout/movement-patterns";
+import { isWithinTimeBudget } from "./smart-workout/time-budget";
 
 export type Sex = "male" | "female" | "unspecified";
 
@@ -45,6 +60,14 @@ export type GeneratorOptions = {
     /** Whether a pull-up bar is available (gates bar-requiring bodyweight moves). */
     pullupBar?: boolean;
   };
+  /** Local feedback keyed by stable library exercise id. */
+  preferences?: ExercisePreference[];
+  readiness?: ReadinessLevel;
+  soreMuscles?: MuscleTargetKey[];
+  avoidMuscles?: MuscleTargetKey[];
+  strategy?: WorkoutStrategy;
+  /** Normalized names from recent sessions, used as a small variety penalty. */
+  recentExerciseNames?: string[];
 };
 
 // Sets / reps / rest per goal. Volume is later modulated by experience & time.
@@ -92,38 +115,6 @@ export function suggestStartingWeightKg(
   return Math.max(2.5, Math.round(raw / 2.5) * 2.5);
 }
 
-// --- Selection scoring -----------------------------------------------------
-
-function isBodyweight(ex: LibraryExercise): boolean {
-  return !ex.equipment || ex.equipment.toLowerCase() === "body only";
-}
-
-// Bodyweight moves that can't be done without a pull-up bar (they're tagged
-// "body only" in the library, so they'd otherwise slip through the home filter).
-const PULLUP_BAR_RE = /pull-?up|chin-?up|muscle-?up|hanging|toes to bar|front lever/i;
-function needsPullupBar(ex: LibraryExercise): boolean {
-  return PULLUP_BAR_RE.test(ex.name);
-}
-
-function scoreExercise(
-  ex: LibraryExercise,
-  targetLib: Set<string>,
-  experience: Experience
-): number {
-  let s = 0;
-  if (ex.mechanic === "compound") s += 3;
-  if (ex.category === "strength") s += 1;
-  // Reward exercises whose PRIMARY work is the target muscle (precision).
-  const primHits = (ex.primaryMuscles ?? []).filter((m) => targetLib.has(m.toLowerCase())).length;
-  s += Math.min(primHits, 2) * 2;
-  if (experience === "beginner") {
-    const eq = (ex.equipment ?? "body only").toLowerCase();
-    if (["body only", "dumbbell", "machine", "cable", "kettlebells"].includes(eq)) s += 1;
-    if (ex.level === "beginner") s += 1;
-  }
-  return s;
-}
-
 function titleFor(groups: MuscleGroup[], goal?: Goal): string {
   const g =
     groups.length === 0
@@ -154,11 +145,24 @@ export function generateWorkout(
   seed = 0
 ): Workout {
   const goal: Goal = opts.goal ?? "fitness";
+  const strategy = opts.strategy ?? "balanced";
   const base = GOAL_SCHEME[goal];
   // Modulate volume by experience.
+  const readinessModifier =
+    opts.readiness === "great"
+      ? 1
+      : opts.readiness === "tired"
+        ? -1
+        : opts.readiness === "very-tired"
+          ? -2
+          : 0;
+  const strategyModifier = strategy === "low-fatigue" ? -1 : 0;
   const sets = Math.max(
-    2,
-    base.sets + (opts.experience === "beginner" ? -1 : opts.experience === "advanced" ? 1 : 0)
+    1,
+    base.sets +
+      (opts.experience === "beginner" ? -1 : opts.experience === "advanced" ? 1 : 0) +
+      readinessModifier +
+      strategyModifier
   );
   const scheme = { ...base, sets };
 
@@ -166,10 +170,12 @@ export function generateWorkout(
 
   // Resolve fine-grained muscle targets: use explicit targets, else expand the
   // coarse groups into their constituent muscles.
-  const targets: MuscleTargetKey[] =
+  const requestedTargets: MuscleTargetKey[] =
     opts.targetMuscles && opts.targetMuscles.length > 0
       ? opts.targetMuscles
       : primary.flatMap((g) => targetsForGroup(g));
+  const avoidTargets = new Set(opts.avoidMuscles ?? []);
+  const targets = requestedTargets.filter((target) => !avoidTargets.has(target));
   const groups = [
     ...new Set(
       targets
@@ -182,37 +188,46 @@ export function generateWorkout(
   const targetLib = new Map<MuscleTargetKey, Set<string>>();
   for (const k of targets) targetLib.set(k, libMusclesForTargets([k]));
   const unionLib = libMusclesForTargets(targets);
-  const primaryHit = (ex: LibraryExercise) =>
-    (ex.primaryMuscles ?? []).some((m) => unionLib.has(m.toLowerCase()));
-  const secondaryHit = (ex: LibraryExercise) =>
-    (ex.secondaryMuscles ?? []).some((m) => unionLib.has(m.toLowerCase()));
-
-  // Equipment matching: for "home" with a detailed selection, allow only
-  // body-only + the owned gear; otherwise use the coarse access rule.
-  const homeAllowed =
-    opts.equipment === "home" && opts.homeEquipment
-      ? new Set(opts.homeEquipment.allowed.map((s) => s.toLowerCase()))
-      : null;
-  const equipmentOk = (ex: LibraryExercise) => {
-    if (!homeAllowed) return matchesEquipment(ex, opts.equipment);
-    const eq = (ex.equipment ?? "body only").toLowerCase();
-    const base = eq === "body only" || eq === "none" || homeAllowed.has(eq);
-    if (!base) return false;
-    // Bar-requiring bodyweight moves need a pull-up bar.
-    if (!opts.homeEquipment?.pullupBar && needsPullupBar(ex)) return false;
-    return true;
-  };
-
-  const pool = library.filter(
-    (ex) =>
-      equipmentOk(ex) &&
-      allowsLevel(ex.level, opts.experience) &&
-      (opts.useWeights === false ? isBodyweight(ex) : true) &&
-      ["strength", "plyometrics", "cardio", "powerlifting", "olympic weightlifting"].includes(
-        ex.category
-      ) &&
-      (primaryHit(ex) || secondaryHit(ex))
+  const soreLib = libMusclesForTargets(opts.soreMuscles ?? []);
+  const avoidLib = libMusclesForTargets(opts.avoidMuscles ?? []);
+  const preferences = new Map(
+    (opts.preferences ?? []).map((preference) => [preference.exerciseId, preference])
   );
+  const preferenceFor = (ex: LibraryExercise) => preferences.get(getExerciseStableId(ex));
+  const recentExerciseNames = new Set(
+    (opts.recentExerciseNames ?? []).map((name) => name.toLowerCase().replace(/\s+/g, " ").trim())
+  );
+  const historyWeights = new Map<string, number | null>();
+  const historyWeightFor = (exercise: LibraryExercise) => {
+    if (!historyWeights.has(exercise.name)) {
+      const value = opts.historyWeightKg?.(exercise.name) ?? null;
+      historyWeights.set(
+        exercise.name,
+        typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null
+      );
+    }
+    return historyWeights.get(exercise.name) ?? null;
+  };
+  const eligiblePool = library.filter((exercise) =>
+    checkExerciseEligibility(exercise, {
+      equipment: opts.equipment,
+      experience: opts.experience,
+      useWeights: opts.useWeights,
+      targetLibraryMuscles: unionLib,
+      avoidLibraryMuscles: avoidLib,
+      preference: preferenceFor(exercise),
+      homeEquipment: opts.homeEquipment,
+    }).allowed
+  );
+  // Avoid major secondary contribution too when the remaining library still
+  // has enough choices to compose a useful session.
+  const withoutAvoidedSecondary = eligiblePool.filter(
+    (exercise) =>
+      !(exercise.secondaryMuscles ?? []).some((muscle) => avoidLib.has(muscle.toLowerCase()))
+  );
+  const pool = withoutAvoidedSecondary.length >= Math.min(3, eligiblePool.length)
+    ? withoutAvoidedSecondary
+    : eligiblePool;
 
   // Bucket by target, ordered best-first (score desc). Prefer exercises that hit
   // the target as a PRIMARY muscle; fall back to secondary only if none exist.
@@ -228,13 +243,41 @@ export function generateWorkout(
         ? prim
         : pool.filter((ex) => (ex.secondaryMuscles ?? []).some((m) => lib.has(m.toLowerCase())));
     list.sort(
-      (a, b) =>
-        scoreExercise(b, lib, opts.experience) - scoreExercise(a, lib, opts.experience) ||
-        a.name.localeCompare(b.name)
+      (a, b) => {
+        const score = (exercise: LibraryExercise) =>
+          scoreExercise(exercise, {
+            equipment: opts.equipment,
+            experience: opts.experience,
+            useWeights: opts.useWeights,
+            targetLibraryMuscles: lib,
+            avoidLibraryMuscles: avoidLib,
+            soreLibraryMuscles: soreLib,
+            preference: preferenceFor(exercise),
+            homeEquipment: opts.homeEquipment,
+            strategy,
+            hasProgression: historyWeightFor(exercise) !== null,
+            recentlyPerformed: recentExerciseNames.has(
+              exercise.name.toLowerCase().replace(/\s+/g, " ").trim()
+            ),
+          }).score;
+        return score(b) - score(a) || a.name.localeCompare(b.name);
+      }
     );
-    if (seed > 0 && list.length > 1) {
-      const shift = seed % list.length;
-      byTarget.set(k, [...list.slice(shift), ...list.slice(0, shift)]);
+    if (strategy === "balanced" && seed > 0 && list.length > 1) {
+      const preferred = list.filter((exercise) => preferenceFor(exercise)?.level === "prefer");
+      const neutral = list.filter((exercise) => preferenceFor(exercise)?.level !== "prefer");
+      const rotate = (items: LibraryExercise[], offset: number) => {
+        if (items.length < 2) return items;
+        const shift = offset % items.length;
+        return [...items.slice(shift), ...items.slice(0, shift)];
+      };
+      // A preferred move leads two out of every three variants. The third lets
+      // the wizard stay varied instead of repeating the same routine forever.
+      if (preferred.length > 0 && seed % 3 !== 2) {
+        byTarget.set(k, [...rotate(preferred, seed), ...rotate(neutral, seed)]);
+      } else {
+        byTarget.set(k, [...rotate(neutral, seed), ...rotate(preferred, seed)]);
+      }
     } else {
       byTarget.set(k, list);
     }
@@ -245,11 +288,12 @@ export function generateWorkout(
 
   const weightCap = opts.homeEquipment?.maxKg;
   const buildExercise = (ex: LibraryExercise, withWarmup = false) => {
-    const bodyweight = isBodyweight(ex);
+    const bodyweight = isBodyweightExercise(ex);
+    const movementPattern = getMovementPattern(ex);
     const unit: SetUnit = bodyweight ? "bw" : "kg";
     let kg = bodyweight
       ? 0
-      : (opts.historyWeightKg?.(ex.name) ??
+      : (historyWeightFor(ex) ??
         suggestStartingWeightKg(ex, {
           experience: opts.experience,
           sex: opts.sex,
@@ -259,7 +303,11 @@ export function generateWorkout(
     const cap = weightCap?.[(ex.equipment ?? "").toLowerCase()];
     if (!bodyweight && cap != null) kg = Math.max(2.5, Math.min(kg, cap));
     const weight = bodyweight ? "BW" : String(kg);
-    const working = Array.from({ length: scheme.sets }, () => ({
+    const hitsSoreMuscle = [...(ex.primaryMuscles ?? []), ...(ex.secondaryMuscles ?? [])].some(
+      (muscle) => soreLib.has(muscle.toLowerCase())
+    );
+    const workingSetCount = Math.max(1, scheme.sets - (hitsSoreMuscle ? 1 : 0));
+    const working = Array.from({ length: workingSetCount }, () => ({
       id: uuidv4(),
       reps: scheme.reps,
       value: weight,
@@ -278,33 +326,61 @@ export function generateWorkout(
             ...working,
           ]
         : working;
-    return { id: uuidv4(), name: ex.name, sets };
+    return {
+      id: uuidv4(),
+      name: ex.name,
+      sets,
+      movementPattern,
+      unilateral: ex.unilateral ?? movementPattern === "lunge",
+    };
   };
 
-  // Greedily add best-first per target until the estimated time meets the budget.
+  // Greedily add best-first per target while enforcing the documented 10%
+  // upper time tolerance and movement-pattern limits.
   const targetSec = opts.minutes * 60;
   const chosen: LibraryExercise[] = [];
   const used = new Set<string>();
+  const patternCounts = new Map<string, number>();
+  const patternLimit = MOVEMENT_PATTERN_LIMITS[strategy];
+  const minimumExercises = opts.minutes <= 15 ? 2 : 3;
+  const canUsePattern = (exercise: LibraryExercise) => {
+    const pattern = getMovementPattern(exercise);
+    return !pattern || (patternCounts.get(pattern) ?? 0) < patternLimit;
+  };
+  const addPattern = (exercise: LibraryExercise) => {
+    const pattern = getMovementPattern(exercise);
+    if (pattern) patternCounts.set(pattern, (patternCounts.get(pattern) ?? 0) + 1);
+  };
   let guard = 0;
-  while (chosen.length < 10 && order.length > 0 && guard < order.length * 30) {
+  while (chosen.length < 12 && order.length > 0 && guard < order.length * 40) {
     const k = order[guard % order.length];
     guard++;
-    const next = (byTarget.get(k) || []).find((ex) => !used.has(ex.name));
+    const next = (byTarget.get(k) || []).find(
+      (exercise) => !used.has(exercise.name) && canUsePattern(exercise)
+    );
     if (!next) continue;
-    chosen.push(next);
     used.add(next.name);
-    if (chosen.length >= 3) {
-      const est = estimateWorkoutSeconds(chosen.map((e) => buildExercise(e)), scheme.rest);
-      if (est >= targetSec) break;
+    const candidate = [...chosen, next];
+    const estimate = estimateWorkoutSeconds(candidate.map((exercise) => buildExercise(exercise)), scheme.rest);
+    if (!isWithinTimeBudget(estimate, opts.minutes) && chosen.length >= minimumExercises) {
+      continue;
+    }
+    chosen.push(next);
+    addPattern(next);
+    if (chosen.length >= minimumExercises && estimate >= targetSec * 0.9) {
+      break;
     }
   }
-  if (chosen.length < 3) {
+  if (chosen.length < minimumExercises) {
     for (const ex of pool) {
-      if (chosen.length >= 3) break;
-      if (!used.has(ex.name)) {
-        chosen.push(ex);
-        used.add(ex.name);
-      }
+      if (chosen.length >= minimumExercises) break;
+      if (used.has(ex.name) || !canUsePattern(ex)) continue;
+      const candidate = [...chosen, ex];
+      const estimate = estimateWorkoutSeconds(candidate.map((exercise) => buildExercise(exercise)), scheme.rest);
+      if (!isWithinTimeBudget(estimate, opts.minutes) && chosen.length > 0) continue;
+      chosen.push(ex);
+      used.add(ex.name);
+      addPattern(ex);
     }
   }
 
@@ -313,7 +389,8 @@ export function generateWorkout(
     (a, b) => (b.mechanic === "compound" ? 1 : 0) - (a.mechanic === "compound" ? 1 : 0)
   );
 
-  const warmupGoal = goal === "strength" || goal === "muscle";
+  const warmupGoal = (goal === "strength" || goal === "muscle") && strategy !== "low-fatigue";
+  const strategyDefinition = getStrategyDefinition(strategy);
   const now = new Date().toISOString();
   return {
     id: uuidv4(),
@@ -321,6 +398,8 @@ export function generateWorkout(
     rest: scheme.rest,
     createdAt: now,
     updatedAt: now,
+    strategy,
+    recommendationSummary: strategyDefinition.description,
     exercises: chosen.map((ex, i) => buildExercise(ex, warmupGoal && i === 0)),
   };
 }

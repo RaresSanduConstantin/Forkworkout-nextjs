@@ -20,10 +20,12 @@ export function MuscleMapPicker({
   value,
   onToggle,
   gender = "male",
+  instruction = "Tap muscles to target them",
 }: {
   value: MuscleTargetKey[];
   onToggle: (key: MuscleTargetKey) => void;
   gender?: "male" | "female";
+  instruction?: string;
 }) {
   const [side, setSide] = React.useState<"front" | "back">("front");
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -142,7 +144,7 @@ export function MuscleMapPicker({
       </ToggleGroup>
       <div ref={containerRef} className="mx-auto aspect-[1/2] w-full max-w-[240px] cursor-pointer" />
       <p className="text-center text-xs text-muted-foreground">
-        Tap muscles to target them{value.length > 0 ? ` · ${value.length} selected` : ""}
+        {instruction}{value.length > 0 ? ` · ${value.length} selected` : ""}
       </p>
     </div>
   );

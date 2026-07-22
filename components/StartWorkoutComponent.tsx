@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Minus, Plus, SkipForward, Target, Timer, Vibrate, VibrateOff, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Minus, Plus, RefreshCw, SkipForward, Target, Timer, Vibrate, VibrateOff, Volume2, VolumeX, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +60,7 @@ import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, SET_TYPES, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { getExerciseVideoId } from "@/lib/exercise-videos";
-import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, type LibraryExercise } from "@/lib/exercises";
+import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, getExerciseStableIdByName, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName, getTypicalDurationSec } from "@/lib/history-stats";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
@@ -74,11 +74,31 @@ import {
 } from "@/components/ui/accordion";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { AddExerciseByMuscleDialog } from "@/components/exercises/AddExerciseByMuscleDialog";
+import { ExercisePreferenceControl } from "@/components/exercises/ExercisePreferenceControl";
+import { ReplaceExerciseDialog } from "@/components/exercises/ReplaceExerciseDialog";
+import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
+import { getMovementPattern } from "@/lib/smart-workout/movement-patterns";
+import {
+  addPerformanceFeedback,
+  type ExerciseDifficulty,
+} from "@/lib/storage/performance-feedback";
+import { setExercisePreference } from "@/lib/storage/exercise-preferences";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
 type ExerciseDetails = LibraryExercise;
+
+const EXERCISE_DIFFICULTIES: Array<{
+  value: ExerciseDifficulty;
+  label: string;
+}> = [
+  { value: "easy", label: "Easy" },
+  { value: "good", label: "Good" },
+  { value: "hard", label: "Hard" },
+  { value: "failed", label: "Failed" },
+  { value: "painful", label: "Painful" },
+];
 
 /** Trigger text for the per-exercise rest dropdown. When the exercise has no
  *  override, show the effective workout default so the user knows the value. */
@@ -174,6 +194,7 @@ const StartWorkoutComponent = () => {
   const [library, setLibrary] = useState<LibraryExercise[]>(getCachedLibrary());
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showAddByMuscle, setShowAddByMuscle] = useState(false);
+  const [replaceExerciseIndex, setReplaceExerciseIndex] = useState<number | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
   const [typeMenuFor, setTypeMenuFor] = useState<string | null>(null);
@@ -184,6 +205,9 @@ const StartWorkoutComponent = () => {
   const [finishCalories, setFinishCalories] = useState("");
   const [finishAvgBpm, setFinishAvgBpm] = useState("");
   const [finishMaxBpm, setFinishMaxBpm] = useState("");
+  const [exerciseDifficulty, setExerciseDifficulty] = useState<
+    Record<string, ExerciseDifficulty | undefined>
+  >({});
   const [showSummary, setShowSummary] = useState(false);
   const [summary, setSummary] = useState<{
     volume: number;
@@ -309,6 +333,8 @@ const StartWorkoutComponent = () => {
           name: ex.name,
           rest: ex.rest,
           superset: ex.superset,
+          movementPattern: ex.movementPattern,
+          unilateral: ex.unilateral,
           sets: ex.sets.map((s) => ({
             id: s.id ?? uuidv4(),
             reps: s.reps,
@@ -830,6 +856,47 @@ const StartWorkoutComponent = () => {
     );
   };
 
+  const replaceExercise = (replacement: LibraryExercise) => {
+    if (replaceExerciseIndex === null) return;
+    const current = workout?.exercises[replaceExerciseIndex];
+    if (!current) return;
+    if (current.sets.some((set) => set.status !== "pending")) {
+      toast.error("This exercise already has logged sets and can no longer be replaced.");
+      return;
+    }
+
+    const currentUnit = current.sets[0]?.unit ?? inferUnit(current.sets[0]?.value ?? "");
+    const nextUnit =
+      replacement.defaultUnit ??
+      getExerciseDefaultUnit(replacement.name) ??
+      (isBodyweightExercise(replacement) ? "bw" : currentUnit === "bw" ? "kg" : currentUnit);
+    const movementPattern = getMovementPattern(replacement);
+
+    setWorkout((previous) =>
+      previous
+        ? {
+            ...previous,
+            exercises: previous.exercises.map((exercise, index) =>
+              index !== replaceExerciseIndex
+                ? exercise
+                : {
+                    ...exercise,
+                    name: replacement.name,
+                    movementPattern,
+                    unilateral: replacement.unilateral ?? movementPattern === "lunge",
+                    sets: exercise.sets.map((set) => ({
+                      ...set,
+                      unit: nextUnit,
+                      value: nextUnit === "bw" ? "BW" : "",
+                    })),
+                  }
+            ),
+          }
+        : previous
+    );
+    toast.success(`Replaced ${current.name} with ${replacement.name}`);
+  };
+
   const handleComplete = (exIdx: number, setIdx: number) => {
     const set = workout?.exercises[exIdx]?.sets[setIdx];
     // Tap cycles Done -> Skipped -> Done. Marking Done starts the rest timer.
@@ -925,9 +992,11 @@ const StartWorkoutComponent = () => {
       })),
     }));
 
+    const completedAt = new Date().toISOString();
     addCompletedWorkout({
       workoutId: workout.workoutId,
       title: workout.title,
+      date: completedAt,
       volume,
       totalReps,
       durationSec,
@@ -938,6 +1007,44 @@ const StartWorkoutComponent = () => {
       avgHeartRate: parseInt(finishAvgBpm, 10) || undefined,
       maxHeartRate: parseInt(finishMaxBpm, 10) || undefined,
     });
+
+    let painfulFeedbackCount = 0;
+    for (const exercise of workout.exercises) {
+      const exerciseId = getExerciseStableIdByName(library, exercise.name);
+      const difficulty = exerciseDifficulty[exerciseId];
+      if (!difficulty) continue;
+      const workingSets = exercise.sets.filter((set) => set.type !== "warmup");
+      const completedSets = workingSets.filter((set) => set.status === "done");
+      const topWeightKg = completedSets.reduce(
+        (top, set) => Math.max(top, setWeightKg(set.value, set.unit)),
+        0
+      );
+      addPerformanceFeedback({
+        workoutId: workout.workoutId,
+        exerciseId,
+        exerciseName: exercise.name,
+        completedAt,
+        difficulty,
+        completedWorkingSets: completedSets.length,
+        plannedWorkingSets: workingSets.length,
+        topWeightKg: topWeightKg > 0 ? topWeightKg : undefined,
+        completedReps: completedSets.map((set) => set.reps),
+      });
+      if (difficulty === "painful") {
+        painfulFeedbackCount += 1;
+        setExercisePreference({
+          exerciseId,
+          exerciseName: exercise.name,
+          level: "avoid",
+          reason: "discomfort",
+        });
+      }
+    }
+    if (painfulFeedbackCount > 0) {
+      toast.warning(
+        `${painfulFeedbackCount} painful exercise${painfulFeedbackCount === 1 ? " was" : "s were"} excluded from future generated workouts. Stop if an exercise causes pain.`
+      );
+    }
 
     // Persist edited reps/values/units back onto the saved workout (strip statuses).
     const workouts = getWorkouts();
@@ -950,6 +1057,8 @@ const StartWorkoutComponent = () => {
           name: ex.name,
           rest: ex.rest,
           superset: ex.superset,
+          movementPattern: ex.movementPattern,
+          unilateral: ex.unilateral,
           sets: ex.sets.map((set) => ({
             id: set.id,
             reps: set.reps,
@@ -1158,6 +1267,24 @@ const StartWorkoutComponent = () => {
                 </Button>
                 <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    if (exercise.sets.some((set) => set.status !== "pending")) {
+                      toast.error(
+                        "Replace is available before completing or skipping a set for this exercise."
+                      );
+                      return;
+                    }
+                    setReplaceExerciseIndex(exIdx);
+                  }}
+                >
+                  <RefreshCw className="size-4 text-primary" />
+                  Replace
+                </Button>
+                <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   className="gap-1.5 text-red-600 hover:text-red-700"
@@ -1166,6 +1293,10 @@ const StartWorkoutComponent = () => {
                   <Image src="/youtube.png" alt="" width={18} height={18} />
                   Videos
                 </Button>
+                <ExercisePreferenceControl
+                  exerciseId={getExerciseStableIdByName(library, exercise.name)}
+                  exerciseName={exercise.name}
+                />
                 <Select
                   value={exercise.rest === undefined || exercise.rest === "" ? "default" : exercise.rest}
                   onValueChange={(v) =>
@@ -1488,6 +1619,22 @@ const StartWorkoutComponent = () => {
         onPick={(name) => addExercise(name)}
       />
 
+      <ReplaceExerciseDialog
+        open={replaceExerciseIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setReplaceExerciseIndex(null);
+        }}
+        exerciseName={
+          replaceExerciseIndex === null
+            ? ""
+            : workout.exercises[replaceExerciseIndex]?.name ?? ""
+        }
+        excludedNames={workout.exercises
+          .filter((_exercise, index) => index !== replaceExerciseIndex)
+          .map((exercise) => exercise.name)}
+        onReplace={replaceExercise}
+      />
+
       {/* Exercise Info Modal */}
       <Dialog open={showInfoModal} onOpenChange={setShowInfoModal}>
         <DialogContent className="flex max-h-[90vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
@@ -1689,12 +1836,12 @@ const StartWorkoutComponent = () => {
         }}
       >
         <DialogContent
-          className="space-y-4 text-center"
+          className="max-h-[calc(100dvh-1rem)] max-w-md gap-4 overflow-y-auto overscroll-contain p-4 text-center landscape:max-w-2xl landscape:gap-2 landscape:py-3 sm:p-6"
           onInteractOutside={() => setRestMinimized(true)}
         >
           <DialogDescription className="sr-only">Rest timer countdown</DialogDescription>
-          <DialogTitle className="text-2xl font-bold">{honkFont("Rest Time")}</DialogTitle>
-          <div className="font-mono text-6xl font-bold text-primary tabular-nums">
+          <DialogTitle className="text-2xl font-bold landscape:text-xl">{honkFont("Rest Time")}</DialogTitle>
+          <div className="font-mono text-6xl font-bold text-primary tabular-nums landscape:text-4xl">
             {countdown}s
           </div>
           {restNextLabel && (
@@ -1705,7 +1852,7 @@ const StartWorkoutComponent = () => {
               <p className="mt-0.5 font-medium">{restNextLabel}</p>
             </div>
           )}
-          <div className="flex items-center justify-center gap-3">
+          <div className="grid grid-cols-2 gap-3 landscape:grid-cols-4">
             <Button
               variant="outline"
               size="lg"
@@ -1722,8 +1869,6 @@ const StartWorkoutComponent = () => {
             >
               +10s
             </Button>
-          </div>
-          <div className="flex items-center justify-center gap-3">
             <Button variant="outline" className="flex-1" onClick={() => setRestMinimized(true)}>
               Minimize
             </Button>
@@ -1731,7 +1876,7 @@ const StartWorkoutComponent = () => {
               Skip Rest
             </Button>
           </div>
-          <div className="flex flex-col items-center gap-1.5">
+          <div className="flex flex-col items-center gap-1.5 landscape:flex-row landscape:justify-center landscape:gap-4">
             <button
               type="button"
               onClick={() => {
@@ -1895,7 +2040,7 @@ const StartWorkoutComponent = () => {
 
       {/* Finish dialog — log session notes + RPE (and warn on unfinished sets) */}
       <Dialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-h-[92vh] max-w-sm overflow-y-auto">
           <DialogHeader className="text-left">
             <DialogTitle>Finish workout?</DialogTitle>
             <DialogDescription>
@@ -1908,6 +2053,63 @@ const StartWorkoutComponent = () => {
           </DialogHeader>
 
           <div className="space-y-3">
+            <Accordion type="single" collapsible className="rounded-lg border px-3">
+              <AccordionItem value="exercise-difficulty" className="border-b-0">
+                <AccordionTrigger className="py-3 hover:no-underline">
+                  <span className="text-left">
+                    <span className="block text-sm font-medium">Exercise difficulty (optional)</span>
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      {Object.values(exerciseDifficulty).filter(Boolean).length > 0
+                        ? `${Object.values(exerciseDifficulty).filter(Boolean).length} rated`
+                        : "Rate individual exercises"}
+                    </span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    This adjusts future load suggestions. Painful exercises will be avoided.
+                  </p>
+                  {workout.exercises.map((exercise) => {
+                    const exerciseId = getExerciseStableIdByName(library, exercise.name);
+                    return (
+                      <div
+                        key={exercise.id ?? exerciseId}
+                        className="space-y-1.5 rounded-lg border p-2.5"
+                      >
+                        <p className="truncate text-sm font-medium">{exercise.name}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {EXERCISE_DIFFICULTIES.map((option) => (
+                            <Button
+                              key={option.value}
+                              type="button"
+                              size="xs"
+                              variant={
+                                exerciseDifficulty[exerciseId] === option.value
+                                  ? option.value === "painful"
+                                    ? "destructive"
+                                    : "default"
+                                  : "outline"
+                              }
+                              aria-pressed={exerciseDifficulty[exerciseId] === option.value}
+                              onClick={() =>
+                                setExerciseDifficulty((current) => ({
+                                  ...current,
+                                  [exerciseId]:
+                                    current[exerciseId] === option.value ? undefined : option.value,
+                                }))
+                              }
+                            >
+                              {option.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
             <div className="space-y-1.5">
               <span className="text-sm font-medium">How did it feel? (RPE)</span>
               <div className="flex flex-wrap gap-1.5">

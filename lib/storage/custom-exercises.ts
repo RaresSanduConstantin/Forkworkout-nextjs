@@ -7,8 +7,10 @@
 import type { SetUnit } from "@/lib/types";
 import { STORAGE_KEYS } from "./keys";
 import { readJson, writeJson } from "./safe-storage";
+import { exerciseIdFromName } from "@/lib/exercise-id";
 
 export type CustomExercise = {
+  id: string;
   name: string;
   force: string | null;
   level: string;
@@ -27,6 +29,7 @@ export type CustomExercise = {
 };
 
 export type CustomExerciseInput = {
+  id?: string;
   name: string;
   defaultUnit: SetUnit;
   force?: string | null;
@@ -55,6 +58,13 @@ function normalize(raw: unknown): CustomExercise | null {
     ? (e.defaultUnit as SetUnit)
     : "kg";
   return {
+    id:
+      typeof e.id === "string" && e.id.trim()
+        ? e.id.trim()
+        : exerciseIdFromName(
+            typeof e.sourceName === "string" && e.sourceName.trim() ? e.sourceName : name,
+            typeof e.sourceName === "string" && e.sourceName.trim() ? "builtin" : "custom"
+          ),
     name,
     force: typeof e.force === "string" && e.force ? e.force : null,
     level: typeof e.level === "string" && e.level ? e.level : "beginner",
@@ -117,10 +127,11 @@ export function upsertCustomExercise(
 ): CustomExercise | null {
   const original = originalName.trim().toLowerCase();
   const nextName = input.name.trim().toLowerCase();
+  const existing = getCustomExercises().find((exercise) => exercise.name.toLowerCase() === original);
   if (original && original !== nextName) {
     deleteCustomExercise(originalName);
   }
-  return addCustomExercise(input);
+  return addCustomExercise({ ...input, id: input.id ?? existing?.id });
 }
 
 /** Replaces the whole set (used by import/restore). */

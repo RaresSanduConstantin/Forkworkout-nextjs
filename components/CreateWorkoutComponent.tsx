@@ -83,6 +83,9 @@ const CreateWorkoutComponent = () => {
   };
 
   const hasInitialized = React.useRef(false);
+  const generatedMetadata = React.useRef<
+    Pick<Workout, "strategy" | "recommendationSummary" | "recommendation"> | undefined
+  >(undefined);
   const [showWizard, setShowWizard] = useState(false);
   const [showAddByMuscle, setShowAddByMuscle] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
@@ -96,6 +99,11 @@ const CreateWorkoutComponent = () => {
 
   const handleGenerated = (workout: Workout) => {
     hasInitialized.current = true;
+    generatedMetadata.current = {
+      strategy: workout.strategy,
+      recommendationSummary: workout.recommendationSummary,
+      recommendation: workout.recommendation,
+    };
     form.reset(workout);
     setShowWizard(false);
     toast.success("Draft created — review and save it");
@@ -139,6 +147,7 @@ const CreateWorkoutComponent = () => {
       const newWorkout: Workout = {
         id: uuidv4(),
         ...data,
+        ...generatedMetadata.current,
         createdAt: now,
         updatedAt: now,
       };
@@ -276,6 +285,9 @@ const CreateWorkoutComponent = () => {
                     >
                       <ExerciseBuilder
                         index={index}
+                        workoutExerciseNames={(watchedExercises ?? []).map(
+                          (item) => item?.name ?? ""
+                        )}
                         onRemove={() => removeExercise(index)}
                         exercisesLength={exerciseFields.length}
                         onMoveUp={index > 0 ? () => moveExercise(index, index - 1) : undefined}

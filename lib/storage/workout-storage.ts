@@ -14,6 +14,42 @@ function normalizeWorkout(raw: unknown): Workout | null {
   if (typeof w.id !== "string" || w.id.length === 0) return null;
 
   const exercises = Array.isArray(w.exercises) ? w.exercises : [];
+  const strategy =
+    w.strategy === "balanced" || w.strategy === "progressive" || w.strategy === "low-fatigue"
+      ? w.strategy
+      : undefined;
+  const rawRecommendation =
+    w.recommendation && typeof w.recommendation === "object"
+      ? (w.recommendation as Record<string, unknown>)
+      : null;
+  const historyConfidence = rawRecommendation?.historyConfidence;
+  const normalizedHistoryConfidence: NonNullable<Workout["recommendation"]>["historyConfidence"] =
+    historyConfidence === "low" ||
+    historyConfidence === "medium" ||
+    historyConfidence === "high"
+      ? historyConfidence
+      : "none";
+  const recommendation =
+    rawRecommendation &&
+    typeof rawRecommendation.title === "string" &&
+    typeof rawRecommendation.summary === "string"
+      ? {
+          title: rawRecommendation.title,
+          summary: rawRecommendation.summary,
+          reasons: Array.isArray(rawRecommendation.reasons)
+            ? rawRecommendation.reasons.filter((reason): reason is string => typeof reason === "string")
+            : [],
+          warnings: Array.isArray(rawRecommendation.warnings)
+            ? rawRecommendation.warnings.filter((warning): warning is string => typeof warning === "string")
+            : [],
+          estimatedMinutes:
+            typeof rawRecommendation.estimatedMinutes === "number" &&
+            Number.isFinite(rawRecommendation.estimatedMinutes)
+              ? Math.max(0, Math.round(rawRecommendation.estimatedMinutes))
+              : 0,
+          historyConfidence: normalizedHistoryConfidence,
+        }
+      : undefined;
   return {
     id: w.id,
     title: typeof w.title === "string" ? w.title : "",
@@ -25,6 +61,10 @@ function normalizeWorkout(raw: unknown): Workout | null {
       typeof w.sharedMessage === "string" && w.sharedMessage.trim()
         ? w.sharedMessage
         : undefined,
+    strategy,
+    recommendationSummary:
+      typeof w.recommendationSummary === "string" ? w.recommendationSummary : undefined,
+    recommendation,
     exercises: exercises.map((ex) => {
       const e = (ex ?? {}) as Record<string, unknown>;
       const sets = Array.isArray(e.sets) ? e.sets : [];
@@ -33,6 +73,11 @@ function normalizeWorkout(raw: unknown): Workout | null {
         name: typeof e.name === "string" ? e.name : "",
         rest: typeof e.rest === "string" ? e.rest : undefined,
         superset: typeof e.superset === "string" && e.superset ? e.superset : undefined,
+        movementPattern:
+          typeof e.movementPattern === "string" && e.movementPattern
+            ? e.movementPattern
+            : undefined,
+        unilateral: e.unilateral === true ? true : undefined,
         sets: sets.map((s) => {
           const set = (s ?? {}) as Record<string, unknown>;
           const reps =

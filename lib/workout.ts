@@ -199,17 +199,48 @@ export function effectiveRestSeconds(
  * Shared by the live session and the workout generator so they agree.
  */
 export function estimateWorkoutSeconds(
-  exercises: { sets: { unit?: SetUnit; value: string }[]; rest?: string }[],
+  exercises: {
+    sets: { unit?: SetUnit; value: string; type?: string }[];
+    rest?: string;
+    unilateral?: boolean;
+  }[],
   workoutRest?: string
 ): number {
-  let total = 0;
-  for (const ex of exercises) {
-    const restBetween = Math.max(effectiveRestSeconds(ex.rest, workoutRest), 30);
-    let work = 0;
-    for (const set of ex.sets) {
-      work += set.unit === "time" ? parseDuration(set.value) || 30 : 50;
-    }
-    total += work + restBetween * Math.max(0, ex.sets.length - 1) + 20;
+  return Math.round(
+    exercises.reduce((total, exercise) => total + estimateExerciseSeconds(exercise, workoutRest).totalSeconds, 0)
+  );
+}
+
+export function estimateExerciseSeconds(
+  exercise: {
+    sets: { unit?: SetUnit; value: string; type?: string }[];
+    rest?: string;
+    unilateral?: boolean;
+  },
+  workoutRest?: string
+): {
+  totalSeconds: number;
+  warmupSeconds: number;
+  workingSeconds: number;
+  restSeconds: number;
+  transitionSeconds: number;
+} {
+  const restBetween = Math.max(effectiveRestSeconds(exercise.rest, workoutRest), 30);
+  let warmupSeconds = 0;
+  let workingSeconds = 0;
+  for (const set of exercise.sets) {
+    const base = set.unit === "time" ? parseDuration(set.value) || 30 : 50;
+    const duration = exercise.unilateral ? base * 2 : base;
+    if (set.type === "warmup") warmupSeconds += duration;
+    else workingSeconds += duration;
   }
-  return Math.round(total);
+  const restSeconds = restBetween * Math.max(0, exercise.sets.length - 1);
+  const transitionSeconds = 20;
+  return {
+    totalSeconds: warmupSeconds + workingSeconds + restSeconds + transitionSeconds,
+    warmupSeconds,
+    workingSeconds,
+    restSeconds,
+    transitionSeconds,
+  };
 }

@@ -5,6 +5,7 @@ import {
   addCustomExercise,
   deleteCustomExercise,
   getCustomExercises,
+  upsertCustomExercise,
 } from "@/lib/storage/custom-exercises";
 import { STORAGE_KEYS } from "@/lib/storage/keys";
 
@@ -56,6 +57,17 @@ describe("custom exercise storage", () => {
       })
     );
     expect(getCustomExercises()).toEqual([saved]);
+  });
+
+  it("keeps a stable id when a custom exercise is renamed", () => {
+    const saved = addCustomExercise({ name: "My press", defaultUnit: "kg" })!;
+    const renamed = upsertCustomExercise("My press", {
+      name: "My favorite press",
+      defaultUnit: "kg",
+    })!;
+
+    expect(renamed.id).toBe(saved.id);
+    expect(renamed.name).toBe("My favorite press");
   });
 });
 

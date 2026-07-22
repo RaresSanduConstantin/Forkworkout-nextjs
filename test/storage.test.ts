@@ -8,6 +8,7 @@ import {
 } from "@/lib/storage/home-equipment";
 import { getBodyProfile, updateBodyProfile } from "@/lib/storage/profile";
 import { getSettings, updateSettings, DEFAULT_SETTINGS } from "@/lib/storage/settings";
+import { getWorkouts, saveWorkouts } from "@/lib/storage/workout-storage";
 
 beforeEach(() => localStorage.clear());
 
@@ -78,5 +79,45 @@ describe("settings storage", () => {
     updateSettings({ restSound: false, restVibration: false });
     expect(getSettings().restSound).toBe(false);
     expect(getSettings().restVibration).toBe(false);
+  });
+});
+
+describe("smart workout metadata storage", () => {
+  it("preserves strategy, explanation, and reviewed composition metadata", () => {
+    saveWorkouts([
+      {
+        id: "smart-1",
+        title: "Smart workout",
+        strategy: "balanced",
+        recommendationSummary: "Balanced local plan.",
+        recommendation: {
+          title: "Balanced Session",
+          summary: "Balanced local plan.",
+          reasons: ["Uses the muscles you selected manually."],
+          warnings: [],
+          estimatedMinutes: 30,
+          historyConfidence: "low",
+        },
+        exercises: [
+          {
+            id: "exercise-1",
+            name: "Dumbbell Lunges",
+            movementPattern: "lunge",
+            unilateral: true,
+            sets: [{ id: "set-1", reps: 8, value: "20", unit: "kg" }],
+          },
+        ],
+      },
+    ]);
+
+    expect(getWorkouts()[0]).toEqual(
+      expect.objectContaining({
+        strategy: "balanced",
+        recommendation: expect.objectContaining({ historyConfidence: "low" }),
+        exercises: [
+          expect.objectContaining({ movementPattern: "lunge", unilateral: true }),
+        ],
+      })
+    );
   });
 });

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Dumbbell, Pencil, Play, Plus, RotateCcw, Trash2, Video } from "lucide-react";
+import { ArrowLeft, Dumbbell, Pencil, Play, Plus, RotateCcw, SlidersHorizontal, Trash2, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +23,11 @@ import {
 import { SET_UNITS } from "@/lib/workout";
 import type { LibraryExercise } from "@/lib/exercises";
 import { ROUTES } from "@/lib/routes";
+import { ExercisePreferenceControl } from "@/components/exercises/ExercisePreferenceControl";
+import {
+  getExercisePreferences,
+  type ExercisePreference,
+} from "@/lib/storage/exercise-preferences";
 
 const unitLabel = (u: CustomExercise["defaultUnit"]) =>
   SET_UNITS.find((s) => s.value === u)?.label ?? u;
@@ -37,6 +42,11 @@ export function ExercisesManager() {
   const [pendingReset, setPendingReset] = React.useState<LibraryExercise | null>(null);
   const [infoName, setInfoName] = React.useState<string | null>(null);
   const [libraryRevision, setLibraryRevision] = React.useState(0);
+  const [preferences, setPreferences] = React.useState<ExercisePreference[]>([]);
+
+  const refreshPreferences = React.useCallback(() => {
+    setPreferences(getExercisePreferences());
+  }, []);
 
   const refresh = React.useCallback(() => {
     setExercises(getCustomExercises());
@@ -45,8 +55,9 @@ export function ExercisesManager() {
 
   React.useEffect(() => {
     refresh();
+    refreshPreferences();
     setLoaded(true);
-  }, [refresh]);
+  }, [refresh, refreshPreferences]);
 
   const openCreate = () => {
     setEditing(null);
@@ -72,9 +83,10 @@ export function ExercisesManager() {
       />
 
       <Tabs defaultValue="library" className="mt-2">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="library">Browse library</TabsTrigger>
           <TabsTrigger value="mine">My exercises</TabsTrigger>
+          <TabsTrigger value="preferences">Preferences</TabsTrigger>
         </TabsList>
 
         <TabsContent value="library" className="mt-4">
@@ -84,6 +96,8 @@ export function ExercisesManager() {
             onInfo={(name) => setInfoName(name)}
             onEdit={openEdit}
             onReset={setPendingReset}
+            enablePreferences
+            onPreferenceChange={refreshPreferences}
           />
         </TabsContent>
 
@@ -182,6 +196,57 @@ export function ExercisesManager() {
                 Use them in a workout
               </Link>
             </Button>
+          )}
+        </TabsContent>
+
+        <TabsContent value="preferences" className="mt-4 space-y-4">
+          <div>
+            <h2 className="font-semibold">Exercise preferences</h2>
+            <p className="text-sm text-muted-foreground">
+              Preferred exercises are suggested more often. Avoided exercises stay out of generated
+              workouts until you reset them to neutral.
+            </p>
+          </div>
+
+          {preferences.length === 0 ? (
+            <EmptyState
+              icon={<SlidersHorizontal className="size-8" />}
+              title="No exercise preferences yet"
+              description="Use the Preference button in the library to prefer or avoid an exercise."
+            />
+          ) : (
+            <ul className="space-y-2">
+              {[...preferences]
+                .sort((a, b) =>
+                  (a.exerciseName ?? a.exerciseId).localeCompare(b.exerciseName ?? b.exerciseId)
+                )
+                .map((preference) => {
+                  const name = preference.exerciseName ?? "Saved exercise";
+                  return (
+                    <li key={preference.exerciseId}>
+                      <Card>
+                        <CardContent className="flex items-center justify-between gap-3 p-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{name}</p>
+                            <p className="text-xs capitalize text-muted-foreground">
+                              {preference.level}
+                              {preference.reason ? ` · ${preference.reason}` : ""}
+                              {preference.expiresAt
+                                ? ` · until ${new Date(preference.expiresAt).toLocaleDateString()}`
+                                : ""}
+                            </p>
+                          </div>
+                          <ExercisePreferenceControl
+                            exerciseId={preference.exerciseId}
+                            exerciseName={name}
+                            onChange={refreshPreferences}
+                          />
+                        </CardContent>
+                      </Card>
+                    </li>
+                  );
+                })}
+            </ul>
           )}
         </TabsContent>
       </Tabs>

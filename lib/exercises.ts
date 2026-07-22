@@ -5,8 +5,11 @@
 
 import type { SetUnit } from "@/lib/types";
 import { getCustomExercises } from "@/lib/storage/custom-exercises";
+import { exerciseIdFromName } from "@/lib/exercise-id";
+import type { MovementPattern } from "@/lib/smart-workout/movement-patterns";
 
 export type LibraryExercise = {
+  id?: string;
   name: string;
   force: string | null;
   level: string;
@@ -18,6 +21,8 @@ export type LibraryExercise = {
   category: string;
   // Present only on user-added exercises.
   custom?: boolean;
+  movementPattern?: MovementPattern;
+  unilateral?: boolean;
   defaultUnit?: SetUnit;
   videoUrl?: string;
   /** Bundled exercise name when this is a locally customized override. */
@@ -35,6 +40,7 @@ function withCustom(bundled: LibraryExercise[]): LibraryExercise[] {
   if (custom.length === 0) return bundled;
   const customNames = new Set(custom.map((c) => c.name.toLowerCase()));
   const customAsLibrary: LibraryExercise[] = custom.map((c) => ({
+    id: c.id,
     name: c.name,
     force: c.force,
     level: c.level,
@@ -62,7 +68,10 @@ export function loadExerciseLibrary(): Promise<LibraryExercise[]> {
     inflight = fetch("/json/exercises.json")
       .then((r) => r.json())
       .then((d) => {
-        cache = (d.exercises || []) as LibraryExercise[];
+        cache = ((d.exercises || []) as LibraryExercise[]).map((exercise) => ({
+          ...exercise,
+          id: exercise.id ?? exerciseIdFromName(exercise.name),
+        }));
         return withCustom(cache);
       })
       .catch(() => {
@@ -71,6 +80,40 @@ export function loadExerciseLibrary(): Promise<LibraryExercise[]> {
       });
   }
   return inflight;
+}
+
+/** Clears only the in-memory fetch state so a failed wizard load can be retried. */
+export function retryExerciseLibrary(): Promise<LibraryExercise[]> {
+  cache = null;
+  inflight = null;
+  return loadExerciseLibrary();
+}
+
+/** Stable identifier used by preferences and future history compatibility. */
+export function getExerciseStableId(
+  exercise: Pick<LibraryExercise, "id" | "name" | "custom" | "sourceName">
+): string {
+  if (exercise.id) return exercise.id;
+  return exerciseIdFromName(
+    exercise.sourceName ?? exercise.name,
+    exercise.custom && !exercise.sourceName ? "custom" : "builtin"
+  );
+}
+
+export function getExerciseStableIdByName(
+  library: LibraryExercise[],
+  name: string
+): string {
+  const normalized = name.trim().toLowerCase();
+  const exercise = library.find((item) => item.name.trim().toLowerCase() === normalized);
+  if (exercise) return getExerciseStableId(exercise);
+  // A live session can render before the asynchronous bundled library has
+  // loaded. Custom exercises are synchronous, so retain their real id instead
+  // of briefly assigning a built-in fallback id.
+  const custom = getCustomExercises().find(
+    (item) => item.name.trim().toLowerCase() === normalized
+  );
+  return custom?.id ?? exerciseIdFromName(name);
 }
 
 /** The default measurement unit for an exercise (custom only), or null. */

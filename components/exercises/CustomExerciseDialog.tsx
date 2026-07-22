@@ -139,6 +139,7 @@ export function CustomExerciseDialog({
       return;
     }
     const payload = {
+      id: editing?.id,
       name: trimmed,
       defaultUnit: unit,
       level,

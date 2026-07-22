@@ -4,8 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { generateWorkout, suggestStartingWeightKg } from "@/lib/workout-generator";
-import type { LibraryExercise } from "@/lib/exercises";
+import { getExerciseStableId, type LibraryExercise } from "@/lib/exercises";
 import { resolveHomeEquipment } from "@/lib/storage/home-equipment";
+import { estimateWorkoutSeconds } from "@/lib/workout";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -199,6 +200,254 @@ describe("generateWorkout — variants", () => {
     const b = generateWorkout(library, opts, 3).exercises.map((e) => e.name).join("|");
     expect(a).not.toBe(b);
   });
+});
+
+describe("generateWorkout — exercise preferences", () => {
+  it("excludes an avoided exercise when alternatives exist", () => {
+    const initial = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["chest"],
+      goal: "muscle",
+    });
+    const avoidedName = initial.exercises[0].name;
+    const avoided = libOf(avoidedName);
+    const next = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["chest"],
+      goal: "muscle",
+      preferences: [
+        {
+          exerciseId: getExerciseStableId(avoided),
+          exerciseName: avoidedName,
+          level: "avoid",
+          reason: "discomfort",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(next.exercises.length).toBeGreaterThan(0);
+    expect(next.exercises.map((exercise) => exercise.name)).not.toContain(avoidedName);
+  });
+
+  it("shows a preferred exercise more often while retaining a variety seed", () => {
+    const fixture: LibraryExercise[] = ["Alpha", "Beta", "Delta", "Epsilon", "Gamma", "Zulu"].map(
+      (name) => ({
+        name,
+        force: "push",
+        level: "beginner",
+        mechanic: "isolation",
+        equipment: "dumbbell",
+        primaryMuscles: ["chest"],
+        secondaryMuscles: [],
+        instructions: [],
+        category: "strength",
+      })
+    );
+    const zuluId = getExerciseStableId(fixture.at(-1)!);
+    const countZulu = (preferred: boolean) =>
+      Array.from({ length: 6 }, (_, seed) =>
+        generateWorkout(
+          fixture,
+          {
+            ...base,
+            minutes: 5,
+            targetMuscles: ["chest"],
+            preferences: preferred
+              ? [
+                  {
+                    exerciseId: zuluId,
+                    exerciseName: "Zulu",
+                    level: "prefer" as const,
+                    updatedAt: "2026-01-01T00:00:00.000Z",
+                  },
+                ]
+              : [],
+          },
+          seed
+        ).exercises.some((exercise) => exercise.name === "Zulu")
+      ).filter(Boolean).length;
+
+    expect(countZulu(true)).toBeGreaterThan(countZulu(false));
+    expect(countZulu(true)).toBeLessThan(6);
+  });
+});
+
+describe("generateWorkout — daily readiness", () => {
+  const firstWorkingSetCount = (readiness: "great" | "normal" | "tired" | "very-tired") => {
+    const workout = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["chest"],
+      goal: "fitness",
+      readiness,
+    });
+    return workingSets(workout.exercises[0].sets).length;
+  };
+
+  it("changes working-set volume predictably", () => {
+    expect(firstWorkingSetCount("great")).toBe(4);
+    expect(firstWorkingSetCount("normal")).toBe(3);
+    expect(firstWorkingSetCount("tired")).toBe(2);
+    expect(firstWorkingSetCount("very-tired")).toBe(1);
+  });
+
+  it("reduces sore-muscle volume without excluding the muscle", () => {
+    const workout = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["chest"],
+      goal: "fitness",
+      readiness: "normal",
+      soreMuscles: ["chest"],
+    });
+    expect(workout.exercises.length).toBeGreaterThan(0);
+    expect(workingSets(workout.exercises[0].sets)).toHaveLength(2);
+  });
+
+  it("does not directly train a muscle marked Avoid today", () => {
+    const workout = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["chest", "triceps"],
+      goal: "fitness",
+      avoidMuscles: ["chest"],
+    });
+    expect(workout.exercises.length).toBeGreaterThan(0);
+    for (const generated of workout.exercises) {
+      expect(libOf(generated.name).primaryMuscles.map((muscle) => muscle.toLowerCase())).not.toContain(
+        "chest"
+      );
+    }
+  });
+});
+
+describe("generateWorkout — intentional strategies", () => {
+  const strategyLibrary: LibraryExercise[] = [
+    ...["History Barbell Press", "History Incline Press"].map((name) => ({
+      name,
+      force: "push",
+      level: "beginner",
+      mechanic: "compound",
+      equipment: "barbell",
+      primaryMuscles: ["chest"],
+      secondaryMuscles: ["triceps"],
+      instructions: [],
+      category: "strength",
+    } as LibraryExercise)),
+    ...["Machine Fly", "Cable Fly", "Dumbbell Fly", "Machine Press"].map((name) => ({
+      name,
+      force: "push",
+      level: "beginner",
+      mechanic: "isolation",
+      equipment: name.startsWith("Machine") ? "machine" : name.startsWith("Cable") ? "cable" : "dumbbell",
+      primaryMuscles: ["chest"],
+      secondaryMuscles: [],
+      instructions: [],
+      category: "strength",
+    } as LibraryExercise)),
+  ];
+
+  const generateStrategy = (strategy: "balanced" | "progressive" | "low-fatigue", seed: number) =>
+    generateWorkout(
+      strategyLibrary,
+      {
+        ...base,
+        minutes: 5,
+        targetMuscles: ["chest"],
+        goal: "fitness",
+        strategy,
+        historyWeightKg: (name) => (name.startsWith("History") ? 40 : null),
+      },
+      seed
+    );
+
+  it("stores the selected strategy and its summary on the workout", () => {
+    const workout = generateStrategy("progressive", 1);
+    expect(workout.strategy).toBe("progressive");
+    expect(workout.recommendationSummary).toContain("performance history");
+  });
+
+  it("progressive favors useful history while low-fatigue favors stable isolation", () => {
+    const progressive = generateStrategy("progressive", 1);
+    const lowFatigue = generateStrategy("low-fatigue", 2);
+    const progressiveHistory = progressive.exercises.filter((item) =>
+      item.name.startsWith("History")
+    ).length;
+    const lowFatigueHistory = lowFatigue.exercises.filter((item) =>
+      item.name.startsWith("History")
+    ).length;
+    expect(progressiveHistory).toBeGreaterThan(lowFatigueHistory);
+    expect(
+      lowFatigue.exercises.every(
+        (item) => strategyLibrary.find((exercise) => exercise.name === item.name)?.mechanic === "isolation"
+      )
+    ).toBe(true);
+  });
+
+  it("low-fatigue uses fewer working sets", () => {
+    const balanced = generateStrategy("balanced", 0);
+    const lowFatigue = generateStrategy("low-fatigue", 2);
+    expect(workingSets(lowFatigue.exercises[0].sets).length).toBeLessThan(
+      workingSets(balanced.exercises[0].sets).length
+    );
+  });
+});
+
+describe("generateWorkout — movement composition and time budget", () => {
+  it("limits reviewed duplicate movement patterns", () => {
+    const fixture: LibraryExercise[] = [
+      ...["Press A", "Press B", "Press C"].map((name) => ({
+        name,
+        force: "push",
+        level: "beginner",
+        mechanic: "isolation",
+        equipment: "machine",
+        primaryMuscles: ["chest"],
+        secondaryMuscles: [],
+        instructions: [],
+        category: "strength",
+        movementPattern: "horizontal-push" as const,
+      })),
+      ...["Fly A", "Fly B", "Fly C"].map((name) => ({
+        name,
+        force: "push",
+        level: "beginner",
+        mechanic: "isolation",
+        equipment: "cable",
+        primaryMuscles: ["chest"],
+        secondaryMuscles: [],
+        instructions: [],
+        category: "strength",
+        movementPattern: "shoulder-isolation" as const,
+      })),
+    ];
+    const workout = generateWorkout(fixture, {
+      ...base,
+      minutes: 15,
+      targetMuscles: ["chest"],
+      strategy: "low-fatigue",
+      goal: "fitness",
+    });
+    const patterns = workout.exercises.map(
+      (item) => fixture.find((exercise) => exercise.name === item.name)?.movementPattern
+    );
+    expect(patterns.filter((pattern) => pattern === "horizontal-push")).toHaveLength(1);
+    expect(patterns.filter((pattern) => pattern === "shoulder-isolation")).toHaveLength(1);
+  });
+
+  for (const minutes of [15, 30, 45, 60]) {
+    it(`keeps a ${minutes}-minute fitness workout under the 10% upper tolerance`, () => {
+      const workout = generateWorkout(library, {
+        ...base,
+        minutes,
+        targetMuscles: ["chest", "lats", "quads"],
+        strategy: "balanced",
+        goal: "fitness",
+      });
+      expect(workout.exercises.length).toBeGreaterThan(0);
+      const estimated = estimateWorkoutSeconds(workout.exercises, workout.rest);
+      expect(estimated).toBeLessThanOrEqual(minutes * 60 * 1.1);
+      expect(estimated).toBeGreaterThanOrEqual(minutes * 60 * 0.9);
+    });
+  }
 });
 
 describe("suggestStartingWeightKg", () => {

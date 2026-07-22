@@ -205,7 +205,9 @@ const WorkoutList = () => {
     setWorkouts([]);
     setStreak(0);
     setTotalCompleted(0);
+    setLastWorkoutId(null);
     setShowClearAll(false);
+    setShowOnboarding(true);
     toast.success(
       keepCustomExercises && hasCustomExercises()
         ? "Your data was deleted — custom exercises kept"
@@ -404,8 +406,9 @@ const WorkoutList = () => {
           <DialogHeader className="text-left">
             <DialogTitle>Delete all your data?</DialogTitle>
             <DialogDescription>
-              This permanently removes every workout, your completed-workout history, body
-              metrics, and any in-progress session from this device. This cannot be undone.
+              This permanently removes every workout, completed-workout history, body
+              data, equipment, preferences, settings, backups, and any in-progress session
+              from this device. Onboarding will start again. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {hasCustomExercises() && (

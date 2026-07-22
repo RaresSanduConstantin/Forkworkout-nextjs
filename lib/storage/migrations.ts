@@ -39,7 +39,10 @@ export function autoBackupHasData(b: AutoBackup | null): boolean {
   return (
     (Array.isArray(workouts) && workouts.length > 0) ||
     (Array.isArray(completedWorkouts) && completedWorkouts.length > 0) ||
-    (Array.isArray(bodyMetrics) && bodyMetrics.length > 0)
+    (Array.isArray(bodyMetrics) && bodyMetrics.length > 0) ||
+    (Array.isArray(b.bundle.exercisePreferences) && b.bundle.exercisePreferences.length > 0) ||
+    (Array.isArray(b.bundle.performanceFeedback) && b.bundle.performanceFeedback.length > 0) ||
+    (Array.isArray(b.bundle.dailyTrainingStates) && b.bundle.dailyTrainingStates.length > 0)
   );
 }
 
@@ -96,6 +99,24 @@ export function restoreAutoBackup(): boolean {
     STORAGE_KEYS.customExercises,
     Array.isArray(b.bundle.customExercises) ? b.bundle.customExercises : []
   );
+  if (Array.isArray(b.bundle.exercisePreferences)) {
+    writeJson(STORAGE_KEYS.exercisePreferences, {
+      version: 1,
+      data: b.bundle.exercisePreferences,
+    });
+  }
+  if (Array.isArray(b.bundle.performanceFeedback)) {
+    writeJson(STORAGE_KEYS.performanceFeedback, {
+      version: 1,
+      data: b.bundle.performanceFeedback,
+    });
+  }
+  if (Array.isArray(b.bundle.dailyTrainingStates)) {
+    writeJson(STORAGE_KEYS.dailyTrainingState, {
+      version: 1,
+      data: b.bundle.dailyTrainingStates,
+    });
+  }
   // Profile + settings were added to the bundle later; restore when present.
   if (b.bundle.bodyProfile && typeof b.bundle.bodyProfile === "object") {
     writeJson(STORAGE_KEYS.bodyProfile, b.bundle.bodyProfile);

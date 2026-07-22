@@ -9,6 +9,8 @@ export const workoutSchema = z.object({
       name: z.string().min(1, "Exercise name is required").max(100, "Exercise name must be less than 100 characters"),
       rest: z.string().optional(),
       superset: z.string().optional(),
+      movementPattern: z.string().optional(),
+      unilateral: z.boolean().optional(),
       sets: z.array(
         z.object({
           id: z.string().optional(),
@@ -26,4 +28,3 @@ export const workoutSchema = z.object({
 });
 
 export type WorkoutSchema = z.infer<typeof workoutSchema>;
-

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
-import { Trash2, Plus, Info, Timer, ChevronUp, ChevronDown, Copy, Layers } from "lucide-react";
+import { Trash2, Plus, Info, Timer, ChevronUp, ChevronDown, Copy, Layers, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,11 @@ import {
 } from "@/components/ui/form";
 import { ExerciseCombobox } from "./ExerciseCombobox";
 import { ExerciseInfoDialog } from "@/components/exercises/ExerciseInfoDialog";
+import { ReplaceExerciseDialog } from "@/components/exercises/ReplaceExerciseDialog";
 import { SET_UNITS, SET_TYPES, unitPlaceholder, formatRestLabel, EXERCISE_REST_OPTIONS } from "@/lib/workout";
-import { getExerciseDefaultUnit } from "@/lib/exercises";
+import { getExerciseDefaultUnit, type LibraryExercise } from "@/lib/exercises";
+import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
+import { getMovementPattern } from "@/lib/smart-workout/movement-patterns";
 import type { SetType, SetUnit } from "@/lib/types";
 
 const newSet = () => ({ id: uuidv4(), reps: 1, value: "", unit: "kg" as SetUnit });
@@ -224,6 +227,7 @@ type Props = {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDuplicate: () => void;
+  workoutExerciseNames?: string[];
 };
 
 const ExerciseBuilder = ({
@@ -233,10 +237,12 @@ const ExerciseBuilder = ({
   onMoveUp,
   onMoveDown,
   onDuplicate,
+  workoutExerciseNames = [],
 }: Props) => {
   const form = useFormContext();
   const { control } = form;
   const [infoOpen, setInfoOpen] = React.useState(false);
+  const [replaceOpen, setReplaceOpen] = React.useState(false);
   const exerciseName = (useWatch({ control, name: `exercises.${index}.name` }) as string) || "";
   const restValue = useWatch({ control, name: `exercises.${index}.rest` }) as string | undefined;
   const supersetValue = useWatch({ control, name: `exercises.${index}.superset` }) as
@@ -272,6 +278,38 @@ const ExerciseBuilder = ({
       } else if (s.value === "BW") {
         form.setValue(`exercises.${index}.sets.${i}.value`, "", { shouldDirty: true });
       }
+    });
+  };
+
+  const replaceExercise = (replacement: LibraryExercise) => {
+    const currentSets = form.getValues(`exercises.${index}.sets`) ?? [];
+    const currentUnit = (currentSets[0]?.unit as SetUnit | undefined) ?? "kg";
+    const nextUnit =
+      replacement.defaultUnit ??
+      getExerciseDefaultUnit(replacement.name) ??
+      (isBodyweightExercise(replacement) ? "bw" : currentUnit === "bw" ? "kg" : currentUnit);
+
+    form.setValue(`exercises.${index}.name`, replacement.name, {
+      shouldDirty: true,
+      shouldValidate: form.formState.isSubmitted,
+    });
+    form.setValue(`exercises.${index}.movementPattern`, getMovementPattern(replacement), {
+      shouldDirty: true,
+    });
+    form.setValue(
+      `exercises.${index}.unilateral`,
+      replacement.unilateral ?? getMovementPattern(replacement) === "lunge",
+      { shouldDirty: true }
+    );
+    currentSets.forEach((_set: unknown, setIndex: number) => {
+      form.setValue(`exercises.${index}.sets.${setIndex}.unit`, nextUnit, {
+        shouldDirty: true,
+      });
+      form.setValue(
+        `exercises.${index}.sets.${setIndex}.value`,
+        nextUnit === "bw" ? "BW" : "",
+        { shouldDirty: true }
+      );
     });
   };
 
@@ -355,6 +393,17 @@ const ExerciseBuilder = ({
                   <Info className="size-4 text-primary" />
                   How to do it!
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={!exerciseName}
+                  onClick={() => setReplaceOpen(true)}
+                >
+                  <RefreshCw className="size-4 text-primary" />
+                  Replace
+                </Button>
                 <Select
                   value={restValue === undefined || restValue === "" ? "default" : restValue}
                   onValueChange={(v) =>
@@ -415,6 +464,16 @@ const ExerciseBuilder = ({
           exerciseName={exerciseName}
           open={infoOpen}
           onOpenChange={setInfoOpen}
+        />
+
+        <ReplaceExerciseDialog
+          open={replaceOpen}
+          onOpenChange={setReplaceOpen}
+          exerciseName={exerciseName}
+          excludedNames={workoutExerciseNames.filter(
+            (name) => name.trim().toLowerCase() !== exerciseName.trim().toLowerCase()
+          )}
+          onReplace={replaceExercise}
         />
 
         <Separator />

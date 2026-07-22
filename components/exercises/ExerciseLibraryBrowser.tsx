@@ -30,9 +30,11 @@ import {
   type LibraryExercise,
   type MuscleGroup,
   type MuscleTargetKey,
+  getExerciseStableId,
 } from "@/lib/exercises";
 import { MuscleMapPicker } from "@/components/workouts/MuscleMapPicker";
 import { useMannequinGender } from "@/lib/use-body-gender";
+import { ExercisePreferenceControl } from "@/components/exercises/ExercisePreferenceControl";
 
 const MAX_RESULTS = 80;
 
@@ -57,6 +59,8 @@ export function ExerciseLibraryBrowser({
   muscleFilter,
   hideGroupFilter = false,
   enableMuscleMap = false,
+  enablePreferences = false,
+  onPreferenceChange,
 }: {
   onPick?: (name: string) => void;
   onInfo?: (name: string) => void;
@@ -69,6 +73,8 @@ export function ExerciseLibraryBrowser({
   muscleFilter?: MuscleTargetKey | null;
   hideGroupFilter?: boolean;
   enableMuscleMap?: boolean;
+  enablePreferences?: boolean;
+  onPreferenceChange?: () => void;
 }) {
   const gender = useMannequinGender();
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
@@ -257,6 +263,14 @@ export function ExerciseLibraryBrowser({
                 </div>
               </button>
               <div className="flex shrink-0 items-center">
+                {enablePreferences && (
+                  <ExercisePreferenceControl
+                    compact
+                    exerciseId={getExerciseStableId(ex)}
+                    exerciseName={ex.name}
+                    onChange={onPreferenceChange}
+                  />
+                )}
                 {onReset && ex.sourceName && (
                   <Button
                     variant="ghost"
