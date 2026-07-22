@@ -92,4 +92,17 @@ describe("exercise replacement recommendations", () => {
       }).map((item) => item.name)
     ).toEqual(["My custom movement"]);
   });
+
+  it("honors wizard equipment constraints when replacing an avoided option", () => {
+    const weighted = exercise("weighted", "Weighted press", ["chest"], [], "barbell");
+    const bodyweight = exercise("bodyweight", "Bodyweight press", ["chest"], [], null);
+
+    const suggestions = recommendExerciseReplacements({
+      library: [current, weighted, bodyweight],
+      currentName: current.name,
+      scoringContext: { equipment: "none", experience: "beginner" },
+    });
+
+    expect(suggestions.map((item) => item.exercise.name)).toEqual(["Bodyweight press"]);
+  });
 });

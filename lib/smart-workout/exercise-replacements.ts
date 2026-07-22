@@ -3,13 +3,20 @@ import {
   type LibraryExercise,
 } from "@/lib/exercises";
 import type { ExercisePreference } from "@/lib/storage/exercise-preferences";
-import { scoreExercise } from "./exercise-scoring";
+import {
+  scoreExercise,
+  type ExerciseScoringContext,
+} from "./exercise-scoring";
 
 export type ExerciseReplacementSuggestion = {
   exercise: LibraryExercise;
   score: number;
   reasons: string[];
 };
+
+export type ExerciseReplacementScoringContext = Partial<
+  Omit<ExerciseScoringContext, "targetLibraryMuscles" | "preference">
+>;
 
 const normalizeName = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -58,12 +65,14 @@ export function recommendExerciseReplacements({
   preferences = [],
   excludedNames = [],
   limit = 8,
+  scoringContext,
 }: {
   library: LibraryExercise[];
   currentName: string;
   preferences?: ExercisePreference[];
   excludedNames?: string[];
   limit?: number;
+  scoringContext?: ExerciseReplacementScoringContext;
 }): ExerciseReplacementSuggestion[] {
   const currentKey = normalizeName(currentName);
   const current = library.find((exercise) => normalizeName(exercise.name) === currentKey);
@@ -88,12 +97,15 @@ export function recommendExerciseReplacements({
       const result = scoreExercise(exercise, {
         equipment: "gym",
         experience: "advanced",
-        targetLibraryMuscles: targetMuscles,
         avoidLibraryMuscles: new Set<string>(),
         soreLibraryMuscles: new Set<string>(),
-        preference: preferencesById.get(getExerciseStableId(exercise)),
         strategy: "balanced",
         hasProgression: false,
+        ...scoringContext,
+        // These always belong to the replacement being scored rather than the
+        // caller's broader workout context.
+        targetLibraryMuscles: targetMuscles,
+        preference: preferencesById.get(getExerciseStableId(exercise)),
       });
       const sameEquipment =
         (exercise.equipment ?? "body only").toLowerCase() ===

@@ -36,9 +36,11 @@ import {
   type Experience,
   type Goal,
   type LibraryExercise,
+  getExerciseStableId,
   getExerciseStableIdByName,
+  libMusclesForTargets,
 } from "@/lib/exercises";
-import { generateWorkout } from "@/lib/workout-generator";
+import { generateWorkout, suggestStartingWeightKg } from "@/lib/workout-generator";
 import { estimateWorkoutSeconds } from "@/lib/workout";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
@@ -85,6 +87,9 @@ import {
   buildRecommendationReasons,
   historyConfidenceForCount,
 } from "@/lib/smart-workout/explanations";
+import { recommendExerciseReplacements } from "@/lib/smart-workout/exercise-replacements";
+import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
+import { getMovementPattern } from "@/lib/smart-workout/movement-patterns";
 
 const TIME_OPTIONS = [15, 30, 45, 60];
 const READINESS_OPTIONS: Array<{ value: ReadinessLevel; label: string }> = [
@@ -452,6 +457,143 @@ export function WorkoutWizard({
     // way the user gets feedback instead of a blank pause on /app.
     setCreating(true);
     onGenerate(variant.workout);
+  };
+
+  const handleOptionPreferenceChange = (
+    changedExerciseName: string,
+    preference: ExercisePreference | null
+  ) => {
+    const nextPreferences = getExercisePreferences();
+    setPreferences(nextPreferences);
+    if (preference?.level !== "avoid") return;
+
+    const profile = getBodyProfile();
+    const latestWeight = [...getBodyMetrics()]
+      .reverse()
+      .find((metric) => metric.weightKg !== undefined)?.weightKg;
+    const history = getCompletedWorkouts();
+    const performanceFeedback = getPerformanceFeedback();
+    const homeEquipment =
+      equipment === "home"
+        ? resolveHomeEquipment({
+            owned: homeOwned,
+            dumbbellMaxKg: parseOptionalPositiveNumber(dumbbellMax),
+            kettlebellMaxKg: parseOptionalPositiveNumber(kettlebellMax),
+          })
+        : undefined;
+    const avoidedId = preference.exerciseId;
+    let replacementsMade = 0;
+    let replacementsMissing = 0;
+
+    const nextVariants = variants.map((variant) => {
+      let changed = false;
+      const nextExercises = variant.workout.exercises.map((currentExercise, exerciseIndex) => {
+        const currentLibraryExercise = library.find(
+          (exercise) =>
+            exercise.name.trim().toLowerCase() === currentExercise.name.trim().toLowerCase()
+        );
+        const matchesAvoided = currentLibraryExercise
+          ? getExerciseStableId(currentLibraryExercise) === avoidedId
+          : currentExercise.name.trim().toLowerCase() === changedExerciseName.trim().toLowerCase();
+        if (!matchesAvoided) return currentExercise;
+
+        const replacement = recommendExerciseReplacements({
+          library,
+          currentName: currentExercise.name,
+          preferences: nextPreferences,
+          excludedNames: variant.workout.exercises
+            .filter((_exercise, index) => index !== exerciseIndex)
+            .map((exercise) => exercise.name),
+          limit: 1,
+          scoringContext: {
+            equipment,
+            experience,
+            homeEquipment,
+            avoidLibraryMuscles: libMusclesForTargets(avoidMuscles),
+            soreLibraryMuscles: libMusclesForTargets(soreMuscles),
+            strategy: variant.strategy,
+          },
+        })[0]?.exercise;
+
+        if (!replacement) {
+          replacementsMissing += 1;
+          return currentExercise;
+        }
+
+        const nextUnit =
+          replacement.defaultUnit ?? (isBodyweightExercise(replacement) ? "bw" : "kg");
+        const suggestedKg =
+          suggestNextWeightWithFeedback(replacement, performanceFeedback, history) ??
+          suggestNextWeight(replacement.name, history) ??
+          suggestStartingWeightKg(replacement, {
+            experience,
+            sex: profile.sex ?? "unspecified",
+            bodyweightKg: latestWeight,
+          });
+        const equipmentCap =
+          homeEquipment?.maxKg?.[(replacement.equipment ?? "").toLowerCase()];
+        const weightKg =
+          equipmentCap === undefined ? suggestedKg : Math.min(suggestedKg, equipmentCap);
+        const sourceSets =
+          nextUnit === "kg"
+            ? currentExercise.sets
+            : currentExercise.sets.filter((set) => set.type !== "warmup");
+        const sets = (sourceSets.length > 0 ? sourceSets : currentExercise.sets).map((set) => ({
+          ...set,
+          reps: nextUnit === "time" || nextUnit === "km" ? 1 : set.reps,
+          unit: nextUnit,
+          value:
+            nextUnit === "bw"
+              ? "BW"
+              : nextUnit === "time"
+                ? "30s"
+                : nextUnit === "km"
+                  ? "1"
+                  : String(Math.max(2.5, weightKg)),
+          type: nextUnit === "kg" ? set.type : set.type === "warmup" ? undefined : set.type,
+        }));
+        const movementPattern = getMovementPattern(replacement);
+        changed = true;
+        replacementsMade += 1;
+        return {
+          ...currentExercise,
+          name: replacement.name,
+          movementPattern,
+          unilateral: replacement.unilateral ?? movementPattern === "lunge",
+          sets,
+        };
+      });
+
+      if (!changed) return variant;
+      const estimatedMinutes = Math.round(
+        estimateWorkoutSeconds(nextExercises, variant.workout.rest) / 60
+      );
+      const metadata = { ...variant.metadata, estimatedMinutes };
+      return {
+        ...variant,
+        metadata,
+        workout: {
+          ...variant.workout,
+          exercises: nextExercises,
+          updatedAt: new Date().toISOString(),
+          recommendation: variant.workout.recommendation
+            ? { ...variant.workout.recommendation, estimatedMinutes }
+            : variant.workout.recommendation,
+        },
+      };
+    });
+
+    setVariants(nextVariants);
+    if (replacementsMade > 0) {
+      toast.success(
+        `Automatically replaced ${changedExerciseName} in ${replacementsMade} option${
+          replacementsMade === 1 ? "" : "s"
+        }.`
+      );
+    }
+    if (replacementsMissing > 0) {
+      toast.warning("No safe matching replacement was available in one or more options.");
+    }
   };
 
   const previewHighlights = React.useMemo(() => {
@@ -974,7 +1116,9 @@ export function WorkoutWizard({
                                   compact
                                   exerciseId={getExerciseStableIdByName(library, ex.name)}
                                   exerciseName={ex.name}
-                                  onChange={() => setPreferences(getExercisePreferences())}
+                                  onChange={(preference) =>
+                                    handleOptionPreferenceChange(ex.name, preference)
+                                  }
                                 />
                               </span>
                             </li>
