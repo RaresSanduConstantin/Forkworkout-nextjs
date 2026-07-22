@@ -184,6 +184,10 @@ const StartWorkoutComponent = () => {
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showAddByMuscle, setShowAddByMuscle] = useState(false);
   const [replaceExerciseIndex, setReplaceExerciseIndex] = useState<number | null>(null);
+  const [pendingReplacement, setPendingReplacement] = useState<{
+    exerciseIndex: number;
+    replacement: LibraryExercise;
+  } | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [addSetFor, setAddSetFor] = useState<number | null>(null);
   const [typeMenuFor, setTypeMenuFor] = useState<string | null>(null);
@@ -735,8 +739,16 @@ const StartWorkoutComponent = () => {
     return next !== group;
   };
 
-  const addExercise = (name = "") => {
+  const addExercise = (name = "", suppliedDetails?: LibraryExercise) => {
     const id = uuidv4();
+    const details =
+      suppliedDetails ??
+      library.find((exercise) => exercise.name.trim().toLowerCase() === name.trim().toLowerCase());
+    const unit =
+      details?.defaultUnit ??
+      getExerciseDefaultUnit(name) ??
+      (details && isBodyweightExercise(details) ? "bw" : "kg");
+    const movementPattern = details ? getMovementPattern(details) : undefined;
     setWorkout((prev) =>
       prev
         ? {
@@ -746,7 +758,17 @@ const StartWorkoutComponent = () => {
               {
                 id,
                 name,
-                sets: [{ id: uuidv4(), reps: 1, value: "", unit: "kg", status: "pending" }],
+                movementPattern,
+                unilateral: details?.unilateral ?? movementPattern === "lunge",
+                sets: [
+                  {
+                    id: uuidv4(),
+                    reps: 1,
+                    value: unit === "bw" ? "BW" : "",
+                    unit,
+                    status: "pending",
+                  },
+                ],
               },
             ],
           }
@@ -858,14 +880,12 @@ const StartWorkoutComponent = () => {
     );
   };
 
-  const replaceExercise = (replacement: LibraryExercise) => {
-    if (replaceExerciseIndex === null) return;
-    const current = workout?.exercises[replaceExerciseIndex];
+  const applyExerciseReplacement = (
+    exerciseIndex: number,
+    replacement: LibraryExercise
+  ) => {
+    const current = workout?.exercises[exerciseIndex];
     if (!current) return;
-    if (current.sets.some((set) => set.status !== "pending")) {
-      toast.error("This exercise already has logged sets and can no longer be replaced.");
-      return;
-    }
 
     const currentUnit = current.sets[0]?.unit ?? inferUnit(current.sets[0]?.value ?? "");
     const nextUnit =
@@ -879,7 +899,7 @@ const StartWorkoutComponent = () => {
         ? {
             ...previous,
             exercises: previous.exercises.map((exercise, index) =>
-              index !== replaceExerciseIndex
+              index !== exerciseIndex
                 ? exercise
                 : {
                     ...exercise,
@@ -888,15 +908,36 @@ const StartWorkoutComponent = () => {
                     unilateral: replacement.unilateral ?? movementPattern === "lunge",
                     sets: exercise.sets.map((set) => ({
                       ...set,
+                      id: uuidv4(),
                       unit: nextUnit,
                       value: nextUnit === "bw" ? "BW" : "",
+                      status: "pending" as const,
+                      rpe: undefined,
                     })),
                   }
             ),
           }
         : previous
     );
+    const accordionId = current.id ?? `exercise-${exerciseIndex}`;
+    setCollapsedExerciseIds((collapsed) => {
+      if (!collapsed.has(accordionId)) return collapsed;
+      const next = new Set(collapsed);
+      next.delete(accordionId);
+      return next;
+    });
     toast.success(`Replaced ${current.name} with ${replacement.name}`);
+  };
+
+  const handleReplacementSelection = (replacement: LibraryExercise) => {
+    if (replaceExerciseIndex === null) return;
+    const current = workout?.exercises[replaceExerciseIndex];
+    if (!current) return;
+    if (current.sets.some((set) => set.status !== "pending")) {
+      setPendingReplacement({ exerciseIndex: replaceExerciseIndex, replacement });
+      return;
+    }
+    applyExerciseReplacement(replaceExerciseIndex, replacement);
   };
 
   const handleComplete = (exIdx: number, setIdx: number) => {
@@ -1313,15 +1354,7 @@ const StartWorkoutComponent = () => {
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
-                  onClick={() => {
-                    if (exercise.sets.some((set) => set.status !== "pending")) {
-                      toast.error(
-                        "Replace is available before completing or skipping a set for this exercise."
-                      );
-                      return;
-                    }
-                    setReplaceExerciseIndex(exIdx);
-                  }}
+                  onClick={() => setReplaceExerciseIndex(exIdx)}
                 >
                   <RefreshCw className="size-4 text-primary" />
                   Replace
@@ -1676,8 +1709,61 @@ const StartWorkoutComponent = () => {
         excludedNames={workout.exercises
           .filter((_exercise, index) => index !== replaceExerciseIndex)
           .map((exercise) => exercise.name)}
-        onReplace={replaceExercise}
+        onReplace={handleReplacementSelection}
       />
+
+      <Dialog
+        open={pendingReplacement !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingReplacement(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Keep your completed sets?</DialogTitle>
+            <DialogDescription>
+              {pendingReplacement
+                ? `You already logged sets for “${
+                    workout.exercises[pendingReplacement.exerciseIndex]?.name ?? "this exercise"
+                  }”. Replacing it will permanently reset that set progress.`
+                : "Choose how to add this exercise."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={() => {
+                if (!pendingReplacement) return;
+                addExercise(
+                  pendingReplacement.replacement.name,
+                  pendingReplacement.replacement
+                );
+                toast.success(
+                  `Added ${pendingReplacement.replacement.name} as a new exercise`
+                );
+                setPendingReplacement(null);
+              }}
+            >
+              Keep sets &amp; add as new
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!pendingReplacement) return;
+                applyExerciseReplacement(
+                  pendingReplacement.exerciseIndex,
+                  pendingReplacement.replacement
+                );
+                setPendingReplacement(null);
+              }}
+            >
+              Replace &amp; reset set progress
+            </Button>
+            <Button variant="ghost" onClick={() => setPendingReplacement(null)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ExerciseInfoDialog
         exerciseName={selectedExercise}
