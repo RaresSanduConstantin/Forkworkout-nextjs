@@ -85,7 +85,7 @@ export function ExerciseInfoDialog({
         <div className="flex-1 space-y-5 overflow-y-auto p-6">
           {details ? (
             <>
-              {!details.custom && (
+              {(!details.custom || details.sourceName) && (
               <Carousel className="w-full">
                 <CarouselContent>
                   {getImageUrls(exerciseName).map((imageUrl, index) => (

@@ -10,6 +10,7 @@ import { readJson, writeJson } from "./safe-storage";
 
 export type CustomExercise = {
   name: string;
+  force: string | null;
   level: string;
   mechanic: string | null;
   equipment: string | null;
@@ -21,6 +22,23 @@ export type CustomExercise = {
   defaultUnit: SetUnit; // kg | bw | time | km
   videoUrl?: string; // optional YouTube URL for the in-app demo
   createdAt: string;
+  /** Bundled exercise name when this entry is a local, resettable override. */
+  sourceName?: string;
+};
+
+export type CustomExerciseInput = {
+  name: string;
+  defaultUnit: SetUnit;
+  force?: string | null;
+  level?: string;
+  mechanic?: string | null;
+  category?: string;
+  equipment?: string | null;
+  primaryMuscles?: string[];
+  secondaryMuscles?: string[];
+  instructions?: string[];
+  videoUrl?: string;
+  sourceName?: string;
 };
 
 const UNITS: SetUnit[] = ["kg", "bw", "time", "km"];
@@ -38,6 +56,7 @@ function normalize(raw: unknown): CustomExercise | null {
     : "kg";
   return {
     name,
+    force: typeof e.force === "string" && e.force ? e.force : null,
     level: typeof e.level === "string" && e.level ? e.level : "beginner",
     mechanic: typeof e.mechanic === "string" ? e.mechanic : null,
     equipment: typeof e.equipment === "string" && e.equipment ? e.equipment : null,
@@ -49,6 +68,10 @@ function normalize(raw: unknown): CustomExercise | null {
     defaultUnit,
     videoUrl: typeof e.videoUrl === "string" && e.videoUrl.trim() ? e.videoUrl.trim() : undefined,
     createdAt: typeof e.createdAt === "string" ? e.createdAt : new Date().toISOString(),
+    sourceName:
+      typeof e.sourceName === "string" && e.sourceName.trim()
+        ? e.sourceName.trim()
+        : undefined,
   };
 }
 
@@ -67,16 +90,7 @@ export function hasCustomExercises(): boolean {
  * Adds (or replaces, by normalized name) a custom exercise. Returns the stored
  * exercise, or null if the name is empty / persistence failed.
  */
-export function addCustomExercise(input: {
-  name: string;
-  defaultUnit: SetUnit;
-  category?: string;
-  equipment?: string | null;
-  primaryMuscles?: string[];
-  secondaryMuscles?: string[];
-  instructions?: string[];
-  videoUrl?: string;
-}): CustomExercise | null {
+export function addCustomExercise(input: CustomExerciseInput): CustomExercise | null {
   const entry = normalize({ ...input, custom: true, createdAt: new Date().toISOString() });
   if (!entry) return null;
   const all = getCustomExercises().filter(
@@ -99,7 +113,7 @@ export function deleteCustomExercise(name: string): boolean {
  */
 export function upsertCustomExercise(
   originalName: string,
-  input: Parameters<typeof addCustomExercise>[0]
+  input: CustomExerciseInput
 ): CustomExercise | null {
   const original = originalName.trim().toLowerCase();
   const nextName = input.name.trim().toLowerCase();

@@ -11,6 +11,7 @@ import type { SetStatus, SetType } from "./types";
 export const LIBRARY_TO_SDK: Record<string, Muscle[]> = {
   // Fine-grained library muscles.
   abdominals: ["abs"],
+  obliques: ["obliques"],
   abductors: ["gluteal"],
   adductors: ["quadriceps"],
   biceps: ["biceps"],
@@ -46,10 +47,14 @@ export const SELECTABLE_MUSCLES: { value: string; label: string }[] = [
   { value: "triceps", label: "Triceps" },
   { value: "forearms", label: "Forearms" },
   { value: "abdominals", label: "Abs" },
+  { value: "obliques", label: "Obliques" },
   { value: "quadriceps", label: "Quads" },
   { value: "hamstrings", label: "Hamstrings" },
   { value: "glutes", label: "Glutes" },
+  { value: "adductors", label: "Adductors" },
+  { value: "abductors", label: "Abductors" },
   { value: "calves", label: "Calves" },
+  { value: "neck", label: "Neck" },
 ];
 
 const SECONDARY_WEIGHT = 0.4;

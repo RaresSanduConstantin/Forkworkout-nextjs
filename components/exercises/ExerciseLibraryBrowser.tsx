@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Info, Target } from "lucide-react";
+import { Search, Info, Pencil, RotateCcw, Target } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,9 @@ const chipClass =
 export function ExerciseLibraryBrowser({
   onPick,
   onInfo,
+  onEdit,
+  onReset,
+  refreshKey = 0,
   initialGroup,
   muscleFilter,
   hideGroupFilter = false,
@@ -57,6 +60,10 @@ export function ExerciseLibraryBrowser({
 }: {
   onPick?: (name: string) => void;
   onInfo?: (name: string) => void;
+  onEdit?: (exercise: LibraryExercise) => void;
+  onReset?: (exercise: LibraryExercise) => void;
+  /** Change this after a local edit so the merged library is loaded again. */
+  refreshKey?: number;
   initialGroup?: MuscleGroup | null;
   /** Controlled specific-muscle filter (matches primary muscle). */
   muscleFilter?: MuscleTargetKey | null;
@@ -82,7 +89,7 @@ export function ExerciseLibraryBrowser({
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   // Distinct equipment values present in the library (for the filter dropdown).
   const equipmentOptions = React.useMemo(() => {
@@ -249,17 +256,44 @@ export function ExerciseLibraryBrowser({
                   )}
                 </div>
               </button>
-              {onInfo && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                  aria-label={`How to do ${ex.name}`}
-                  onClick={() => onInfo(ex.name)}
-                >
-                  <Info className="size-4" />
-                </Button>
-              )}
+              <div className="flex shrink-0 items-center">
+                {onReset && ex.sourceName && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={`Reset ${ex.name} to the library version`}
+                    title="Reset to library version"
+                    onClick={() => onReset(ex)}
+                  >
+                    <RotateCcw className="size-4" />
+                  </Button>
+                )}
+                {onEdit && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={`Edit ${ex.name}`}
+                    title="Edit exercise"
+                    onClick={() => onEdit(ex)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                )}
+                {onInfo && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={`How to do ${ex.name}`}
+                    title="Exercise info"
+                    onClick={() => onInfo(ex.name)}
+                  >
+                    <Info className="size-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </li>
         ))}

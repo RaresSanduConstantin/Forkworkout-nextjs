@@ -41,6 +41,21 @@ describe("generateWorkout — targeting", () => {
     }
   });
 
+  it("selects oblique-specific exercises separately from rectus-ab exercises", () => {
+    const w = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["obliques"],
+      goal: "muscle",
+    });
+    expect(w.exercises.length).toBeGreaterThan(0);
+    for (const exercise of w.exercises) {
+      expect(libOf(exercise.name).primaryMuscles).toContain("obliques");
+    }
+    expect(libOf("Russian Twist").primaryMuscles).toContain("obliques");
+    expect(libOf("Crunches").primaryMuscles).toContain("abdominals");
+    expect(libOf("Crunches").primaryMuscles).not.toContain("obliques");
+  });
+
   it("covers each selected muscle across the workout", () => {
     const w = generateWorkout(library, {
       ...base,

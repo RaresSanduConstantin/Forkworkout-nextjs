@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Dumbbell, Pencil, Play, Plus, Trash2, Video } from "lucide-react";
+import { ArrowLeft, Dumbbell, Pencil, Play, Plus, RotateCcw, Trash2, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import {
   type CustomExercise,
 } from "@/lib/storage/custom-exercises";
 import { SET_UNITS } from "@/lib/workout";
+import type { LibraryExercise } from "@/lib/exercises";
 import { ROUTES } from "@/lib/routes";
 
 const unitLabel = (u: CustomExercise["defaultUnit"]) =>
@@ -31,11 +32,16 @@ export function ExercisesManager() {
   const [exercises, setExercises] = React.useState<CustomExercise[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState<CustomExercise | null>(null);
+  const [editing, setEditing] = React.useState<CustomExercise | LibraryExercise | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<CustomExercise | null>(null);
+  const [pendingReset, setPendingReset] = React.useState<LibraryExercise | null>(null);
   const [infoName, setInfoName] = React.useState<string | null>(null);
+  const [libraryRevision, setLibraryRevision] = React.useState(0);
 
-  const refresh = React.useCallback(() => setExercises(getCustomExercises()), []);
+  const refresh = React.useCallback(() => {
+    setExercises(getCustomExercises());
+    setLibraryRevision((revision) => revision + 1);
+  }, []);
 
   React.useEffect(() => {
     refresh();
@@ -46,7 +52,7 @@ export function ExercisesManager() {
     setEditing(null);
     setDialogOpen(true);
   };
-  const openEdit = (ex: CustomExercise) => {
+  const openEdit = (ex: CustomExercise | LibraryExercise) => {
     setEditing(ex);
     setDialogOpen(true);
   };
@@ -72,7 +78,13 @@ export function ExercisesManager() {
         </TabsList>
 
         <TabsContent value="library" className="mt-4">
-          <ExerciseLibraryBrowser enableMuscleMap onInfo={(name) => setInfoName(name)} />
+          <ExerciseLibraryBrowser
+            enableMuscleMap
+            refreshKey={libraryRevision}
+            onInfo={(name) => setInfoName(name)}
+            onEdit={openEdit}
+            onReset={setPendingReset}
+          />
         </TabsContent>
 
         <TabsContent value="mine" className="mt-4 space-y-4">
@@ -110,6 +122,7 @@ export function ExercisesManager() {
                               {ex.category}
                             </Badge>
                           )}
+                          {ex.sourceName && <Badge variant="outline">Customized library</Badge>}
                           {ex.primaryMuscles.map((m) => (
                             <Badge key={m} variant="outline" className="capitalize">
                               {m}
@@ -133,15 +146,27 @@ export function ExercisesManager() {
                         >
                           <Pencil className="size-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          aria-label={`Delete ${ex.name}`}
-                          onClick={() => setPendingDelete(ex)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                        {ex.sourceName ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label={`Reset ${ex.name} to the library version`}
+                            onClick={() => setPendingReset(ex)}
+                          >
+                            <RotateCcw className="size-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground hover:text-destructive"
+                            aria-label={`Delete ${ex.name}`}
+                            onClick={() => setPendingDelete(ex)}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -169,9 +194,27 @@ export function ExercisesManager() {
 
       <CustomExerciseDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(null);
+        }}
         editing={editing}
         onCreated={() => refresh()}
+      />
+
+      <ConfirmDialog
+        open={pendingReset !== null}
+        onOpenChange={(open) => !open && setPendingReset(null)}
+        title="Reset this exercise?"
+        description="Your local changes will be removed and the original bundled exercise details will be restored. Workouts and history are not changed."
+        confirmLabel="Reset"
+        onConfirm={() => {
+          if (pendingReset) {
+            deleteCustomExercise(pendingReset.name);
+            setPendingReset(null);
+            refresh();
+          }
+        }}
       />
 
       <ConfirmDialog

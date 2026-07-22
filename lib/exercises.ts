@@ -20,6 +20,8 @@ export type LibraryExercise = {
   custom?: boolean;
   defaultUnit?: SetUnit;
   videoUrl?: string;
+  /** Bundled exercise name when this is a locally customized override. */
+  sourceName?: string;
 };
 
 // ---- Cached loader -------------------------------------------------------
@@ -34,7 +36,7 @@ function withCustom(bundled: LibraryExercise[]): LibraryExercise[] {
   const customNames = new Set(custom.map((c) => c.name.toLowerCase()));
   const customAsLibrary: LibraryExercise[] = custom.map((c) => ({
     name: c.name,
-    force: null,
+    force: c.force,
     level: c.level,
     mechanic: c.mechanic,
     equipment: c.equipment,
@@ -45,6 +47,7 @@ function withCustom(bundled: LibraryExercise[]): LibraryExercise[] {
     custom: true,
     defaultUnit: c.defaultUnit,
     videoUrl: c.videoUrl,
+    sourceName: c.sourceName,
   }));
   return [...bundled.filter((e) => !customNames.has(e.name.toLowerCase())), ...customAsLibrary];
 }
@@ -107,6 +110,7 @@ const MUSCLE_TO_GROUP: Record<string, MuscleGroup> = {
   triceps: "Arms",
   forearms: "Arms",
   abdominals: "Core",
+  obliques: "Core",
   // Group labels themselves (custom exercises store their muscle groups here);
   // "chest" and "shoulders" already map above.
   back: "Back",
@@ -228,7 +232,7 @@ export const MUSCLE_TARGETS: MuscleTarget[] = [
   { key: "triceps", label: "Triceps", group: "Arms", lib: ["triceps"] },
   { key: "forearms", label: "Forearms", group: "Arms", lib: ["forearms"] },
   { key: "abs", label: "Abs", group: "Core", lib: ["abdominals"] },
-  { key: "obliques", label: "Obliques", group: "Core", lib: ["abdominals"] },
+  { key: "obliques", label: "Obliques", group: "Core", lib: ["obliques"] },
   { key: "quads", label: "Quads", group: "Legs", lib: ["quadriceps", "adductors"] },
   { key: "hamstrings", label: "Hamstrings", group: "Legs", lib: ["hamstrings"] },
   { key: "glutes", label: "Glutes", group: "Legs", lib: ["glutes", "abductors"] },

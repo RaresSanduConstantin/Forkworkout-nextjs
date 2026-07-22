@@ -119,9 +119,10 @@
       "mechanic": "isolation",
       "equipment": "kettlebells",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "glutes",
         "hamstrings",
         "shoulders"
@@ -143,7 +144,9 @@
       "primaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
+      "secondaryMuscles": [
+        "obliques"
+      ],
       "instructions": [
         "Lie flat on the floor with your lower back pressed to the ground. For this exercise, you will need to put your hands beside your head. Be careful however to not strain with the neck as you perform it. Now lift your shoulders into the crunch position.",
         "Bring knees up to where they are perpendicular to the floor, with your lower legs parallel to the floor. This will be your starting position.",
@@ -202,9 +205,11 @@
       "mechanic": "isolation",
       "equipment": "body only",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Lie on the floor with the knees bent and the feet on the floor around 18-24 inches apart. Your arms should be extended by your side. This will be your starting position.",
         "Crunch over your torso forward and up about 3-4 inches to the right side and touch your right heel as you hold the contraction for a second. Exhale while performing this movement.",
@@ -1278,9 +1283,10 @@
       "mechanic": "isolation",
       "equipment": "barbell",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "lower back"
       ],
       "instructions": [
@@ -1835,9 +1841,10 @@
       "mechanic": "compound",
       "equipment": "kettlebells",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "glutes",
         "hamstrings",
         "lower back",
@@ -2048,7 +2055,9 @@
       "primaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
+      "secondaryMuscles": [
+        "obliques"
+      ],
       "instructions": [
         "Connect a standard handle to each arm of a cable machine, and position them in the most downward position.",
         "Grab a Bosu Ball and position it in front and center of the cable machine.",
@@ -2526,9 +2535,11 @@
       "mechanic": "compound",
       "equipment": "cable",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Connect a rope attachment to a tower, and move the cable to the lowest pulley position. Stand with your side to the cable with a wide stance, and grab the rope with both hands.",
         "Twist your body away from the pulley as you bring the rope over your shoulder like you're performing a judo flip.",
@@ -2687,9 +2698,11 @@
       "mechanic": "compound",
       "equipment": "cable",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Connect a standard handle attachment, and position the cable to a middle pulley position.",
         "Lie on a stability ball perpendicular to the cable and grab the handle with one hand. You should be approximately arm's length away from the pulley, with the tension of the weight on the cable.",
@@ -3828,9 +3841,11 @@
       "mechanic": "compound",
       "equipment": "body only",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Lie flat on your back and bend your knees about 60 degrees.",
         "Keep your feet flat on the floor and place your hands loosely behind your head. This will be your starting position.",
@@ -4250,9 +4265,11 @@
       "mechanic": "compound",
       "equipment": "body only",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Secure your legs at the end of the decline bench and slowly lay down on the bench.",
         "Raise your upper body off the bench until your torso is about 35-45 degrees if measured from the floor.",
@@ -4555,9 +4572,10 @@
       "mechanic": null,
       "equipment": "kettlebells",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "glutes",
         "hamstrings",
         "shoulders",
@@ -5184,9 +5202,11 @@
       "mechanic": "isolation",
       "equipment": "dumbbell",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Stand up straight while holding a dumbbell on the left hand (palms facing the torso) as you have the right hand holding your waist. Your feet should be placed at shoulder width. This will be your starting position.",
         "While keeping your back straight and your head up, bend only at the waist to the right as far as possible. Breathe in as you bend to the side. Then hold for a second and come back up to the starting position as you exhale. Tip: Keep the rest of the body stationary.",
@@ -5382,9 +5402,11 @@
       "mechanic": "compound",
       "equipment": "body only",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Lie on the floor, crossing your right leg across your bent left knee. Clasp your hands behind your head, beginning with your shoulder blades on the ground. This will be your starting position.",
         "Perform the motion by flexing the spine and rotating your torso to bring the left elbow to the right knee.",
@@ -8072,9 +8094,10 @@
       "mechanic": "compound",
       "equipment": "kettlebells",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "glutes",
         "hamstrings",
         "shoulders",
@@ -8222,9 +8245,11 @@
       "mechanic": "isolation",
       "equipment": "cable",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Connect a rope attachment to a high pulley cable and position a mat on the floor in front of it.",
         "Grab the rope with both hands and kneel approximately two feet back from the tower.",
@@ -8384,9 +8409,10 @@
       "mechanic": "compound",
       "equipment": "barbell",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "glutes",
         "lower back",
         "shoulders"
@@ -9619,9 +9645,10 @@
       "mechanic": "compound",
       "equipment": "medicine ball",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "shoulders"
       ],
       "instructions": [
@@ -9959,9 +9986,11 @@
       "mechanic": "isolation",
       "equipment": "body only",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Lie flat on the floor with your lower back pressed to the ground. For this exercise, you will need to put one hand beside your head and the other to the side against the floor.",
         "Make sure your feet are elevated and resting on a flat surface.",
@@ -9980,9 +10009,11 @@
       "mechanic": "isolation",
       "equipment": "body only",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Start out by lying on your right side with your legs lying on top of each other. Make sure your knees are bent a little bit.",
         "Place your left hand behind your head.",
@@ -10099,9 +10130,11 @@
       "mechanic": "isolation",
       "equipment": "cable",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Connect a standard handle to a tower. Move cable to highest pulley position.",
         "Stand with side to cable. With one hand, reach up and grab handle with underhand grip.",
@@ -10970,9 +11003,10 @@
       "mechanic": "isolation",
       "equipment": "cable",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "chest",
         "shoulders",
         "triceps"
@@ -10994,9 +11028,10 @@
       "mechanic": "compound",
       "equipment": "cable",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "chest",
         "shoulders",
         "triceps"
@@ -11271,9 +11306,11 @@
       "mechanic": "compound",
       "equipment": "other",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Lie down on the floor or an exercise mat with your legs fully extended and your upper body upright. Grab the plate by its sides with both hands out in front of your abdominals with your arms slightly bent.",
         "Slowly cross your legs near your ankles and lift them up off the ground. Your knees should also be bent slightly. Note: Move your upper body back slightly to help keep you balanced turning this exercise. This is the starting position.",
@@ -12711,7 +12748,9 @@
       "primaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
+      "secondaryMuscles": [
+        "obliques"
+      ],
       "instructions": [
         "Kneel 1-2 feet in front of a cable system with a rope attached.",
         "After selecting an appropriate weight, grasp the rope with both hands reaching overhead. Your torso should be upright in the starting position.",
@@ -12848,9 +12887,10 @@
       "mechanic": "compound",
       "equipment": "body only",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "lower back"
       ],
       "instructions": [
@@ -12997,9 +13037,11 @@
       "mechanic": "isolation",
       "equipment": "barbell",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Start out by sitting at the end of a flat bench with a barbell placed on top of your thighs. Your feet should be shoulder width apart from each other.",
         "Grip the bar with your palms facing down and make sure your hands are wider than shoulder width apart from each other. Begin to lift the barbell up over your head until your arms are fully extended.",
@@ -13799,9 +13841,10 @@
       "mechanic": null,
       "equipment": "body only",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "shoulders"
       ],
       "instructions": [],
@@ -13836,9 +13879,11 @@
       "mechanic": "compound",
       "equipment": "body only",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [],
       "category": "strength"
     },
@@ -14487,6 +14532,7 @@
         "forearms",
         "lats",
         "middle back",
+        "obliques",
         "shoulders"
       ],
       "instructions": [
@@ -15138,9 +15184,10 @@
       "mechanic": "compound",
       "equipment": "dumbbell",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "glutes",
         "shoulders"
       ],
@@ -15695,9 +15742,10 @@
       "mechanic": "compound",
       "equipment": "cable",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "shoulders"
       ],
       "instructions": [
@@ -15719,9 +15767,10 @@
       "mechanic": "compound",
       "equipment": "cable",
       "primaryMuscles": [
-        "abdominals"
+        "obliques"
       ],
       "secondaryMuscles": [
+        "abdominals",
         "shoulders"
       ],
       "instructions": [
@@ -16027,9 +16076,11 @@
       "mechanic": null,
       "equipment": null,
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Take a slightly wider than hip distance stance with your knees slightly bent.",
         "Place your right hand on your right hip to support the spine.",
@@ -17127,9 +17178,11 @@
       "mechanic": null,
       "equipment": "exercise ball",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "Stand upright holding an exercise ball with both hands. Extend your arms so the ball is straight out in front of you. This will be your starting position.",
         "Rotate your torso to one side, keeping your eyes on the ball as you move. Now, rotate back to the opposite direction. Repeat for 10-20 repetitions."
@@ -17678,9 +17731,11 @@
       "mechanic": "isolation",
       "equipment": "exercise ball",
       "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
         "abdominals"
       ],
-      "secondaryMuscles": [],
       "instructions": [
         "To begin, lie down on an exercise ball with your left side of the torso (waist, hips and shoulder) pressed against the ball.",
         "Your feet should be on the floor while your legs are crossed and hanging from the ball. Hold a weighted plate with your right hand directly to the right side of your head. Tip: Make sure the smooth side of the plate is resting against your head.",

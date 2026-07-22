@@ -78,19 +78,7 @@ import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
-// Type for exercise details from JSON
-type ExerciseDetails = {
-  name: string;
-  force: string;
-  level: string;
-  mechanic: string | null;
-  equipment: string;
-  primaryMuscles: string[];
-  secondaryMuscles: string[];
-  instructions: string[];
-  category: string;
-  custom?: boolean;
-};
+type ExerciseDetails = LibraryExercise;
 
 /** Trigger text for the per-exercise rest dropdown. When the exercise has no
  *  override, show the effective workout default so the user knows the value. */
@@ -281,7 +269,7 @@ const StartWorkoutComponent = () => {
     loadExerciseLibrary()
       .then((lib) => {
         if (active) {
-          setExercises(lib as ExerciseDetails[]);
+          setExercises(lib);
           setLibrary(lib);
         }
       })
@@ -1511,7 +1499,7 @@ const StartWorkoutComponent = () => {
           <div className="flex-1 space-y-5 overflow-y-auto p-6">
             {exerciseDetails ? (
               <>
-                {!exerciseDetails.custom && (
+                {(!exerciseDetails.custom || exerciseDetails.sourceName) && (
                 <Carousel className="w-full">
                   <CarouselContent>
                     {getExerciseImageUrls(selectedExercise).map((imageUrl, index) => (

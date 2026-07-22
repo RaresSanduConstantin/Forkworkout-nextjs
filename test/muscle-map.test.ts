@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 
-import { TARGET_TO_SDK, SDK_TO_TARGET, muscleScores, muscleHighlights, HEAT_COLOR } from "@/lib/muscle-map";
+import {
+  TARGET_TO_SDK,
+  SDK_TO_TARGET,
+  SELECTABLE_MUSCLES,
+  muscleScores,
+  muscleHighlights,
+  HEAT_COLOR,
+} from "@/lib/muscle-map";
 import { MUSCLE_TARGETS, type LibraryExercise } from "@/lib/exercises";
 
 describe("target <-> SDK slug mapping", () => {
@@ -14,6 +21,12 @@ describe("target <-> SDK slug mapping", () => {
     for (const [key, slugs] of Object.entries(TARGET_TO_SDK)) {
       for (const slug of slugs) expect(SDK_TO_TARGET[slug]).toBe(key);
     }
+  });
+
+  it("lets custom exercises target abs and obliques independently", () => {
+    const values = SELECTABLE_MUSCLES.map((muscle) => muscle.value);
+    expect(values).toContain("abdominals");
+    expect(values).toContain("obliques");
   });
 });
 
@@ -54,6 +67,22 @@ describe("muscleScores / muscleHighlights", () => {
   it("ignores exercises unknown to the library", () => {
     const scores = muscleScores([{ name: "Mystery", sets: [{ status: "done" }] }], library);
     expect(Object.keys(scores)).toHaveLength(0);
+  });
+
+  it("maps oblique exercise volume to the oblique body region", () => {
+    const scores = muscleScores(
+      [{ name: "Side bend", sets: [{ status: "done" }] }],
+      [
+        {
+          ...library[0],
+          name: "Side bend",
+          primaryMuscles: ["obliques"],
+          secondaryMuscles: ["abdominals"],
+        },
+      ]
+    );
+    expect(scores.obliques).toBe(1);
+    expect(scores.abs).toBeCloseTo(0.4);
   });
 
   it("highlights use the heat color and ramp opacity with volume", () => {

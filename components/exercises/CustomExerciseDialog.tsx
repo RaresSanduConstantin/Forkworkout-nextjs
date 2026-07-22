@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -26,7 +26,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SELECTABLE_MUSCLES } from "@/lib/muscle-map";
 import { addCustomExercise, upsertCustomExercise, type CustomExercise } from "@/lib/storage/custom-exercises";
-import { extractYouTubeId } from "@/lib/exercise-videos";
+import { extractYouTubeId, getExerciseVideoUrl } from "@/lib/exercise-videos";
+import type { LibraryExercise } from "@/lib/exercises";
 import type { SetUnit } from "@/lib/types";
 
 const UNIT_OPTIONS: { value: SetUnit; label: string }[] = [
@@ -46,6 +47,11 @@ const CATEGORY_OPTIONS = [
   "strongman",
 ];
 
+const LEVEL_OPTIONS = ["beginner", "intermediate", "expert"];
+const FORCE_OPTIONS = ["pull", "push", "static"];
+const MECHANIC_OPTIONS = ["compound", "isolation"];
+const NONE_VALUE = "__none__";
+
 const chipItemClass =
   "!flex-none !rounded-md !border-l px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground";
 
@@ -60,18 +66,24 @@ export function CustomExerciseDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialName?: string;
-  /** When set, the dialog edits this exercise (prefilled; rename allowed). */
-  editing?: CustomExercise | null;
+  /** When set, the dialog edits this exercise. Bundled exercise names stay fixed. */
+  editing?: CustomExercise | LibraryExercise | null;
   onCreated: (name: string) => void;
 }) {
   const [name, setName] = React.useState(initialName);
-  const [unit, setUnit] = React.useState<SetUnit>("kg");
+  const [unit, setUnit] = React.useState<SetUnit | "">("kg");
+  const [level, setLevel] = React.useState("beginner");
+  const [force, setForce] = React.useState("");
+  const [mechanic, setMechanic] = React.useState("");
   const [primary, setPrimary] = React.useState<string[]>([]);
   const [secondary, setSecondary] = React.useState<string[]>([]);
   const [category, setCategory] = React.useState("strength");
   const [equipment, setEquipment] = React.useState("");
   const [instructions, setInstructions] = React.useState("");
   const [videoUrl, setVideoUrl] = React.useState("");
+
+  const sourceName = editing?.sourceName ?? (editing && !editing.custom ? editing.name : undefined);
+  const editingBundled = Boolean(sourceName);
 
   const matchMuscles = (stored: string[]) =>
     SELECTABLE_MUSCLES.filter((m) =>
@@ -83,16 +95,22 @@ export function CustomExerciseDialog({
     if (!open) return;
     if (editing) {
       setName(editing.name);
-      setUnit(editing.defaultUnit);
+      setUnit(editing.defaultUnit ?? "");
+      setLevel(editing.level || "beginner");
+      setForce(editing.force ?? "");
+      setMechanic(editing.mechanic ?? "");
       setPrimary(matchMuscles(editing.primaryMuscles));
       setSecondary(matchMuscles(editing.secondaryMuscles));
       setCategory(editing.category || "strength");
       setEquipment(editing.equipment ?? "");
       setInstructions(editing.instructions.join("\n"));
-      setVideoUrl(editing.videoUrl ?? "");
+      setVideoUrl(editing.videoUrl ?? getExerciseVideoUrl(editing.name) ?? "");
     } else {
       setName(initialName);
       setUnit("kg");
+      setLevel("beginner");
+      setForce("");
+      setMechanic("");
       setPrimary([]);
       setSecondary([]);
       setCategory("strength");
@@ -112,6 +130,10 @@ export function CustomExerciseDialog({
       toast.error("Exercise name must be under 100 characters.");
       return;
     }
+    if (!unit) {
+      toast.error("Choose how this exercise should be measured.");
+      return;
+    }
     if (videoUrl.trim() && !extractYouTubeId(videoUrl)) {
       toast.error("That doesn't look like a valid YouTube link.");
       return;
@@ -119,6 +141,9 @@ export function CustomExerciseDialog({
     const payload = {
       name: trimmed,
       defaultUnit: unit,
+      level,
+      force: force || null,
+      mechanic: mechanic || null,
       category,
       equipment: equipment.trim() || null,
       // Specific muscles power the accurate body heatmap (primary vs secondary).
@@ -129,6 +154,7 @@ export function CustomExerciseDialog({
         .map((s) => s.trim())
         .filter(Boolean),
       videoUrl: videoUrl.trim() || undefined,
+      sourceName,
     };
     const created = editing
       ? upsertCustomExercise(editing.name, payload)
@@ -149,7 +175,11 @@ export function CustomExerciseDialog({
       <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader className="text-left">
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="size-5 text-primary" />
+            {editing ? (
+              <Pencil className="size-5 text-primary" />
+            ) : (
+              <Plus className="size-5 text-primary" />
+            )}
             {editing ? "Edit exercise" : "Add a custom exercise"}
           </DialogTitle>
           <DialogDescription>
@@ -168,14 +198,20 @@ export function CustomExerciseDialog({
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Swimming"
               autoFocus
+              disabled={editingBundled}
             />
+            {editingBundled && (
+              <p className="text-xs text-muted-foreground">
+                Library exercise names stay fixed so existing workouts continue to match this override.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="cx-unit">Measured in</Label>
             <Select value={unit} onValueChange={(v) => setUnit(v as SetUnit)}>
               <SelectTrigger id="cx-unit" className="w-full">
-                <SelectValue />
+                <SelectValue placeholder="Choose a measurement" />
               </SelectTrigger>
               <SelectContent>
                 {UNIT_OPTIONS.map((o) => (
@@ -186,8 +222,66 @@ export function CustomExerciseDialog({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              This decides how it&apos;s tracked (weight, reps, time or distance) in your history.
+              {editingBundled && !editing?.defaultUnit
+                ? "The bundled library has no measurement setting. Choose one for this local version."
+                : "This decides how it's tracked (weight, reps, time or distance) in your history."}
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cx-level">Level</Label>
+              <Select value={level} onValueChange={setLevel}>
+                <SelectTrigger id="cx-level" className="w-full capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEVEL_OPTIONS.map((value) => (
+                    <SelectItem key={value} value={value} className="capitalize">
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cx-force">Force</Label>
+              <Select
+                value={force || NONE_VALUE}
+                onValueChange={(value) => setForce(value === NONE_VALUE ? "" : value)}
+              >
+                <SelectTrigger id="cx-force" className="w-full capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>Not specified</SelectItem>
+                  {FORCE_OPTIONS.map((value) => (
+                    <SelectItem key={value} value={value} className="capitalize">
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cx-mechanic">Mechanic</Label>
+              <Select
+                value={mechanic || NONE_VALUE}
+                onValueChange={(value) => setMechanic(value === NONE_VALUE ? "" : value)}
+              >
+                <SelectTrigger id="cx-mechanic" className="w-full capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>Not specified</SelectItem>
+                  {MECHANIC_OPTIONS.map((value) => (
+                    <SelectItem key={value} value={value} className="capitalize">
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-1.5">

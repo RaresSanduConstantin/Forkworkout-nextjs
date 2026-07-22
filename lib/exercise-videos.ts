@@ -480,3 +480,16 @@ export function getExerciseVideoId(name: string | undefined | null): string | nu
   }
   return null;
 }
+
+/**
+ * Returns an editable YouTube URL for an exercise. Keep a user-entered URL as
+ * written; otherwise turn a curated library video ID into a standard watch URL.
+ */
+export function getExerciseVideoUrl(name: string | undefined | null): string | null {
+  const n = normalize(name ?? "");
+  if (!n) return null;
+  const custom = getCustomExercises().find((e) => normalize(e.name) === n);
+  if (custom?.videoUrl && extractYouTubeId(custom.videoUrl)) return custom.videoUrl;
+  const id = getExerciseVideoId(name);
+  return id ? `https://www.youtube.com/watch?v=${id}` : null;
+}

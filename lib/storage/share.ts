@@ -17,12 +17,16 @@ type ShareExercise = { name: string; rest?: string; superset?: string; sets: Sha
 type ShareCustomExercise = {
   name: string;
   unit: SetUnit;
+  force?: string | null;
+  level?: string;
+  mechanic?: string | null;
   category?: string;
   equipment?: string | null;
   primaryMuscles?: string[];
   secondaryMuscles?: string[];
   instructions?: string[];
   video?: string;
+  sourceName?: string;
 };
 type SharePayload = {
   v: 1;
@@ -50,12 +54,16 @@ function toPayload(workout: Workout, message?: string): SharePayload {
     .map((c) => ({
       name: c.name,
       unit: c.defaultUnit,
+      force: c.force,
+      level: c.level,
+      mechanic: c.mechanic,
       category: c.category,
       equipment: c.equipment,
       primaryMuscles: c.primaryMuscles.length ? c.primaryMuscles : undefined,
       secondaryMuscles: c.secondaryMuscles.length ? c.secondaryMuscles : undefined,
       instructions: c.instructions.length ? c.instructions : undefined,
       video: c.videoUrl,
+      sourceName: c.sourceName,
     }));
 
   return {
@@ -151,12 +159,19 @@ export function decodeWorkout(encoded: string): DecodedShare | null {
     customExercises.push({
       name,
       defaultUnit: UNITS.includes(c.unit as SetUnit) ? (c.unit as SetUnit) : "kg",
+      force: typeof c.force === "string" ? c.force : null,
+      level: typeof c.level === "string" ? c.level : undefined,
+      mechanic: typeof c.mechanic === "string" ? c.mechanic : null,
       category: typeof c.category === "string" ? c.category : undefined,
       equipment: typeof c.equipment === "string" ? c.equipment : null,
       primaryMuscles: strArr(c.primaryMuscles),
       secondaryMuscles: strArr(c.secondaryMuscles),
       instructions: strArr(c.instructions),
       videoUrl: typeof c.video === "string" && c.video.trim() ? c.video.trim() : undefined,
+      sourceName:
+        typeof c.sourceName === "string" && c.sourceName.trim()
+          ? c.sourceName.trim()
+          : undefined,
     });
   }
 

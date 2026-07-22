@@ -45,6 +45,11 @@ describe("muscle targets", () => {
     expect(s.has("quadriceps")).toBe(true);
     expect(s.has("chest")).toBe(false);
   });
+
+  it("keeps abs and obliques as distinct core targets", () => {
+    expect(libMusclesForTargets(["abs"])).toEqual(new Set(["abdominals"]));
+    expect(libMusclesForTargets(["obliques"])).toEqual(new Set(["obliques"]));
+  });
 });
 
 describe("matchesEquipment", () => {
@@ -87,5 +92,6 @@ describe("groupsForExercise", () => {
       "Chest",
       "Legs",
     ]);
+    expect(groupsForExercise(ex({ primaryMuscles: ["obliques"] }))).toEqual(["Core"]);
   });
 });
