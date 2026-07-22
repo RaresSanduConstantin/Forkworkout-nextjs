@@ -186,9 +186,7 @@ export function ReplaceExerciseDialog({
                           <div className="min-w-0">
                             <p className="truncate font-medium">{exercise.name}</p>
                             <p className="mt-1 text-xs capitalize text-muted-foreground">
-                              {exercise.primaryMuscles.length > 0
-                                ? exercise.primaryMuscles.join(", ")
-                                : "Custom exercise · muscles not specified"}
+                              {exercise.primaryMuscles.join(", ")}
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">

@@ -1,6 +1,8 @@
 import {
   getExerciseStableId,
+  groupForMuscle,
   type LibraryExercise,
+  type MuscleGroup,
 } from "@/lib/exercises";
 import type { ExercisePreference } from "@/lib/storage/exercise-preferences";
 import {
@@ -20,8 +22,20 @@ export type ExerciseReplacementScoringContext = Partial<
 
 const normalizeName = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
 
-/** Custom exercises remain selectable even when old entries lack enough muscle
- * metadata for Smart Wizard scoring. Avoided and already-used entries stay out. */
+function muscleGroupsForExercise(exercise: LibraryExercise): Set<MuscleGroup> {
+  const groups = new Set<MuscleGroup>();
+  for (const muscle of [
+    ...(exercise.primaryMuscles ?? []),
+    ...(exercise.secondaryMuscles ?? []),
+  ]) {
+    const group = groupForMuscle(muscle);
+    if (group) groups.add(group);
+  }
+  return groups;
+}
+
+/** Custom fallback options share a coarse muscle group with the current
+ * exercise. Avoided, unrelated, metadata-less, and already-used entries stay out. */
 export function availableCustomReplacements({
   library,
   currentName,
@@ -40,11 +54,18 @@ export function availableCustomReplacements({
   const preferencesById = new Map(
     preferences.map((preference) => [preference.exerciseId, preference])
   );
+  const current = library.find(
+    (exercise) => normalizeName(exercise.name) === normalizeName(currentName)
+  );
+  if (!current) return [];
+  const currentGroups = muscleGroupsForExercise(current);
+  if (currentGroups.size === 0) return [];
 
   return library
     .filter((exercise) => {
       if (!exercise.custom || excluded.has(normalizeName(exercise.name))) return false;
-      return preferencesById.get(getExerciseStableId(exercise))?.level !== "avoid";
+      if (preferencesById.get(getExerciseStableId(exercise))?.level === "avoid") return false;
+      return [...muscleGroupsForExercise(exercise)].some((group) => currentGroups.has(group));
     })
     .sort((a, b) => {
       const aPreferred = preferencesById.get(getExerciseStableId(a))?.level === "prefer";

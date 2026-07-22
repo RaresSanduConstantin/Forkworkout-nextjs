@@ -2,15 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Dumbbell, ExternalLink, Flame, Info, Layers, ListChecks, Minus, Plus, RefreshCw, SkipForward, Target, Timer, Vibrate, VibrateOff, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Flame, Info, Layers, ListChecks, Minus, Plus, RefreshCw, SkipForward, Target, Timer, Vibrate, VibrateOff, Volume2, VolumeX, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
@@ -33,16 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { ExerciseCombobox } from "./ExerciseCombobox";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { BottomActionBar } from "@/components/layout/BottomActionBar";
 import { honkFont } from "@/lib/honkFont";
@@ -59,7 +49,6 @@ import { getSettings, updateSettings } from "@/lib/storage/settings";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, SET_TYPES, EXERCISE_REST_OPTIONS } from "@/lib/workout";
-import { getExerciseVideoId } from "@/lib/exercise-videos";
 import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, getExerciseStableIdByName, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName, getTypicalDurationSec } from "@/lib/history-stats";
@@ -76,6 +65,7 @@ import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesD
 import { AddExerciseByMuscleDialog } from "@/components/exercises/AddExerciseByMuscleDialog";
 import { ExercisePreferenceControl } from "@/components/exercises/ExercisePreferenceControl";
 import { ReplaceExerciseDialog } from "@/components/exercises/ReplaceExerciseDialog";
+import { ExerciseInfoDialog } from "@/components/exercises/ExerciseInfoDialog";
 import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
 import { getMovementPattern } from "@/lib/smart-workout/movement-patterns";
 import {
@@ -86,8 +76,6 @@ import { setExercisePreference } from "@/lib/storage/exercise-preferences";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
-
-type ExerciseDetails = LibraryExercise;
 
 const EXERCISE_DIFFICULTIES: Array<{
   value: ExerciseDifficulty;
@@ -169,6 +157,10 @@ const StartWorkoutComponent = () => {
   const [workout, setWorkout] = useState<ActiveSession | null>(null);
   // Id of a just-added exercise, to scroll to & briefly highlight it.
   const [highlightExId, setHighlightExId] = useState<string | null>(null);
+  const [collapsedExerciseIds, setCollapsedExerciseIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const completedExerciseIdsRef = useRef<Map<string, boolean>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<CompletedWorkout[]>([]);
 
@@ -186,11 +178,8 @@ const StartWorkoutComponent = () => {
   const [vibrationSupported, setVibrationSupported] = useState(false);
   const [restNextLabel, setRestNextLabel] = useState<string | null>(null);
 
-  const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [exerciseDetails, setExerciseDetails] = useState<ExerciseDetails | null>(null);
-  const [exercises, setExercises] = useState<ExerciseDetails[]>([]);
   const [library, setLibrary] = useState<LibraryExercise[]>(getCachedLibrary());
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showAddByMuscle, setShowAddByMuscle] = useState(false);
@@ -287,13 +276,12 @@ const StartWorkoutComponent = () => {
     }
   };
 
-  // Load exercise reference data (bundled + custom) for the info modal.
+  // Load exercise reference data (bundled + custom) for stats and preferences.
   useEffect(() => {
     let active = true;
     loadExerciseLibrary()
       .then((lib) => {
         if (active) {
-          setExercises(lib);
           setLibrary(lib);
         }
       })
@@ -523,6 +511,43 @@ const StartWorkoutComponent = () => {
     }
   };
 
+  // Collapse an exercise once, at the moment its final pending set becomes
+  // handled. A user can reopen it without this effect immediately closing it
+  // again; adding a new pending set arms the automatic collapse for next time.
+  useEffect(() => {
+    if (!workout) {
+      completedExerciseIdsRef.current = new Map();
+      setCollapsedExerciseIds(new Set());
+      return;
+    }
+
+    const nextCompletion = new Map<string, boolean>();
+    const newlyCompleted: string[] = [];
+    workout.exercises.forEach((exercise, index) => {
+      const key = exercise.id ?? `exercise-${index}`;
+      const complete =
+        exercise.sets.length > 0 && exercise.sets.every((set) => set.status !== "pending");
+      nextCompletion.set(key, complete);
+      if (complete && completedExerciseIdsRef.current.get(key) !== true) {
+        newlyCompleted.push(key);
+      }
+    });
+    completedExerciseIdsRef.current = nextCompletion;
+
+    setCollapsedExerciseIds((current) => {
+      const liveIds = new Set(nextCompletion.keys());
+      const next = new Set([...current].filter((id) => liveIds.has(id)));
+      newlyCompleted.forEach((id) => next.add(id));
+      if (
+        next.size === current.size &&
+        [...next].every((id) => current.has(id))
+      ) {
+        return current;
+      }
+      return next;
+    });
+  }, [workout]);
+
   // Live elapsed time since the session started.
   const [elapsedSec, setElapsedSec] = useState(0);
   const startedAt = workout?.startedAt;
@@ -536,32 +561,9 @@ const StartWorkoutComponent = () => {
     return () => clearInterval(id);
   }, [startedAt]);
 
-  const openVideoModal = (exerciseName: string) => {
-    setSelectedExercise(exerciseName);
-    setShowVideoModal(true);
-  };
-
-  // Curated in-modal demo video for the selected exercise (null → search fallback).
-  const demoVideoId = getExerciseVideoId(selectedExercise);
-
   const openInfoModal = (exerciseName: string) => {
-    const exercise = exercises.find(
-      (ex) => ex.name.toLowerCase() === exerciseName.toLowerCase()
-    );
-    setExerciseDetails(exercise || null);
     setSelectedExercise(exerciseName);
     setShowInfoModal(true);
-  };
-
-  const formatExerciseNameForUrl = (name: string) =>
-    name.replace(/[\/\s]+/g, "_").replace(/^_+|_+$/g, "");
-
-  const getExerciseImageUrls = (exerciseName: string) => {
-    const formattedName = formatExerciseNameForUrl(exerciseName);
-    return [
-      `https://raw.githubusercontent.com/wrkout/exercises.json/master/exercises/${formattedName}/images/0.jpg`,
-      `https://raw.githubusercontent.com/wrkout/exercises.json/master/exercises/${formattedName}/images/1.jpg`,
-    ];
   };
 
   // --- Immutable session mutators ---
@@ -1203,6 +1205,13 @@ const StartWorkoutComponent = () => {
 
       <div className="mt-6 space-y-4">
         {workout.exercises.map((exercise, exIdx) => {
+          const exerciseAccordionId = exercise.id ?? `exercise-${exIdx}`;
+          const handledSetCount = exercise.sets.filter(
+            (set) => set.status !== "pending"
+          ).length;
+          const exerciseComplete =
+            exercise.sets.length > 0 && handledSetCount === exercise.sets.length;
+          const exerciseCollapsed = collapsedExerciseIds.has(exerciseAccordionId);
           const group = exercise.superset;
           const prevGroup = exIdx > 0 ? workout.exercises[exIdx - 1]?.superset : undefined;
           const nextGroup = workout.exercises[exIdx + 1]?.superset;
@@ -1220,15 +1229,59 @@ const StartWorkoutComponent = () => {
                   Superset {group} · no rest between these
                 </div>
               )}
-              <Card
+              <Accordion
+                type="single"
+                collapsible
+                value={exerciseCollapsed ? "" : "details"}
+                onValueChange={(value) =>
+                  setCollapsedExerciseIds((current) => {
+                    const next = new Set(current);
+                    if (value) next.delete(exerciseAccordionId);
+                    else next.add(exerciseAccordionId);
+                    return next;
+                  })
+                }
                 className={cn(
+                  "rounded-xl border bg-card text-card-foreground shadow-sm",
                   exercise.id === highlightExId &&
                     "ring-2 ring-primary ring-offset-2 transition-shadow"
                 )}
               >
+                <AccordionItem value="details" className="border-b-0">
+                  <AccordionTrigger
+                    className="min-w-0 gap-2 overflow-hidden py-3 pl-4 pr-2 hover:no-underline"
+                    action={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="mr-2 shrink-0 self-center text-muted-foreground hover:text-destructive"
+                        aria-label={`Remove ${exercise.name || `exercise ${exIdx + 1}`}`}
+                        onClick={() => requestRemoveExercise(exIdx)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    }
+                  >
+                    <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block truncate text-base font-semibold">
+                          {exercise.name || `Exercise ${exIdx + 1}`}
+                        </span>
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {handledSetCount}/{exercise.sets.length} sets
+                        </span>
+                      </span>
+                      {exerciseComplete && (
+                        <Badge className="shrink-0 bg-lime-600 px-1.5 text-white hover:bg-lime-600 sm:px-2.5">
+                          Complete
+                        </Badge>
+                      )}
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="border-t pb-0">
                 <CardContent className="space-y-3 p-4">
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                       <ExerciseCombobox
                         value={exercise.name}
                         onChange={(value) => updateExerciseName(exIdx, value)}
@@ -1242,18 +1295,8 @@ const StartWorkoutComponent = () => {
                           ""
                         }
                       />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                      aria-label="Remove exercise"
-                      onClick={() => requestRemoveExercise(exIdx)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
                   </div>
+              <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
@@ -1263,7 +1306,7 @@ const StartWorkoutComponent = () => {
                   onClick={() => openInfoModal(exercise.name)}
                 >
                   <Info className="size-4 text-primary" />
-                  How to do it!
+                  How to
                 </Button>
                 <Button
                   type="button"
@@ -1283,20 +1326,12 @@ const StartWorkoutComponent = () => {
                   <RefreshCw className="size-4 text-primary" />
                   Replace
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 text-red-600 hover:text-red-700"
-                  onClick={() => openVideoModal(exercise.name)}
-                >
-                  <Image src="/youtube.png" alt="" width={18} height={18} />
-                  Videos
-                </Button>
                 <ExercisePreferenceControl
                   exerciseId={getExerciseStableIdByName(library, exercise.name)}
                   exerciseName={exercise.name}
                 />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 border-t pt-2">
                 <Select
                   value={exercise.rest === undefined || exercise.rest === "" ? "default" : exercise.rest}
                   onValueChange={(v) =>
@@ -1344,6 +1379,7 @@ const StartWorkoutComponent = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
               </div>
 
               {exercise.name.trim() && (
@@ -1455,6 +1491,8 @@ const StartWorkoutComponent = () => {
                                   }
                                   className="h-9 w-full min-w-0 px-0.5 text-center"
                                   aria-label={`Reps for set ${setIdx + 1}`}
+                                  onFocus={(event) => event.currentTarget.select()}
+                                  onClick={(event) => event.currentTarget.select()}
                                 />
                                 <button
                                   type="button"
@@ -1493,6 +1531,8 @@ const StartWorkoutComponent = () => {
                                   className="h-9 w-full text-center"
                                   placeholder={lastRef?.value || unitPlaceholder(exUnit)}
                                   aria-label="Value"
+                                  onFocus={(event) => event.currentTarget.select()}
+                                  onClick={(event) => event.currentTarget.select()}
                                 />
                               ) : (
                                 <div className="flex items-center gap-1">
@@ -1511,9 +1551,11 @@ const StartWorkoutComponent = () => {
                                     value={set.value}
                                     onChange={(e) => updateSetValue(exIdx, setIdx, e.target.value)}
                                     className="h-9 w-full min-w-0 px-0.5 text-center"
-                                    placeholder={lastRef?.value || unitPlaceholder(exUnit)}
-                                    aria-label="Value"
-                                  />
+                                  placeholder={lastRef?.value || unitPlaceholder(exUnit)}
+                                  aria-label="Value"
+                                  onFocus={(event) => event.currentTarget.select()}
+                                  onClick={(event) => event.currentTarget.select()}
+                                />
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -1585,8 +1627,10 @@ const StartWorkoutComponent = () => {
                 <Plus className="size-4" />
                 Add Set
               </Button>
-            </CardContent>
-          </Card>
+                </CardContent>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           );
         })}
@@ -1635,197 +1679,11 @@ const StartWorkoutComponent = () => {
         onReplace={replaceExercise}
       />
 
-      {/* Exercise Info Modal */}
-      <Dialog open={showInfoModal} onOpenChange={setShowInfoModal}>
-        <DialogContent className="flex max-h-[90vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
-          <DialogHeader className="space-y-1 border-b p-6 pb-4 text-left">
-            <DialogTitle className="text-xl">{selectedExercise || "Exercise"}</DialogTitle>
-            <DialogDescription>How to perform it, muscles worked, and tips.</DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 space-y-5 overflow-y-auto p-6">
-            {exerciseDetails ? (
-              <>
-                {(!exerciseDetails.custom || exerciseDetails.sourceName) && (
-                <Carousel className="w-full">
-                  <CarouselContent>
-                    {getExerciseImageUrls(selectedExercise).map((imageUrl, index) => (
-                      <CarouselItem key={index}>
-                        <AspectRatio ratio={4 / 3} className="overflow-hidden rounded-lg bg-muted">
-                          <Image
-                            src={imageUrl}
-                            alt={`${selectedExercise} demonstration ${index + 1}`}
-                            fill
-                            className="object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.visibility = "hidden";
-                            }}
-                          />
-                        </AspectRatio>
-                      </CarouselItem>
-                    ))}
-                  </CarouselContent>
-                  <CarouselPrevious className="left-2" />
-                  <CarouselNext className="right-2" />
-                </Carousel>
-                )}
-
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="capitalize">{exerciseDetails.level}</Badge>
-                  <Badge variant="secondary" className="capitalize">{exerciseDetails.category}</Badge>
-                  <Badge variant="secondary" className="gap-1 capitalize">
-                    <Dumbbell className="size-3" />
-                    {exerciseDetails.equipment || "No equipment"}
-                  </Badge>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
-                      <Target className="size-4 text-primary" /> Primary muscles
-                    </h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {exerciseDetails.primaryMuscles.map((m) => (
-                        <Badge key={m} className="capitalize">{m}</Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {exerciseDetails.secondaryMuscles.length > 0 && (
-                    <div>
-                      <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
-                        <Target className="size-4 text-muted-foreground" /> Secondary muscles
-                      </h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {exerciseDetails.secondaryMuscles.map((m) => (
-                          <Badge key={m} variant="outline" className="capitalize">{m}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <Separator />
-
-                <div>
-                  <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-                    <ListChecks className="size-4 text-primary" /> Instructions
-                  </h4>
-                  <ol className="space-y-2 text-sm text-muted-foreground">
-                    {exerciseDetails.instructions.map((instruction, index) => (
-                      <li key={index} className="flex gap-2.5">
-                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                          {index + 1}
-                        </span>
-                        <span>{instruction}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <Dumbbell className="size-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  No detailed information available for this exercise.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="border-t p-4">
-            <Button variant="outline" className="w-full" onClick={() => setShowInfoModal(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Video Modal */}
-      <Dialog open={showVideoModal} onOpenChange={setShowVideoModal}>
-        <DialogContent className="max-w-[calc(100%-1rem)] gap-3 p-3 sm:max-w-3xl sm:p-4">
-          <DialogHeader className="text-left">
-            <DialogTitle>Watch a demo</DialogTitle>
-            <DialogDescription>
-              {demoVideoId
-                ? `A quick form demo for ${selectedExercise || "this exercise"}.`
-                : `Reels & form tips for ${selectedExercise || "this exercise"}. Opens in a new tab.`}
-            </DialogDescription>
-          </DialogHeader>
-
-          {demoVideoId ? (
-            <div className="space-y-3">
-              <div className="relative mx-auto aspect-video w-full max-h-[78svh] overflow-hidden rounded-lg bg-black">
-                {/* Keyed by id + open so it only mounts (and stops) with the dialog. */}
-                <iframe
-                  key={`${demoVideoId}-${showVideoModal}`}
-                  className="absolute inset-0 h-full w-full"
-                  src={`https://www.youtube-nocookie.com/embed/${demoVideoId}?rel=0&modestbranding=1`}
-                  title={`${selectedExercise} demo`}
-                  loading="lazy"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-              </div>
-              <Button
-                variant="outline"
-                className="w-full justify-between"
-                onClick={() =>
-                  window.open(
-                    `https://www.youtube.com/results?search_query=${encodeURIComponent(
-                      selectedExercise + " exercise form"
-                    )}`,
-                    "_blank",
-                    "noopener,noreferrer"
-                  )
-                }
-              >
-                <span className="flex items-center gap-2">🔎 Search more on YouTube</span>
-                <ExternalLink className="size-4" />
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Button
-                className="w-full justify-between bg-red-600 text-white hover:bg-red-700"
-                onClick={() =>
-                  window.open(
-                    `https://www.youtube.com/results?search_query=${encodeURIComponent(
-                      selectedExercise + " exercise form #shorts"
-                    )}`,
-                    "_blank",
-                    "noopener,noreferrer"
-                  )
-                }
-              >
-                <span className="flex items-center gap-2">🎥 YouTube Shorts</span>
-                <ExternalLink className="size-4" />
-              </Button>
-              <Button
-                className="w-full justify-between bg-neutral-900 text-white hover:bg-neutral-800"
-                onClick={() =>
-                  window.open(
-                    `https://www.tiktok.com/search?q=${encodeURIComponent(
-                      selectedExercise + " exercise form"
-                    )}`,
-                    "_blank",
-                    "noopener,noreferrer"
-                  )
-                }
-              >
-                <span className="flex items-center gap-2">🎵 TikTok</span>
-                <ExternalLink className="size-4" />
-              </Button>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" className="w-full" onClick={() => setShowVideoModal(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ExerciseInfoDialog
+        exerciseName={selectedExercise}
+        open={showInfoModal}
+        onOpenChange={setShowInfoModal}
+      />
 
       {/* Rest Timer — full dialog (minimizes to a pill instead of closing) */}
       <Dialog
@@ -1836,7 +1694,7 @@ const StartWorkoutComponent = () => {
         }}
       >
         <DialogContent
-          className="max-h-[calc(100dvh-1rem)] max-w-md gap-4 overflow-y-auto overscroll-contain p-4 text-center landscape:max-w-2xl landscape:gap-2 landscape:py-3 sm:p-6"
+          className="max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1.5rem))] max-w-none gap-4 overflow-y-auto overscroll-contain p-4 text-center landscape:gap-2 landscape:py-3 sm:max-w-none sm:p-5"
           onInteractOutside={() => setRestMinimized(true)}
         >
           <DialogDescription className="sr-only">Rest timer countdown</DialogDescription>
@@ -1849,7 +1707,7 @@ const StartWorkoutComponent = () => {
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Next up
               </span>
-              <p className="mt-0.5 font-medium">{restNextLabel}</p>
+              <p className="mt-0.5 break-words font-medium">{restNextLabel}</p>
             </div>
           )}
           <div className="grid grid-cols-2 gap-3 landscape:grid-cols-4">
@@ -1876,7 +1734,7 @@ const StartWorkoutComponent = () => {
               Skip Rest
             </Button>
           </div>
-          <div className="flex flex-col items-center gap-1.5 landscape:flex-row landscape:justify-center landscape:gap-4">
+          <div className="flex flex-col items-center gap-1.5 landscape:flex-row landscape:flex-wrap landscape:justify-center landscape:gap-4">
             <button
               type="button"
               onClick={() => {

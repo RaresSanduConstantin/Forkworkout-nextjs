@@ -78,16 +78,24 @@ describe("exercise replacement recommendations", () => {
     expect(suggestions.map((item) => item.exercise.name)).toEqual(["Direct press"]);
   });
 
-  it("keeps custom exercises available when they lack scoring metadata", () => {
+  it("keeps same-group custom exercises available when their category is not scored", () => {
     const custom = {
-      ...exercise("custom", "My custom movement", [], [], null),
+      ...exercise("custom", "My custom movement", ["chest"], [], null),
       custom: true,
       category: "stretching",
+    };
+    const unrelated = {
+      ...exercise("unrelated-custom", "My leg movement", ["quadriceps"], [], null),
+      custom: true,
+    };
+    const missingMuscles = {
+      ...exercise("no-muscles", "Unclassified movement", [], [], null),
+      custom: true,
     };
 
     expect(
       availableCustomReplacements({
-        library: [current, custom],
+        library: [current, custom, unrelated, missingMuscles],
         currentName: current.name,
       }).map((item) => item.name)
     ).toEqual(["My custom movement"]);
