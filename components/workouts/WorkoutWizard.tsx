@@ -177,11 +177,9 @@ function setSummary(ex: Workout["exercises"][number]): string {
   const load =
     s.unit === "bw"
       ? "BW"
-      : s.unit === "time"
-        ? s.value
-        : s.unit === "km"
-          ? `${s.value}km`
-          : `${s.value}kg`;
+      : s.unit === "km"
+        ? `${s.value}km`
+        : `${s.value}kg`;
   return `${working.length}×${s.reps} · ${load}`;
 }
 
