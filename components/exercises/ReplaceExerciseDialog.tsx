@@ -13,6 +13,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   getCachedLibrary,
   getExerciseStableId,
   loadExerciseLibrary,
@@ -41,6 +48,15 @@ export function ReplaceExerciseDialog({
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [loading, setLoading] = React.useState(library.length === 0);
   const [infoExerciseName, setInfoExerciseName] = React.useState<string | null>(null);
+  const [equipment, setEquipment] = React.useState("all");
+  const [visibleCount, setVisibleCount] = React.useState(12);
+
+  React.useEffect(() => {
+    if (open) {
+      setEquipment("all");
+      setVisibleCount(12);
+    }
+  }, [open, exerciseName]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -67,6 +83,7 @@ export function ReplaceExerciseDialog({
         currentName: exerciseName,
         preferences,
         excludedNames,
+        limit: library.length,
       }),
     [library, exerciseName, preferences, excludedNames]
   );
@@ -84,6 +101,38 @@ export function ReplaceExerciseDialog({
       }).filter((exercise) => !suggestedIds.has(getExerciseStableId(exercise))),
     [library, exerciseName, preferences, excludedNames, suggestedIds]
   );
+  const equipmentOptions = React.useMemo(() => {
+    const options = new Set<string>();
+    for (const exercise of [
+      ...suggestions.map(({ exercise }) => exercise),
+      ...customOptions,
+    ]) {
+      options.add((exercise.equipment ?? "body only").toLowerCase());
+    }
+    return [...options].sort((a, b) => a.localeCompare(b));
+  }, [suggestions, customOptions]);
+  const filteredSuggestions = React.useMemo(
+    () =>
+      equipment === "all"
+        ? suggestions
+        : suggestions.filter(
+            ({ exercise }) =>
+              (exercise.equipment ?? "body only").toLowerCase() === equipment
+          ),
+    [suggestions, equipment]
+  );
+  const filteredCustomOptions = React.useMemo(
+    () =>
+      equipment === "all"
+        ? customOptions
+        : customOptions.filter(
+            (exercise) =>
+              (exercise.equipment ?? "body only").toLowerCase() === equipment
+          ),
+    [customOptions, equipment]
+  );
+  const visibleSuggestions = filteredSuggestions.slice(0, visibleCount);
+  const hiddenSuggestionCount = filteredSuggestions.length - visibleSuggestions.length;
 
   const choose = (exercise: LibraryExercise) => {
     onReplace(exercise);
@@ -105,27 +154,60 @@ export function ReplaceExerciseDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6">
+          {!loading && equipmentOptions.length > 1 && (
+            <div className="sticky top-0 z-10 -mx-1 bg-background px-1 pb-3 pt-4">
+              <Select
+                value={equipment}
+                onValueChange={(value) => {
+                  setEquipment(value);
+                  setVisibleCount(12);
+                }}
+              >
+                <SelectTrigger className="w-full" aria-label="Filter replacements by equipment">
+                  <SelectValue placeholder="Any equipment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any equipment</SelectItem>
+                  {equipmentOptions.map((option) => (
+                    <SelectItem key={option} value={option} className="capitalize">
+                      {option === "body only" ? "Bodyweight" : option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {filteredSuggestions.length + filteredCustomOptions.length} matching exercise
+                {filteredSuggestions.length + filteredCustomOptions.length === 1 ? "" : "s"}
+              </p>
+            </div>
+          )}
           {loading ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
               Finding alternatives…
             </p>
-          ) : suggestions.length === 0 && customOptions.length === 0 ? (
+          ) : filteredSuggestions.length === 0 && filteredCustomOptions.length === 0 ? (
             <div className="py-10 text-center">
               <Dumbbell className="mx-auto size-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">No matching alternatives found</p>
+              <p className="mt-3 font-medium">
+                {equipment === "all"
+                  ? "No matching alternatives found"
+                  : "No alternatives for this equipment"}
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Try changing the exercise from the search field instead.
+                {equipment === "all"
+                  ? "Try changing the exercise from the search field instead."
+                  : "Choose another equipment type or show any equipment."}
               </p>
             </div>
           ) : (
             <div className="space-y-5 pt-4">
-              {suggestions.length > 0 && (
+              {filteredSuggestions.length > 0 && (
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Recommended for the same muscles
                   </h3>
                   <ul className="space-y-2">
-                    {suggestions.map(({ exercise, reasons }, index) => (
+                    {visibleSuggestions.map(({ exercise, reasons }, index) => (
                 <li key={exercise.id ?? exercise.name}>
                   <div className="rounded-xl border bg-card p-3">
                     <div className="flex items-start justify-between gap-3">
@@ -171,16 +253,26 @@ export function ReplaceExerciseDialog({
                 </li>
                     ))}
                   </ul>
+                  {hiddenSuggestionCount > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-3 w-full"
+                      onClick={() => setVisibleCount((count) => count + 12)}
+                    >
+                      Show more ({hiddenSuggestionCount} remaining)
+                    </Button>
+                  )}
                 </section>
               )}
 
-              {customOptions.length > 0 && (
+              {filteredCustomOptions.length > 0 && (
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Your custom exercises
                   </h3>
                   <ul className="space-y-2">
-                    {customOptions.map((exercise) => (
+                    {filteredCustomOptions.map((exercise) => (
                       <li key={exercise.id ?? exercise.name}>
                         <div className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3">
                           <div className="min-w-0">

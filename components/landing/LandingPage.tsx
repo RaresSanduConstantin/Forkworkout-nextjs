@@ -52,7 +52,7 @@ const FEATURES = [
   {
     icon: ListChecks,
     title: "Track sets live",
-    body: "Mark sets done or skipped, log RPE and notes, with a built-in rest timer and sound cue.",
+    body: "Mark sets done, log RPE and notes, with a built-in rest timer and sound cue.",
   },
   {
     icon: PlayCircle,

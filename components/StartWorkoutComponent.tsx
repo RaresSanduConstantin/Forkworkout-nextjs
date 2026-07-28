@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Flame, Info, Layers, ListChecks, Minus, Plus, RefreshCw, SkipForward, Target, Timer, Vibrate, VibrateOff, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, Check, ChevronsUpDown, Flame, Info, Layers, ListChecks, Minus, Plus, RefreshCw, Target, Timer, Vibrate, VibrateOff, Volume2, VolumeX, X } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { Input } from "@/components/ui/input";
@@ -411,19 +411,16 @@ const StartWorkoutComponent = () => {
   };
 
   const progress = useMemo(() => {
-    if (!workout) return { done: 0, skipped: 0, handled: 0, total: 0, percent: 0 };
+    if (!workout) return { done: 0, total: 0, percent: 0 };
     let done = 0;
-    let skipped = 0;
     let total = 0;
     for (const ex of workout.exercises) {
       for (const s of ex.sets) {
         total += 1;
         if (s.status === "done") done += 1;
-        else if (s.status === "skipped") skipped += 1;
       }
     }
-    const handled = done + skipped;
-    return { done, skipped, handled, total, percent: total ? (handled / total) * 100 : 0 };
+    return { done, total, percent: total ? (done / total) * 100 : 0 };
   }, [workout]);
 
   // Estimated total workout time (shared with the generator so they agree).
@@ -800,7 +797,7 @@ const StartWorkoutComponent = () => {
     if (!ex) return;
     const hasData =
       !!ex.name.trim() ||
-      ex.sets.some((s) => s.status === "done" || s.status === "skipped");
+      ex.sets.some((s) => s.status === "done");
     if (hasData) {
       setConfirmRemoveExIdx(exIdx);
     } else {
@@ -942,9 +939,10 @@ const StartWorkoutComponent = () => {
 
   const handleComplete = (exIdx: number, setIdx: number) => {
     const set = workout?.exercises[exIdx]?.sets[setIdx];
-    // Tap cycles Done -> Skipped -> Done. Marking Done starts the rest timer.
+    // A second tap undoes completion without introducing a separate skipped
+    // state. Users can delete a set when they do not intend to perform it.
     if (set?.status === "done") {
-      markSet(exIdx, setIdx, "skipped");
+      markSet(exIdx, setIdx, "pending");
       return;
     }
     // Require a value before completing (bodyweight sets are exempt).
@@ -1214,7 +1212,7 @@ const StartWorkoutComponent = () => {
             </span>
           </span>
           <span>
-            {progress.handled} / {progress.total} sets
+            {progress.done} / {progress.total} sets
           </span>
         </div>
         <Progress value={progress.percent} aria-label="Workout progress" />
@@ -1433,8 +1431,6 @@ const StartWorkoutComponent = () => {
                       const rowStyle =
                         set.status === "done"
                           ? "border-lime-400/60 bg-lime-50 dark:bg-lime-500/10"
-                          : set.status === "skipped"
-                          ? "opacity-60"
                           : "";
                       const lastRef = lastSets[setIdx];
                       const setKey = `${exIdx}-${setIdx}`;
@@ -1622,8 +1618,6 @@ const StartWorkoutComponent = () => {
                                 variant={
                                   set.status === "done"
                                     ? "default"
-                                    : set.status === "skipped"
-                                    ? "secondary"
                                     : "outline"
                                 }
                                 size="icon"
@@ -1631,17 +1625,11 @@ const StartWorkoutComponent = () => {
                                 onClick={() => handleComplete(exIdx, setIdx)}
                                 aria-label={
                                   set.status === "done"
-                                    ? "Set done — tap to skip"
-                                    : set.status === "skipped"
-                                    ? "Set skipped — tap to mark done"
+                                    ? "Set done — tap to undo"
                                     : "Mark set done"
                                 }
                               >
-                                {set.status === "skipped" ? (
-                                  <SkipForward className="size-5" />
-                                ) : (
-                                  <Check className="size-5" />
-                                )}
+                                <Check className="size-5" />
                               </Button>
                             </div>
                           </div>
@@ -1988,9 +1976,9 @@ const StartWorkoutComponent = () => {
           <DialogHeader className="text-left">
             <DialogTitle>Finish workout?</DialogTitle>
             <DialogDescription>
-              {progress.total - progress.handled > 0
-                ? `You still have ${progress.total - progress.handled} set${
-                    progress.total - progress.handled === 1 ? "" : "s"
+              {progress.total - progress.done > 0
+                ? `You still have ${progress.total - progress.done} set${
+                    progress.total - progress.done === 1 ? "" : "s"
                   } left. Log it anyway?`
                 : "Nice work! Add a note or how it felt (optional)."}
             </DialogDescription>

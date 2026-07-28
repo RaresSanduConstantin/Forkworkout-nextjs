@@ -9,7 +9,20 @@ export function getActiveSession(): ActiveSession | null {
     return null;
   }
   if (!Array.isArray(raw.exercises)) return null;
-  return raw;
+  // Set skipping was removed from the live tracker. Treat skipped sets from an
+  // older saved session as pending so they can be completed or deleted.
+  return {
+    ...raw,
+    exercises: raw.exercises.map((exercise) => ({
+      ...exercise,
+      sets: Array.isArray(exercise.sets)
+        ? exercise.sets.map((set) => ({
+            ...set,
+            status: set.status === "skipped" ? "pending" : set.status,
+          }))
+        : [],
+    })),
+  };
 }
 
 /** Returns the active session only if it belongs to the given workout id. */

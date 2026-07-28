@@ -9,8 +9,37 @@ import {
 import { getBodyProfile, updateBodyProfile } from "@/lib/storage/profile";
 import { getSettings, updateSettings, DEFAULT_SETTINGS } from "@/lib/storage/settings";
 import { getWorkouts, saveWorkouts } from "@/lib/storage/workout-storage";
+import { getActiveSession } from "@/lib/storage/session-storage";
+import { STORAGE_KEYS } from "@/lib/storage/keys";
 
 beforeEach(() => localStorage.clear());
+
+describe("active session storage", () => {
+  it("restores legacy skipped sets as pending", () => {
+    localStorage.setItem(
+      STORAGE_KEYS.activeSession,
+      JSON.stringify({
+        workoutId: "workout-1",
+        title: "Workout",
+        startedAt: "2026-07-28T08:00:00.000Z",
+        exercises: [
+          {
+            name: "Squat",
+            sets: [
+              { reps: 8, value: "60", status: "skipped" },
+              { reps: 8, value: "60", status: "done" },
+            ],
+          },
+        ],
+      })
+    );
+
+    expect(getActiveSession()?.exercises[0].sets.map((set) => set.status)).toEqual([
+      "pending",
+      "done",
+    ]);
+  });
+});
 
 describe("home equipment storage", () => {
   it("round-trips owned gear and max weights", () => {
