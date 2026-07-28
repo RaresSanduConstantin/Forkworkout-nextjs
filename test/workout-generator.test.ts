@@ -89,6 +89,23 @@ describe("generateWorkout — goal schemes", () => {
     expect(w.rest).toBe("40");
     expect(workingSets(w.exercises[0].sets)[0].reps).toBe(15);
   });
+
+  it("stretch uses only timed stretching exercises", () => {
+    const workout = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["hamstrings", "glutes"],
+      goal: "stretch",
+      exercisesPerWorkout: 4,
+      workingSetsPerExercise: 2,
+    });
+    expect(workout.exercises).toHaveLength(4);
+    expect(workout.rest).toBe("15");
+    for (const exercise of workout.exercises) {
+      expect(libOf(exercise.name).category).toBe("stretching");
+      expect(exercise.sets).toHaveLength(2);
+      expect(exercise.sets.every((set) => set.unit === "time" && set.value === "30s")).toBe(true);
+    }
+  });
 });
 
 describe("generateWorkout — explicit volume", () => {

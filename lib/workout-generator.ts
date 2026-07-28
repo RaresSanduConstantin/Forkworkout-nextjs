@@ -80,6 +80,7 @@ const GOAL_SCHEME: Record<Goal, { sets: number; reps: number; rest: string }> = 
   muscle: { sets: 3, reps: 10, rest: "75" },
   fatloss: { sets: 3, reps: 15, rest: "40" },
   fitness: { sets: 3, reps: 12, rest: "60" },
+  stretch: { sets: 2, reps: 1, rest: "15" },
 };
 
 // --- Starting-weight calibration -----------------------------------------
@@ -133,6 +134,8 @@ function titleFor(groups: MuscleGroup[], goal?: Goal): string {
       ? "Burn"
       : goal === "muscle"
       ? "Workout"
+      : goal === "stretch"
+      ? "Mobility"
       : "Workout";
   return `${g} ${suffix}`;
 }
@@ -224,6 +227,7 @@ export function generateWorkout(
       avoidLibraryMuscles: avoidLib,
       preference: preferenceFor(exercise),
       homeEquipment: opts.homeEquipment,
+      allowedCategories: goal === "stretch" ? ["stretching"] : undefined,
     }).allowed
   );
   // Avoid major secondary contribution too when the remaining library still
@@ -261,6 +265,7 @@ export function generateWorkout(
             soreLibraryMuscles: soreLib,
             preference: preferenceFor(exercise),
             homeEquipment: opts.homeEquipment,
+            allowedCategories: goal === "stretch" ? ["stretching"] : undefined,
             strategy,
             hasProgression: historyWeightFor(exercise) !== null,
             recentlyPerformed: recentExerciseNames.has(
@@ -295,6 +300,20 @@ export function generateWorkout(
 
   const weightCap = opts.homeEquipment?.maxKg;
   const buildExercise = (ex: LibraryExercise, withWarmup = false) => {
+    if (goal === "stretch") {
+      return {
+        id: uuidv4(),
+        name: ex.name,
+        sets: Array.from({ length: scheme.sets }, () => ({
+          id: uuidv4(),
+          reps: 1,
+          value: "30s",
+          unit: "time" as const,
+        })),
+        movementPattern: getMovementPattern(ex),
+        unilateral: ex.unilateral,
+      };
+    }
     const bodyweight = isBodyweightExercise(ex);
     const movementPattern = getMovementPattern(ex);
     const unit: SetUnit = bodyweight ? "bw" : "kg";

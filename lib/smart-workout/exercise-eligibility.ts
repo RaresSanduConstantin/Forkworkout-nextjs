@@ -19,6 +19,8 @@ export type ExerciseEligibilityContext = {
     maxKg?: Record<string, number>;
     pullupBar?: boolean;
   };
+  /** Overrides the normal strength/cardio categories for specialized sessions. */
+  allowedCategories?: string[];
 };
 
 export type ExerciseEligibility = {
@@ -71,7 +73,10 @@ export function checkExerciseEligibility(
   if (context.useWeights === false && !isBodyweightExercise(exercise)) {
     return { allowed: false, reason: "Weighted exercises are disabled." };
   }
-  if (!SUPPORTED_CATEGORIES.has(exercise.category)) {
+  const categoryAllowed = context.allowedCategories
+    ? context.allowedCategories.includes(exercise.category)
+    : SUPPORTED_CATEGORIES.has(exercise.category);
+  if (!categoryAllowed) {
     return { allowed: false, reason: "Exercise category is not supported by the generator." };
   }
   if (context.preference?.level === "avoid") {

@@ -400,9 +400,13 @@ export function ProgramWizard({
               </div>
               <div className="space-y-2">
                 <div>
-                  <p className="text-sm font-medium">Working sets per exercise</p>
+                  <p className="text-sm font-medium">
+                    {goal === "stretch" ? "Rounds per stretch" : "Working sets per exercise"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    3 sets is a balanced default. Warm-up sets may be added separately.
+                    {goal === "stretch"
+                      ? "Each round is generated as a 30-second hold and can be edited afterward."
+                      : "3 sets is a balanced default. Warm-up sets may be added separately."}
                   </p>
                 </div>
                 <ToggleGroup
@@ -414,7 +418,7 @@ export function ProgramWizard({
                 >
                   {[2, 3, 4, 5].map((value) => (
                     <ToggleGroupItem key={value} value={String(value)} className={chipClass}>
-                      {value} sets
+                      {value} {goal === "stretch" ? "rounds" : "sets"}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
@@ -523,8 +527,8 @@ export function ProgramWizard({
                               {exercise.name}
                             </span>
                             <span className="block text-xs text-muted-foreground">
-                              {exercise.sets.filter((set) => set.type !== "warmup").length} working
-                              {" "}sets
+                              {exercise.sets.filter((set) => set.type !== "warmup").length}{" "}
+                              {goal === "stretch" ? "rounds" : "working sets"}
                             </span>
                           </span>
                           <span className="flex shrink-0 items-center gap-1">

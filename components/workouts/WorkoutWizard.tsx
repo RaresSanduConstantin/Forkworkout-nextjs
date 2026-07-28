@@ -91,6 +91,7 @@ import { getMovementPattern } from "@/lib/smart-workout/movement-patterns";
 import { ProgramWizard } from "@/components/workouts/ProgramWizard";
 
 const TIME_OPTIONS = [15, 30, 45, 60];
+const ALL_TARGETS = MUSCLE_TARGETS.map((target) => target.key);
 const READINESS_OPTIONS: Array<{ value: ReadinessLevel; label: string }> = [
   { value: "great", label: "Great" },
   { value: "normal", label: "Normal" },
@@ -172,6 +173,7 @@ function setSummary(ex: Workout["exercises"][number]): string {
   const working = ex.sets.filter((s) => s.type !== "warmup");
   const s = working[0] ?? ex.sets[0];
   if (!s) return "";
+  if (s.unit === "time") return `${working.length}×${s.value}`;
   const load =
     s.unit === "bw"
       ? "BW"
@@ -299,6 +301,7 @@ export function WorkoutWizard({
       return;
     }
     if (
+      goal !== "stretch" &&
       targetMode === "manual" &&
       targetMuscles.every((muscle) => avoidMuscles.includes(muscle))
     ) {
@@ -307,12 +310,14 @@ export function WorkoutWizard({
       );
       return;
     }
-    saveDailyTrainingState({
-      date: toDayKey(),
-      readiness,
-      soreMuscles,
-      avoidMuscles,
-    });
+    if (goal !== "stretch") {
+      saveDailyTrainingState({
+        date: toDayKey(),
+        readiness,
+        soreMuscles,
+        avoidMuscles,
+      });
+    }
     const profile = getBodyProfile();
     const latestWeight = [...getBodyMetrics()]
       .reverse()
@@ -390,9 +395,9 @@ export function WorkoutWizard({
       },
       homeEquipment,
       preferences,
-      readiness,
-      soreMuscles,
-      avoidMuscles,
+      readiness: goal === "stretch" ? "normal" as const : readiness,
+      soreMuscles: goal === "stretch" ? [] : soreMuscles,
+      avoidMuscles: goal === "stretch" ? [] : avoidMuscles,
       recentExerciseNames,
     };
 
@@ -423,7 +428,7 @@ export function WorkoutWizard({
       const summary =
         definition.value === "progressive" && performanceFeedback.length > 0
           ? "Uses your saved exercise feedback and load history where available."
-          : definition.value === "low-fatigue" && readiness !== "normal"
+          : goal !== "stretch" && definition.value === "low-fatigue" && readiness !== "normal"
             ? `Uses fewer sets because you selected ${readiness.replace("-", " ")}.`
             : definition.description;
       workout.recommendationSummary = summary;
@@ -431,9 +436,9 @@ export function WorkoutWizard({
         targetMode,
         selectedPriorities,
         completedWorkoutCount: history.length,
-        readiness,
-        soreMuscles,
-        avoidMuscles,
+        readiness: goal === "stretch" ? "normal" : readiness,
+        soreMuscles: goal === "stretch" ? [] : soreMuscles,
+        avoidMuscles: goal === "stretch" ? [] : avoidMuscles,
         equipment,
       });
       const metadata: WorkoutRecommendationMetadata = {
@@ -733,7 +738,17 @@ export function WorkoutWizard({
             <ToggleGroup
               type="single"
               value={goal}
-              onValueChange={(v) => v && setGoal(v as Goal)}
+              onValueChange={(value) => {
+                if (!value) return;
+                const nextGoal = value as Goal;
+                setGoal(nextGoal);
+                if (nextGoal === "stretch") {
+                  setTargetMode("manual");
+                  setTargetMuscles((current) =>
+                    current.length > 0 ? current : ALL_TARGETS
+                  );
+                }
+              }}
               variant="outline"
               className="flex flex-wrap gap-2"
             >
@@ -761,12 +776,30 @@ export function WorkoutWizard({
               </ToggleGroupItem>
             </ToggleGroup>
             <p className="text-xs text-muted-foreground">
-              Sets the body map and calibrates suggested starting weights. Saved to your profile.
+              {goal === "stretch"
+                ? "Sets the body map used to choose areas for mobility work."
+                : "Sets the body map and calibrates suggested starting weights."}{" "}
+              Saved to your profile.
             </p>
           </Field>
 
           {targetMode === "manual" ? (
-          <Field label="Target muscles">
+          <Field label={goal === "stretch" ? "Areas to stretch" : "Target muscles"}>
+            {goal === "stretch" && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTargetMuscles(
+                      targetMuscles.length === ALL_TARGETS.length ? [] : ALL_TARGETS
+                    )
+                  }
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  {targetMuscles.length === ALL_TARGETS.length ? "Clear all" : "Select all"}
+                </button>
+              </div>
+            )}
             <MuscleMapPicker value={targetMuscles} onToggle={toggleMuscle} gender={gender} />
             <p className="text-xs text-muted-foreground">
               Tap muscles on the body, or use the chips below.
@@ -960,9 +993,11 @@ export function WorkoutWizard({
             </ToggleGroup>
           </Field>
 
-          <Field label="Working sets per exercise">
+          <Field label={goal === "stretch" ? "Rounds per stretch" : "Working sets per exercise"}>
             <p className="text-xs text-muted-foreground">
-              3 sets is a balanced default. Warm-up sets may be added separately.
+              {goal === "stretch"
+                ? "Each round is generated as a 30-second hold and can be edited afterward."
+                : "3 sets is a balanced default. Warm-up sets may be added separately."}
             </p>
             <ToggleGroup
               type="single"
@@ -973,7 +1008,7 @@ export function WorkoutWizard({
             >
               {[2, 3, 4, 5].map((value) => (
                 <ToggleGroupItem key={value} value={String(value)} className={chipItemClass}>
-                  {value} sets
+                  {value} {goal === "stretch" ? "rounds" : "sets"}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -999,6 +1034,7 @@ export function WorkoutWizard({
             </ToggleGroup>
           </Field>
 
+          {goal !== "stretch" && (
           <Field label="How do you feel today?">
             <ToggleGroup
               type="single"
@@ -1109,6 +1145,7 @@ export function WorkoutWizard({
               Today&apos;s choices and recommendations stay in this browser.
             </p>
           </Field>
+          )}
             </div>
           ) : (
             <div className="space-y-4 py-1">
