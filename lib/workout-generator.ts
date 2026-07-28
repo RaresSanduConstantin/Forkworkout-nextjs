@@ -42,6 +42,10 @@ export type GeneratorOptions = {
   equipment: EquipmentAccess;
   experience: Experience;
   minutes: number;
+  /** Explicit working sets per exercise. Overrides experience-based volume. */
+  workingSetsPerExercise?: number;
+  /** Explicit exercise target. Overrides automatic time-based exercise count. */
+  exercisesPerWorkout?: number;
   goal?: Goal;
   /** Only bodyweight exercises when false. */
   useWeights?: boolean;
@@ -157,13 +161,16 @@ export function generateWorkout(
           ? -2
           : 0;
   const strategyModifier = strategy === "low-fatigue" ? -1 : 0;
-  const sets = Math.max(
-    1,
-    base.sets +
-      (opts.experience === "beginner" ? -1 : opts.experience === "advanced" ? 1 : 0) +
-      readinessModifier +
-      strategyModifier
-  );
+  const sets =
+    opts.workingSetsPerExercise !== undefined
+      ? Math.min(6, Math.max(1, Math.round(opts.workingSetsPerExercise)))
+      : Math.max(
+          1,
+          base.sets +
+            (opts.experience === "beginner" ? -1 : opts.experience === "advanced" ? 1 : 0) +
+            readinessModifier +
+            strategyModifier
+        );
   const scheme = { ...base, sets };
 
   const primary = opts.muscleGroups ?? [];
@@ -342,7 +349,12 @@ export function generateWorkout(
   const used = new Set<string>();
   const patternCounts = new Map<string, number>();
   const patternLimit = MOVEMENT_PATTERN_LIMITS[strategy];
-  const minimumExercises = opts.minutes <= 15 ? 2 : 3;
+  const explicitExerciseCount =
+    opts.exercisesPerWorkout === undefined
+      ? null
+      : Math.min(12, Math.max(1, Math.round(opts.exercisesPerWorkout)));
+  const targetExerciseCount = explicitExerciseCount ?? 12;
+  const minimumExercises = explicitExerciseCount ?? (opts.minutes <= 15 ? 2 : 3);
   const canUsePattern = (exercise: LibraryExercise) => {
     const pattern = getMovementPattern(exercise);
     return !pattern || (patternCounts.get(pattern) ?? 0) < patternLimit;
@@ -352,7 +364,11 @@ export function generateWorkout(
     if (pattern) patternCounts.set(pattern, (patternCounts.get(pattern) ?? 0) + 1);
   };
   let guard = 0;
-  while (chosen.length < 12 && order.length > 0 && guard < order.length * 40) {
+  while (
+    chosen.length < targetExerciseCount &&
+    order.length > 0 &&
+    guard < order.length * 40
+  ) {
     const k = order[guard % order.length];
     guard++;
     const next = (byTarget.get(k) || []).find(
@@ -362,12 +378,20 @@ export function generateWorkout(
     used.add(next.name);
     const candidate = [...chosen, next];
     const estimate = estimateWorkoutSeconds(candidate.map((exercise) => buildExercise(exercise)), scheme.rest);
-    if (!isWithinTimeBudget(estimate, opts.minutes) && chosen.length >= minimumExercises) {
+    if (
+      explicitExerciseCount === null &&
+      !isWithinTimeBudget(estimate, opts.minutes) &&
+      chosen.length >= minimumExercises
+    ) {
       continue;
     }
     chosen.push(next);
     addPattern(next);
-    if (chosen.length >= minimumExercises && estimate >= targetSec * 0.9) {
+    if (
+      explicitExerciseCount === null &&
+      chosen.length >= minimumExercises &&
+      estimate >= targetSec * 0.9
+    ) {
       break;
     }
   }
@@ -377,7 +401,11 @@ export function generateWorkout(
       if (used.has(ex.name) || !canUsePattern(ex)) continue;
       const candidate = [...chosen, ex];
       const estimate = estimateWorkoutSeconds(candidate.map((exercise) => buildExercise(exercise)), scheme.rest);
-      if (!isWithinTimeBudget(estimate, opts.minutes) && chosen.length > 0) continue;
+      if (
+        explicitExerciseCount === null &&
+        !isWithinTimeBudget(estimate, opts.minutes) &&
+        chosen.length > 0
+      ) continue;
       chosen.push(ex);
       used.add(ex.name);
       addPattern(ex);

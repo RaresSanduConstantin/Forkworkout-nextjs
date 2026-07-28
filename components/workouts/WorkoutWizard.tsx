@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, ArrowLeft, Check, Clock, Dumbbell, Info, Loader2, RefreshCw } from "lucide-react";
+import { Sparkles, ArrowLeft, Check, Clock, Dumbbell, Info, Layers3, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -28,12 +28,10 @@ import {
   MUSCLE_GROUPS,
   MUSCLE_TARGETS,
   EQUIPMENT_OPTIONS,
-  EXPERIENCE_OPTIONS,
   GOAL_OPTIONS,
   targetsForGroup,
   type MuscleTargetKey,
   type EquipmentAccess,
-  type Experience,
   type Goal,
   type LibraryExercise,
   getExerciseStableId,
@@ -90,6 +88,7 @@ import {
 import { recommendExerciseReplacements } from "@/lib/smart-workout/exercise-replacements";
 import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
 import { getMovementPattern } from "@/lib/smart-workout/movement-patterns";
+import { ProgramWizard } from "@/components/workouts/ProgramWizard";
 
 const TIME_OPTIONS = [15, 30, 45, 60];
 const READINESS_OPTIONS: Array<{ value: ReadinessLevel; label: string }> = [
@@ -189,11 +188,17 @@ export function WorkoutWizard({
   open,
   onOpenChange,
   onGenerate,
+  onGenerateProgram,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onGenerate: (workout: Workout) => void;
+  onGenerateProgram?: (value: { title: string; workouts: Workout[] }) => void;
 }) {
+  const supportsProgram = Boolean(onGenerateProgram);
+  const [creationType, setCreationType] = React.useState<"choose" | "workout" | "program">(
+    supportsProgram ? "choose" : "workout"
+  );
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [targetMuscles, setTargetMuscles] = React.useState<MuscleTargetKey[]>([]);
   const [targetMode, setTargetMode] = React.useState<"recommended" | "manual">("recommended");
@@ -202,8 +207,10 @@ export function WorkoutWizard({
   const [homeOwned, setHomeOwned] = React.useState<HomeEquipmentKey[]>([]);
   const [dumbbellMax, setDumbbellMax] = React.useState("");
   const [kettlebellMax, setKettlebellMax] = React.useState("");
-  const [experience, setExperience] = React.useState<Experience>("beginner");
+  const experience = "intermediate" as const;
   const [minutes, setMinutes] = React.useState(30);
+  const [exerciseCount, setExerciseCount] = React.useState(4);
+  const [workingSets, setWorkingSets] = React.useState(3);
   const [preferences, setPreferences] = React.useState<ExercisePreference[]>([]);
   const [readiness, setReadiness] = React.useState<ReadinessLevel>("normal");
   const [soreMuscles, setSoreMuscles] = React.useState<MuscleTargetKey[]>([]);
@@ -245,6 +252,7 @@ export function WorkoutWizard({
       setStep("form");
       setCreating(false);
       setInfoExerciseName(null);
+      setCreationType(supportsProgram ? "choose" : "workout");
       return;
     }
     setGender(getBodyProfile().sex === "female" ? "female" : "male");
@@ -269,7 +277,7 @@ export function WorkoutWizard({
     return () => {
       active = false;
     };
-  }, [open]);
+  }, [open, supportsProgram]);
 
   const handleRetryLibrary = async () => {
     setLibraryLoading(true);
@@ -362,6 +370,8 @@ export function WorkoutWizard({
       equipment,
       experience,
       minutes,
+      exercisesPerWorkout: exerciseCount,
+      workingSetsPerExercise: workingSets,
       goal,
       sex: profile.sex ?? ("unspecified" as const),
       bodyweightKg: latestWeight,
@@ -608,6 +618,59 @@ export function WorkoutWizard({
     );
     return muscleHighlights(scores);
   }, [variants, selected, library]);
+
+  if (creationType === "program" && onGenerateProgram) {
+    return (
+      <ProgramWizard
+        open={open}
+        onOpenChange={onOpenChange}
+        onBack={() => setCreationType("choose")}
+        onGenerate={onGenerateProgram}
+      />
+    );
+  }
+
+  if (creationType === "choose" && onGenerateProgram) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader className="text-left">
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              What do you want to create?
+            </DialogTitle>
+            <DialogDescription>
+              Build one workout for today or a complete multi-day rotation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setCreationType("workout")}
+              className="rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Dumbbell className="size-6 text-primary" />
+              <span className="mt-3 block font-semibold">One workout</span>
+              <span className="mt-1 block text-sm text-muted-foreground">
+                Build a routine for one training session.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreationType("program")}
+              className="rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Layers3 className="size-6 text-primary" />
+              <span className="mt-3 block font-semibold">Workout program</span>
+              <span className="mt-1 block text-sm text-muted-foreground">
+                Generate an ordered 2–6 day rotation.
+              </span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -874,21 +937,43 @@ export function WorkoutWizard({
             )}
           </Field>
 
-          <Field label="Experience">
+          <Field label="Exercises per workout">
+            <p className="text-xs text-muted-foreground">
+              Recommended: {minutes <= 15 ? 3 : minutes <= 30 ? 4 : minutes <= 45 ? 5 : 6} for {minutes} minutes.
+            </p>
             <ToggleGroup
               type="single"
-              value={experience}
-              onValueChange={(v) => v && setExperience(v as Experience)}
+              value={String(exerciseCount)}
+              onValueChange={(value) => value && setExerciseCount(Number(value))}
               variant="outline"
               className="flex flex-wrap gap-2"
             >
-              {EXPERIENCE_OPTIONS.map((o) => (
+              {[3, 4, 5, 6, 7, 8].map((value) => (
                 <ToggleGroupItem
-                  key={o.value}
-                  value={o.value}
+                  key={value}
+                  value={String(value)}
                   className={chipItemClass}
                 >
-                  {o.label}
+                  {value}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </Field>
+
+          <Field label="Working sets per exercise">
+            <p className="text-xs text-muted-foreground">
+              3 sets is a balanced default. Warm-up sets may be added separately.
+            </p>
+            <ToggleGroup
+              type="single"
+              value={String(workingSets)}
+              onValueChange={(value) => value && setWorkingSets(Number(value))}
+              variant="outline"
+              className="flex flex-wrap gap-2"
+            >
+              {[2, 3, 4, 5].map((value) => (
+                <ToggleGroupItem key={value} value={String(value)} className={chipItemClass}>
+                  {value} sets
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -1134,9 +1219,15 @@ export function WorkoutWizard({
         </div>
 
         {step === "form" ? (
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
+            {onGenerateProgram && (
+              <Button variant="outline" onClick={() => setCreationType("choose")}>
+                <ArrowLeft className="size-4" />
+                Back
+              </Button>
+            )}
             <Button
-              className="w-full gap-2"
+              className="flex-1 gap-2"
               onClick={handleGenerate}
               disabled={libraryLoading || Boolean(libraryError) || generating}
             >

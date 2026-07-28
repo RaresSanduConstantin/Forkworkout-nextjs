@@ -91,6 +91,22 @@ describe("generateWorkout — goal schemes", () => {
   });
 });
 
+describe("generateWorkout — explicit volume", () => {
+  it("uses the requested exercise and working-set counts", () => {
+    const workout = generateWorkout(library, {
+      ...base,
+      targetMuscles: ["chest", "triceps"],
+      goal: "muscle",
+      exercisesPerWorkout: 5,
+      workingSetsPerExercise: 4,
+    });
+    expect(workout.exercises).toHaveLength(5);
+    for (const exercise of workout.exercises) {
+      expect(workingSets(exercise.sets)).toHaveLength(4);
+    }
+  });
+});
+
 describe("generateWorkout — warm-up + ordering", () => {
   it("adds a warm-up to the first (compound) lift for strength", () => {
     const w = generateWorkout(library, { ...base, targetMuscles: ["chest"], goal: "strength" });

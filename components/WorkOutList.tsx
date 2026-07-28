@@ -370,6 +370,36 @@ const WorkoutList = () => {
     router.push(ROUTES.editWorkout(workout.id));
   };
 
+  const handleGeneratedProgram = (value: { title: string; workouts: Workout[] }) => {
+    const existingTitles = workouts.map((workout) => workout.title);
+    const generated = value.workouts.map((workout) => {
+      const title = uniqueWorkoutTitle(workout.title, existingTitles);
+      existingTitles.push(title);
+      return { ...workout, title };
+    });
+    if (!saveWorkouts([...workouts, ...generated])) {
+      toast.error("Couldn't save the generated program.");
+      return;
+    }
+    const program = createProgram(
+      value.title,
+      generated.map((workout) => workout.id)
+    );
+    if (!program) {
+      // Workouts are still safely saved and remain usable individually.
+      setWorkouts((current) => [...current, ...generated]);
+      toast.error("The workouts were saved, but the program couldn't be created.");
+      return;
+    }
+    setActiveProgram(program.id);
+    const state = getProgramState();
+    setWorkouts((current) => [...current, ...generated]);
+    setPrograms(state.programs);
+    setActiveProgramId(state.activeProgramId);
+    setShowWizard(false);
+    toast.success(`Created “${program.title}” with ${generated.length} workouts`);
+  };
+
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-6 pb-24 space-y-8">
       {/* Repeat last workout — one-tap quick start */}
@@ -506,7 +536,11 @@ const WorkoutList = () => {
                 Reorder
               </Button>
             )}
-            <Button variant="secondary" className="gap-2" onClick={() => setShowWizard(true)}>
+            <Button
+              variant="secondary"
+              className="gap-2"
+              onClick={() => setShowWizard(true)}
+            >
               <Sparkles className="size-4" />
               Help me create
             </Button>
@@ -524,7 +558,11 @@ const WorkoutList = () => {
                   <Plus className="size-4" />
                   Create your first workout
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={() => setShowWizard(true)}>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setShowWizard(true)}
+                >
                   <Sparkles className="size-4" />
                   Help me create one
                 </Button>
@@ -659,7 +697,12 @@ const WorkoutList = () => {
         </DialogContent>
       </Dialog>
 
-      <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
+      <WorkoutWizard
+        open={showWizard}
+        onOpenChange={setShowWizard}
+        onGenerate={handleGenerated}
+        onGenerateProgram={handleGeneratedProgram}
+      />
 
       <ProgramDialog
         open={programDialogOpen}
@@ -696,7 +739,9 @@ const WorkoutList = () => {
           }
           // Open the guided builder once onboarding has fully closed (avoids
           // overlapping dialog focus traps).
-          if (openWizard) setTimeout(() => setShowWizard(true), 150);
+          if (openWizard) {
+            setTimeout(() => setShowWizard(true), 150);
+          }
         }}
       />
 
