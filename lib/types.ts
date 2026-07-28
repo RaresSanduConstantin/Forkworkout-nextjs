@@ -52,6 +52,16 @@ export type Workout = {
   };
 };
 
+// An ordered collection of saved workouts. Programs reference workouts by id
+// so edits to a workout are reflected everywhere it is used.
+export type WorkoutProgram = {
+  id: string;
+  title: string;
+  workoutIds: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 // A completed workout entry as stored in the `completedWorkouts` key.
 // `title` is the canonical name field; legacy P90X entries used `workoutName`.
 // `dayKey` (YYYY-MM-DD, local) is added going forward for correct calendar

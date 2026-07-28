@@ -15,8 +15,32 @@ import {
   getDailyTrainingState,
   saveDailyTrainingState,
 } from "@/lib/storage/daily-training-state";
+import { createProgram, getProgramState } from "@/lib/storage/program-storage";
+import { saveWorkouts } from "@/lib/storage/workout-storage";
 
 beforeEach(() => localStorage.clear());
+
+describe("export/import — programs", () => {
+  it("backs up and restores program order and the active program", () => {
+    saveWorkouts([
+      { id: "push", title: "Push", exercises: [] },
+      { id: "pull", title: "Pull", exercises: [] },
+    ]);
+    const created = createProgram("Push Pull", ["push", "pull"]);
+    const bundle = buildExport();
+    expect(bundle.programs?.[0].workoutIds).toEqual(["push", "pull"]);
+
+    localStorage.clear();
+    const result = mergeImport(JSON.stringify(bundle));
+    expect(result.programsAdded).toBe(1);
+    expect(getProgramState()).toEqual(
+      expect.objectContaining({
+        activeProgramId: created?.id,
+        programs: [expect.objectContaining({ title: "Push Pull", workoutIds: ["push", "pull"] })],
+      })
+    );
+  });
+});
 
 describe("export/import — home equipment", () => {
   it("includes home equipment in the export bundle", () => {

@@ -9,6 +9,7 @@ import { STORAGE_KEYS } from "./keys";
 import { readJson, writeJson } from "./safe-storage";
 import { saveWorkouts } from "./workout-storage";
 import { buildExport, type ExportBundle } from "./transfer";
+import { saveProgramState } from "./program-storage";
 
 export const CURRENT_SCHEMA_VERSION = 1;
 
@@ -38,6 +39,7 @@ export function autoBackupHasData(b: AutoBackup | null): boolean {
   const { workouts, completedWorkouts, bodyMetrics } = b.bundle;
   return (
     (Array.isArray(workouts) && workouts.length > 0) ||
+    (Array.isArray(b.bundle.programs) && b.bundle.programs.length > 0) ||
     (Array.isArray(completedWorkouts) && completedWorkouts.length > 0) ||
     (Array.isArray(bodyMetrics) && bodyMetrics.length > 0) ||
     (Array.isArray(b.bundle.exercisePreferences) && b.bundle.exercisePreferences.length > 0) ||
@@ -87,6 +89,11 @@ export function restoreAutoBackup(): boolean {
   const b = getAutoBackup();
   if (!b) return false;
   saveWorkouts(Array.isArray(b.bundle.workouts) ? b.bundle.workouts : []);
+  saveProgramState({
+    version: 1,
+    programs: Array.isArray(b.bundle.programs) ? b.bundle.programs : [],
+    activeProgramId: b.bundle.activeProgramId,
+  });
   writeJson(
     STORAGE_KEYS.completedWorkouts,
     Array.isArray(b.bundle.completedWorkouts) ? b.bundle.completedWorkouts : []

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Download, Dumbbell, Flame, Play, Plus, Scale, Share2, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
+import { CalendarDays, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -26,16 +26,29 @@ import { WeeklyGoalCard } from "@/components/dashboard/WeeklyGoalCard";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesDialog";
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
+import { ProgramDialog } from "@/components/programs/ProgramDialog";
+import { ProgramCard } from "@/components/programs/ProgramCard";
 import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle, saveWorkouts } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import { buildShareUrl, decodeWorkout } from "@/lib/storage/share";
+import { buildProgramShareUrl, decodeProgram, type DecodedProgramShare } from "@/lib/storage/program-share";
+import {
+  createProgram,
+  deleteProgram,
+  getNextProgramWorkout,
+  getProgramState,
+  removeWorkoutFromPrograms,
+  saveProgramState,
+  setActiveProgram,
+  upsertProgram,
+} from "@/lib/storage/program-storage";
 import { clearAllData } from "@/lib/storage/reset";
 import { hasCustomExercises, getCustomExercises, addCustomExercise } from "@/lib/storage/custom-exercises";
 import { computeStreak } from "@/lib/date/streak";
 import { getSettings } from "@/lib/storage/settings";
 import { instantiateTemplate, type WorkoutTemplate } from "@/lib/templates";
 import { ROUTES, FEEDBACK_MAILTO } from "@/lib/routes";
-import type { Workout } from "@/lib/types";
+import type { CompletedWorkout, Workout, WorkoutProgram } from "@/lib/types";
 import { toast } from "sonner";
 
 type AddCustomInput = Parameters<typeof addCustomExercise>[0];
@@ -45,6 +58,14 @@ const WorkoutList = () => {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [streak, setStreak] = useState(0);
   const [totalCompleted, setTotalCompleted] = useState(0);
+  const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
+  const [programs, setPrograms] = useState<WorkoutProgram[]>([]);
+  const [activeProgramId, setActiveProgramId] = useState<string | undefined>();
+  const [programDialogOpen, setProgramDialogOpen] = useState(false);
+  const [editingProgram, setEditingProgram] = useState<WorkoutProgram | null>(null);
+  const [pendingProgramDelete, setPendingProgramDelete] = useState<WorkoutProgram | null>(null);
+  const [programShareTarget, setProgramShareTarget] = useState<WorkoutProgram | null>(null);
+  const [pendingProgramImport, setPendingProgramImport] = useState<DecodedProgramShare | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Workout | null>(null);
   const [showClearAll, setShowClearAll] = useState(false);
   const [keepCustomExercises, setKeepCustomExercises] = useState(true);
@@ -61,6 +82,11 @@ const WorkoutList = () => {
   const lastWorkout = lastWorkoutId
     ? workouts.find((w) => w.id === lastWorkoutId) ?? null
     : null;
+  const activeProgram = programs.find((program) => program.id === activeProgramId) ?? null;
+  const nextProgramWorkout = activeProgram
+    ? getNextProgramWorkout(activeProgram, workouts, completedWorkouts)
+    : null;
+  const jumpWorkout = nextProgramWorkout?.workout ?? lastWorkout;
 
   const moveWorkout = (from: number, to: number) => {
     setWorkouts((prev) => {
@@ -80,7 +106,11 @@ const WorkoutList = () => {
     setWorkouts(loaded);
     setStreak(computeStreak(getCompletedDayKeys()));
     const history = getCompletedWorkouts();
+    setCompletedWorkouts(history);
     setTotalCompleted(history.length);
+    const programState = getProgramState();
+    setPrograms(programState.programs);
+    setActiveProgramId(programState.activeProgramId);
 
     // Most recently completed workout, for the "repeat" quick-start.
     const recent = [...history].sort(
@@ -97,11 +127,18 @@ const WorkoutList = () => {
 
   // Detect a shared workout in the URL fragment (#import=…) and offer to import.
   useEffect(() => {
-    const match = window.location.hash.match(/[#&]import=([^&]+)/);
-    if (!match) return;
-    const decoded = decodeWorkout(match[1]);
+    const programMatch = window.location.hash.match(/[#&]importProgram=([^&]+)/);
+    const workoutMatch = window.location.hash.match(/[#&]import=([^&]+)/);
+    if (!programMatch && !workoutMatch) return;
     // Clear the fragment so a refresh doesn't re-prompt.
     history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (programMatch) {
+      const decoded = decodeProgram(programMatch[1]);
+      if (decoded) setPendingProgramImport(decoded);
+      else toast.error("That shared program link looks invalid.");
+      return;
+    }
+    const decoded = workoutMatch ? decodeWorkout(workoutMatch[1]) : null;
     if (decoded) {
       setPendingImport(decoded.workout);
       setPendingCustom(decoded.customExercises);
@@ -195,9 +232,117 @@ const WorkoutList = () => {
   const confirmDelete = () => {
     if (!pendingDelete) return;
     deleteWorkout(pendingDelete.id);
+    removeWorkoutFromPrograms(pendingDelete.id);
     setWorkouts((prev) => prev.filter((w) => w.id !== pendingDelete.id));
+    const nextState = getProgramState();
+    setPrograms(nextState.programs);
+    setActiveProgramId(nextState.activeProgramId);
     toast.success(`Deleted “${pendingDelete.title || "workout"}”`);
     setPendingDelete(null);
+  };
+
+  const openNewProgram = () => {
+    setEditingProgram(null);
+    setProgramDialogOpen(true);
+  };
+
+  const saveProgram = (value: { title: string; workoutIds: string[] }) => {
+    if (editingProgram) {
+      upsertProgram({ ...editingProgram, ...value });
+      toast.success(`Updated “${value.title}”`);
+    } else {
+      const created = createProgram(value.title, value.workoutIds);
+      if (!created) {
+        toast.error("Couldn't create that program.");
+        return;
+      }
+      toast.success(`Created “${created.title}”`);
+    }
+    const state = getProgramState();
+    setPrograms(state.programs);
+    setActiveProgramId(state.activeProgramId);
+    setProgramDialogOpen(false);
+    setEditingProgram(null);
+  };
+
+  const activateProgram = (id: string) => {
+    if (!setActiveProgram(id)) return;
+    setActiveProgramId(id);
+    const program = programs.find((item) => item.id === id);
+    if (program) toast.success(`“${program.title}” is now active`);
+  };
+
+  const confirmProgramDelete = () => {
+    if (!pendingProgramDelete) return;
+    deleteProgram(pendingProgramDelete.id);
+    const state = getProgramState();
+    setPrograms(state.programs);
+    setActiveProgramId(state.activeProgramId);
+    toast.success(`Deleted “${pendingProgramDelete.title}”`);
+    setPendingProgramDelete(null);
+  };
+
+  const doShareProgram = async () => {
+    if (!programShareTarget) return;
+    const url = buildProgramShareUrl(
+      programShareTarget,
+      workouts,
+      window.location.origin,
+      shareMessage
+    );
+    if (!url) {
+      toast.error("This program is too large to share by link — use Export instead.");
+      return;
+    }
+    const target = programShareTarget;
+    setProgramShareTarget(null);
+    const shareData = {
+      title: target.title,
+      text: shareMessage.trim() || `Try my “${target.title}” program on ForkWorkout`,
+      url,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Program link copied to clipboard");
+    } catch {
+      toast.error("Couldn't copy the link.");
+    }
+  };
+
+  const confirmProgramImport = () => {
+    if (!pendingProgramImport) return;
+    const have = new Set(getCustomExercises().map((exercise) => exercise.name.toLowerCase()));
+    for (const exercise of pendingProgramImport.customExercises) {
+      if (!have.has(exercise.name.toLowerCase())) addCustomExercise(exercise);
+    }
+    const existingTitles = workouts.map((workout) => workout.title);
+    const importedWorkouts = pendingProgramImport.workouts.map((workout) => {
+      const title = uniqueWorkoutTitle(workout.title, existingTitles);
+      existingTitles.push(title);
+      return { ...workout, title };
+    });
+    saveWorkouts([...workouts, ...importedWorkouts]);
+    const state = getProgramState();
+    const importedProgram = pendingProgramImport.program;
+    saveProgramState({
+      ...state,
+      activeProgramId: state.activeProgramId ?? importedProgram.id,
+      programs: [...state.programs, importedProgram],
+    });
+    setWorkouts((current) => [...current, ...importedWorkouts]);
+    const nextState = getProgramState();
+    setPrograms(nextState.programs);
+    setActiveProgramId(nextState.activeProgramId);
+    toast.success(`Imported “${importedProgram.title}” with ${importedWorkouts.length} workouts`);
+    setPendingProgramImport(null);
   };
 
   const handleClearAll = () => {
@@ -205,6 +350,9 @@ const WorkoutList = () => {
     setWorkouts([]);
     setStreak(0);
     setTotalCompleted(0);
+    setCompletedWorkouts([]);
+    setPrograms([]);
+    setActiveProgramId(undefined);
     setLastWorkoutId(null);
     setShowClearAll(false);
     setShowOnboarding(true);
@@ -225,14 +373,20 @@ const WorkoutList = () => {
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-6 pb-24 space-y-8">
       {/* Repeat last workout — one-tap quick start */}
-      {lastWorkout && (
+      {jumpWorkout && (
         <Card className="border-primary/30 bg-primary/5 py-0">
           <CardContent className="flex items-center justify-between gap-3 p-4">
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground">Jump back in</p>
-              <p className="truncate text-lg font-semibold">{lastWorkout.title}</p>
+              <p className="truncate text-lg font-semibold">{jumpWorkout.title}</p>
+              {activeProgram && nextProgramWorkout && (
+                <p className="text-xs text-primary">
+                  {activeProgram.title} · workout {nextProgramWorkout.position + 1} of{" "}
+                  {nextProgramWorkout.total}
+                </p>
+              )}
             </div>
-            <Button className="shrink-0 gap-1.5" onClick={() => handleStart(lastWorkout.id)}>
+            <Button className="shrink-0 gap-1.5" onClick={() => handleStart(jumpWorkout.id)}>
               <Play className="size-4" />
               Start
             </Button>
@@ -280,6 +434,61 @@ const WorkoutList = () => {
           </Link>
         </Button>
       </div>
+
+      {/* Programs */}
+      <section className="space-y-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-3xl">{honkFont("Your Programs")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Group workouts into a rotation and always know what comes next.
+            </p>
+          </div>
+          {workouts.length > 0 && (
+            <Button size="sm" className="shrink-0 gap-1.5" onClick={openNewProgram}>
+              <Plus className="size-4" /> Program
+            </Button>
+          )}
+        </div>
+        {programs.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex items-center gap-3">
+              <Layers3 className="size-7 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Build a workout rotation</p>
+                <p className="text-sm text-muted-foreground">
+                  Combine workouts like Push, Pull, Legs, and Abs.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {programs.map((program) => (
+              <ProgramCard
+                key={program.id}
+                program={program}
+                workouts={workouts}
+                active={program.id === activeProgramId}
+                nextWorkout={
+                  getNextProgramWorkout(program, workouts, completedWorkouts)?.workout ?? null
+                }
+                onActivate={() => activateProgram(program.id)}
+                onStart={handleStart}
+                onEdit={() => {
+                  setEditingProgram(program);
+                  setProgramDialogOpen(true);
+                }}
+                onShare={() => {
+                  setShareMessage("");
+                  setProgramShareTarget(program);
+                }}
+                onDelete={() => setPendingProgramDelete(program)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Your workouts */}
       <section className="space-y-4">
@@ -400,6 +609,18 @@ const WorkoutList = () => {
         onConfirm={confirmDelete}
       />
 
+      <ConfirmDialog
+        open={pendingProgramDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingProgramDelete(null);
+        }}
+        title="Delete this program?"
+        description="The workouts stay in your library. Only the program grouping is removed."
+        confirmLabel="Delete program"
+        destructive
+        onConfirm={confirmProgramDelete}
+      />
+
       {/* Delete all data — with an option to keep custom exercises */}
       <Dialog open={showClearAll} onOpenChange={setShowClearAll}>
         <DialogContent className="max-w-sm">
@@ -439,6 +660,17 @@ const WorkoutList = () => {
       </Dialog>
 
       <WorkoutWizard open={showWizard} onOpenChange={setShowWizard} onGenerate={handleGenerated} />
+
+      <ProgramDialog
+        open={programDialogOpen}
+        onOpenChange={(open) => {
+          setProgramDialogOpen(open);
+          if (!open) setEditingProgram(null);
+        }}
+        workouts={workouts}
+        program={editingProgram}
+        onSave={saveProgram}
+      />
 
       <ReorderExercisesDialog
         open={reorderOpen}
@@ -509,6 +741,89 @@ const WorkoutList = () => {
             <Button className="flex-1 gap-1" onClick={doShare}>
               <Share2 className="size-4" />
               Share
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share a complete program and its workouts. */}
+      <Dialog
+        open={programShareTarget !== null}
+        onOpenChange={(open) => !open && setProgramShareTarget(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Share this program?</DialogTitle>
+            <DialogDescription>
+              The link includes every workout in rotation order.
+            </DialogDescription>
+          </DialogHeader>
+          {programShareTarget && (
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="font-semibold">{programShareTarget.title}</p>
+              <p className="text-sm text-muted-foreground">
+                {programShareTarget.workoutIds.length} workout
+                {programShareTarget.workoutIds.length === 1 ? "" : "s"}
+              </p>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label htmlFor="program-share-msg" className="text-sm font-medium">
+              Add a message (optional)
+            </label>
+            <Textarea
+              id="program-share-msg"
+              value={shareMessage}
+              onChange={(event) => setShareMessage(event.target.value)}
+              placeholder="e.g. Here is the full routine 🔥"
+              rows={3}
+              maxLength={280}
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setProgramShareTarget(null)}>Cancel</Button>
+            <Button className="gap-1.5" onClick={doShareProgram}>
+              <Share2 className="size-4" /> Share program
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import a complete shared program. */}
+      <Dialog
+        open={pendingProgramImport !== null}
+        onOpenChange={(open) => !open && setPendingProgramImport(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Import this program?</DialogTitle>
+            <DialogDescription>
+              All included workouts will be added to your library in rotation order.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingProgramImport && (
+            <div className="space-y-3">
+              {pendingProgramImport.message && (
+                <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm italic">
+                  “{pendingProgramImport.message}”
+                </p>
+              )}
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <p className="font-semibold">{pendingProgramImport.program.title}</p>
+                <ol className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  {pendingProgramImport.workouts.map((workout, index) => (
+                    <li key={workout.id}>{index + 1}. {workout.title}</li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setPendingProgramImport(null)}>
+              No thanks
+            </Button>
+            <Button className="gap-1.5" onClick={confirmProgramImport}>
+              <Download className="size-4" /> Import program
             </Button>
           </DialogFooter>
         </DialogContent>

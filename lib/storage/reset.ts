@@ -14,6 +14,7 @@ export function clearAllData(options?: { keepCustomExercises?: boolean }): void 
   try {
     const userDataKeys = [
       STORAGE_KEYS.workouts,
+      STORAGE_KEYS.programs,
       STORAGE_KEYS.completedWorkouts,
       STORAGE_KEYS.bodyMetrics,
       STORAGE_KEYS.exercisePreferences,

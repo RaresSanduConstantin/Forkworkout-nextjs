@@ -1,4 +1,4 @@
-import type { BodyMetricEntry, CompletedWorkout, Workout } from "@/lib/types";
+import type { BodyMetricEntry, CompletedWorkout, Workout, WorkoutProgram } from "@/lib/types";
 import { getWorkouts, saveWorkouts } from "./workout-storage";
 import { getCompletedWorkouts } from "./history-storage";
 import { getBodyMetrics } from "./body-storage";
@@ -31,11 +31,14 @@ import {
   saveDailyTrainingState,
   type DailyTrainingState,
 } from "./daily-training-state";
+import { getProgramState, saveProgramState } from "./program-storage";
 
 export type ExportBundle = {
   version: number;
   exportedAt: string;
   workouts: Workout[];
+  programs?: WorkoutProgram[];
+  activeProgramId?: string;
   completedWorkouts: CompletedWorkout[];
   bodyMetrics: BodyMetricEntry[];
   customExercises: CustomExercise[];
@@ -53,6 +56,8 @@ export function buildExport(): ExportBundle {
     version: 1,
     exportedAt: new Date().toISOString(),
     workouts: getWorkouts(),
+    programs: getProgramState().programs,
+    activeProgramId: getProgramState().activeProgramId,
     completedWorkouts: getCompletedWorkouts(),
     bodyMetrics: getBodyMetrics(),
     customExercises: getCustomExercises(),
@@ -90,6 +95,7 @@ export function mergeImport(text: string): {
   historyAdded: number;
   bodyAdded: number;
   exercisesAdded: number;
+  programsAdded: number;
   profileRestored: boolean;
   homeEquipmentRestored: boolean;
 } {
@@ -101,6 +107,7 @@ export function mergeImport(text: string): {
   }
   const bundle = (parsed ?? {}) as Partial<ExportBundle>;
   const importedWorkouts = Array.isArray(bundle.workouts) ? bundle.workouts : [];
+  const importedPrograms = Array.isArray(bundle.programs) ? bundle.programs : [];
   const importedHistory = Array.isArray(bundle.completedWorkouts)
     ? bundle.completedWorkouts
     : [];
@@ -119,6 +126,25 @@ export function mergeImport(text: string): {
     }
   }
   saveWorkouts(workouts);
+
+  const programState = getProgramState();
+  const programIds = new Set(programState.programs.map((program) => program.id));
+  const programs = [...programState.programs];
+  let programsAdded = 0;
+  for (const program of importedPrograms) {
+    if (program && typeof program.id === "string" && !programIds.has(program.id)) {
+      programs.push(program);
+      programIds.add(program.id);
+      programsAdded += 1;
+    }
+  }
+  saveProgramState({
+    version: 1,
+    programs,
+    activeProgramId:
+      programState.activeProgramId ??
+      (typeof bundle.activeProgramId === "string" ? bundle.activeProgramId : undefined),
+  });
 
   // Merge history by ISO date (unique per completion).
   const history = getCompletedWorkouts();
@@ -229,6 +255,7 @@ export function mergeImport(text: string): {
     historyAdded,
     bodyAdded,
     exercisesAdded,
+    programsAdded,
     profileRestored,
     homeEquipmentRestored,
   };

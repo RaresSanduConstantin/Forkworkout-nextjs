@@ -2,6 +2,7 @@
 // user data in the wild uses these exact keys.
 export const STORAGE_KEYS = {
   workouts: "workouts",
+  programs: "forkworkout:programs",
   completedWorkouts: "completedWorkouts",
   bodyMetrics: "forkworkout:body-metrics",
   customExercises: "forkworkout:custom-exercises",
