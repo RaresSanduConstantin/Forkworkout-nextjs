@@ -15,7 +15,11 @@ import {
   getDailyTrainingState,
   saveDailyTrainingState,
 } from "@/lib/storage/daily-training-state";
-import { createProgram, getProgramState } from "@/lib/storage/program-storage";
+import {
+  createProgram,
+  getProgramState,
+  skipNextProgramWorkout,
+} from "@/lib/storage/program-storage";
 import { saveWorkouts } from "@/lib/storage/workout-storage";
 
 beforeEach(() => localStorage.clear());
@@ -39,6 +43,30 @@ describe("export/import — programs", () => {
         programs: [expect.objectContaining({ title: "Push Pull", workoutIds: ["push", "pull"] })],
       })
     );
+  });
+
+  it("backs up and restores skipped program progress", () => {
+    const workouts = [
+      { id: "push", title: "Push", exercises: [] },
+      { id: "pull", title: "Pull", exercises: [] },
+    ];
+    saveWorkouts(workouts);
+    const created = createProgram("Push Pull", ["push", "pull"]);
+    skipNextProgramWorkout(
+      created!.id,
+      workouts,
+      [],
+      new Date("2026-07-24T10:00:00.000Z")
+    );
+    const bundle = buildExport();
+
+    localStorage.clear();
+    mergeImport(JSON.stringify(bundle));
+
+    expect(getProgramState().progressByProgramId?.[created!.id]).toEqual({
+      nextWorkoutId: "pull",
+      advancedAt: "2026-07-24T10:00:00.000Z",
+    });
   });
 });
 

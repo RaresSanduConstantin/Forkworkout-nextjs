@@ -98,6 +98,14 @@ export function addCompletedWorkout(entry: {
   return writeJson(STORAGE_KEYS.completedWorkouts, existing);
 }
 
+/** Replaces completed history after normalizing entries and dropping junk. */
+export function saveCompletedWorkouts(entries: CompletedWorkout[]): boolean {
+  const normalized = entries
+    .map(normalizeCompleted)
+    .filter((entry): entry is CompletedWorkout => entry !== null);
+  return writeJson(STORAGE_KEYS.completedWorkouts, normalized);
+}
+
 /** Returns the set of local day keys that have at least one completed workout. */
 export function getCompletedDayKeys(): string[] {
   const keys = new Set<string>();

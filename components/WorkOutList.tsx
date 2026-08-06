@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
+import { CalendarDays, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, SkipForward, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,9 @@ import {
   removeWorkoutFromPrograms,
   saveProgramState,
   setActiveProgram,
+  skipNextProgramWorkout,
   upsertProgram,
+  type ProgramProgress,
 } from "@/lib/storage/program-storage";
 import { clearAllData } from "@/lib/storage/reset";
 import { hasCustomExercises, getCustomExercises, addCustomExercise } from "@/lib/storage/custom-exercises";
@@ -61,6 +63,7 @@ const WorkoutList = () => {
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [programs, setPrograms] = useState<WorkoutProgram[]>([]);
   const [activeProgramId, setActiveProgramId] = useState<string | undefined>();
+  const [programProgress, setProgramProgress] = useState<Record<string, ProgramProgress>>({});
   const [programDialogOpen, setProgramDialogOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<WorkoutProgram | null>(null);
   const [pendingProgramDelete, setPendingProgramDelete] = useState<WorkoutProgram | null>(null);
@@ -84,7 +87,12 @@ const WorkoutList = () => {
     : null;
   const activeProgram = programs.find((program) => program.id === activeProgramId) ?? null;
   const nextProgramWorkout = activeProgram
-    ? getNextProgramWorkout(activeProgram, workouts, completedWorkouts)
+    ? getNextProgramWorkout(
+        activeProgram,
+        workouts,
+        completedWorkouts,
+        programProgress[activeProgram.id]
+      )
     : null;
   const jumpWorkout = nextProgramWorkout?.workout ?? lastWorkout;
 
@@ -111,6 +119,7 @@ const WorkoutList = () => {
     const programState = getProgramState();
     setPrograms(programState.programs);
     setActiveProgramId(programState.activeProgramId);
+    setProgramProgress(programState.progressByProgramId ?? {});
 
     // Most recently completed workout, for the "repeat" quick-start.
     const recent = [...history].sort(
@@ -237,6 +246,7 @@ const WorkoutList = () => {
     const nextState = getProgramState();
     setPrograms(nextState.programs);
     setActiveProgramId(nextState.activeProgramId);
+    setProgramProgress(nextState.progressByProgramId ?? {});
     toast.success(`Deleted “${pendingDelete.title || "workout"}”`);
     setPendingDelete(null);
   };
@@ -261,6 +271,7 @@ const WorkoutList = () => {
     const state = getProgramState();
     setPrograms(state.programs);
     setActiveProgramId(state.activeProgramId);
+    setProgramProgress(state.progressByProgramId ?? {});
     setProgramDialogOpen(false);
     setEditingProgram(null);
   };
@@ -272,12 +283,39 @@ const WorkoutList = () => {
     if (program) toast.success(`“${program.title}” is now active`);
   };
 
+  const skipProgramWorkout = () => {
+    if (!activeProgram || !nextProgramWorkout || nextProgramWorkout.total < 2) return;
+    const previousProgress = programProgress[activeProgram.id];
+    const result = skipNextProgramWorkout(activeProgram.id, workouts, completedWorkouts);
+    if (!result) {
+      toast.error("Couldn't skip that workout.");
+      return;
+    }
+    setProgramProgress(result.state.progressByProgramId ?? {});
+    toast.success(`Skipped “${result.skipped.title}”`, {
+      description: `Up next: ${result.next.title}`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const current = getProgramState();
+          const progressByProgramId = { ...current.progressByProgramId };
+          if (previousProgress) progressByProgramId[activeProgram.id] = previousProgress;
+          else delete progressByProgramId[activeProgram.id];
+          if (saveProgramState({ ...current, progressByProgramId })) {
+            setProgramProgress(getProgramState().progressByProgramId ?? {});
+          }
+        },
+      },
+    });
+  };
+
   const confirmProgramDelete = () => {
     if (!pendingProgramDelete) return;
     deleteProgram(pendingProgramDelete.id);
     const state = getProgramState();
     setPrograms(state.programs);
     setActiveProgramId(state.activeProgramId);
+    setProgramProgress(state.progressByProgramId ?? {});
     toast.success(`Deleted “${pendingProgramDelete.title}”`);
     setPendingProgramDelete(null);
   };
@@ -341,6 +379,7 @@ const WorkoutList = () => {
     const nextState = getProgramState();
     setPrograms(nextState.programs);
     setActiveProgramId(nextState.activeProgramId);
+    setProgramProgress(nextState.progressByProgramId ?? {});
     toast.success(`Imported “${importedProgram.title}” with ${importedWorkouts.length} workouts`);
     setPendingProgramImport(null);
   };
@@ -353,6 +392,7 @@ const WorkoutList = () => {
     setCompletedWorkouts([]);
     setPrograms([]);
     setActiveProgramId(undefined);
+    setProgramProgress({});
     setLastWorkoutId(null);
     setShowClearAll(false);
     setShowOnboarding(true);
@@ -396,6 +436,7 @@ const WorkoutList = () => {
     setWorkouts((current) => [...current, ...generated]);
     setPrograms(state.programs);
     setActiveProgramId(state.activeProgramId);
+    setProgramProgress(state.progressByProgramId ?? {});
     setShowWizard(false);
     toast.success(`Created “${program.title}” with ${generated.length} workouts`);
   };
@@ -405,7 +446,7 @@ const WorkoutList = () => {
       {/* Repeat last workout — one-tap quick start */}
       {jumpWorkout && (
         <Card className="border-primary/30 bg-primary/5 py-0">
-          <CardContent className="flex items-center justify-between gap-3 p-4">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground">Jump back in</p>
               <p className="truncate text-lg font-semibold">{jumpWorkout.title}</p>
@@ -416,10 +457,23 @@ const WorkoutList = () => {
                 </p>
               )}
             </div>
-            <Button className="shrink-0 gap-1.5" onClick={() => handleStart(jumpWorkout.id)}>
-              <Play className="size-4" />
-              Start
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              {activeProgram && nextProgramWorkout && nextProgramWorkout.total > 1 && (
+                <Button
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={skipProgramWorkout}
+                  aria-label={`Skip ${jumpWorkout.title} in ${activeProgram.title}`}
+                >
+                  <SkipForward className="size-4" />
+                  Skip
+                </Button>
+              )}
+              <Button className="gap-1.5" onClick={() => handleStart(jumpWorkout.id)}>
+                <Play className="size-4" />
+                Start
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -501,7 +555,12 @@ const WorkoutList = () => {
                 workouts={workouts}
                 active={program.id === activeProgramId}
                 nextWorkout={
-                  getNextProgramWorkout(program, workouts, completedWorkouts)?.workout ?? null
+                  getNextProgramWorkout(
+                    program,
+                    workouts,
+                    completedWorkouts,
+                    programProgress[program.id]
+                  )?.workout ?? null
                 }
                 onActivate={() => activateProgram(program.id)}
                 onStart={handleStart}

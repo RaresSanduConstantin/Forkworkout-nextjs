@@ -48,10 +48,10 @@ import {
 import { getSettings, updateSettings } from "@/lib/storage/settings";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { inferUnit, setVolumeKg, setWeightKg, parseDuration, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, SET_TYPES, EXERCISE_REST_OPTIONS } from "@/lib/workout";
+import { inferUnit, setVolumeKg, setWeightKg, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, SET_TYPES, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, getExerciseStableIdByName, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
-import { getLastSessionSets, getExercisePR, estimateOneRepMax, normalizeExName, getTypicalDurationSec } from "@/lib/history-stats";
+import { getLastSessionSets, getExercisePR, getSetPersonalRecord, normalizeExName, getTypicalDurationSec, type ExercisePR, type SetPersonalRecord } from "@/lib/history-stats";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
 import { useMannequinGender } from "@/lib/use-body-gender";
 import { MuscleMapView } from "@/components/history/MuscleMapView";
@@ -76,6 +76,29 @@ import { setExercisePreference } from "@/lib/storage/exercise-preferences";
 import { ROUTES } from "@/lib/routes";
 import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
+
+type LivePersonalRecord = SetPersonalRecord & { exerciseName: string };
+
+function getLivePersonalRecords(
+  workout: ActiveSession,
+  snapshots: Record<string, ExercisePR>
+): Map<string, LivePersonalRecord> {
+  const records = new Map<string, LivePersonalRecord>();
+  for (const exercise of workout.exercises) {
+    const key = normalizeExName(exercise.name);
+    if (!key) continue;
+    const baseline = snapshots[key];
+    for (const set of exercise.sets) {
+      const record = getSetPersonalRecord(set, baseline);
+      if (!record) continue;
+      const current = records.get(key);
+      if (!current || record.score > current.score) {
+        records.set(key, { ...record, exerciseName: exercise.name });
+      }
+    }
+  }
+  return records;
+}
 
 const EXERCISE_DIFFICULTIES: Array<{
   value: ExerciseDifficulty;
@@ -459,58 +482,38 @@ const StartWorkoutComponent = () => {
 
   // Pre-session PR snapshot per exercise, taken once when the session loads, so
   // a set is compared against the record it needs to beat (not against itself).
-  const prSnapshotRef = useRef<Record<string, ReturnType<typeof getExercisePR>>>({});
-  const celebratedRef = useRef<Set<string>>(new Set());
-  const snapshotDoneRef = useRef(false);
+  const prSnapshotRef = useRef<Record<string, ExercisePR>>({});
+  const prSnapshotWorkoutIdRef = useRef<string | null>(null);
+  const livePRsRef = useRef<Map<string, LivePersonalRecord>>(new Map());
+  const livePRWorkoutIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (snapshotDoneRef.current || !loaded || !workout) return;
-    snapshotDoneRef.current = true;
-    const snap: Record<string, ReturnType<typeof getExercisePR>> = {};
+    if (!loaded || !workout || prSnapshotWorkoutIdRef.current === workout.workoutId) return;
+    const snap: Record<string, ExercisePR> = {};
     for (const ex of workout.exercises) {
       const key = normalizeExName(ex.name);
       if (ex.name.trim() && !(key in snap)) snap[key] = getExercisePR(ex.name, history);
     }
     prSnapshotRef.current = snap;
+    prSnapshotWorkoutIdRef.current = workout.workoutId;
+    livePRWorkoutIdRef.current = null;
   }, [loaded, workout, history]);
 
-  // Fire a celebration toast the first time a done set beats the pre-session PR
-  // for that exercise (only when a prior record existed to beat).
-  const celebratePR = (exIdx: number, set: SessionSet | undefined) => {
-    if (!set) return;
-    const ex = workout?.exercises[exIdx];
-    if (!ex) return;
-    const key = normalizeExName(ex.name);
-    if (celebratedRef.current.has(key)) return;
-    const pr = prSnapshotRef.current[key];
-    if (!pr) return;
-
-    const unit = set.unit ?? inferUnit(set.value);
-    let label: string | null = null;
-    if (unit === "kg") {
-      const w = setWeightKg(set.value, unit);
-      if (pr.maxWeightKg > 0 && w > pr.maxWeightKg) {
-        label = `${w} kg × ${set.reps}`;
-      } else if (pr.bestOneRepMax > 0) {
-        const orm = estimateOneRepMax(w, set.reps);
-        if (orm > pr.bestOneRepMax) label = `est. 1RM ~${Math.round(orm)} kg`;
+  // Recalculate live records whenever a completed set changes. A correction can
+  // lower/remove a candidate, which re-arms the real value for a later toast.
+  useEffect(() => {
+    if (!workout || prSnapshotWorkoutIdRef.current !== workout.workoutId) return;
+    const current = getLivePersonalRecords(workout, prSnapshotRef.current);
+    if (livePRWorkoutIdRef.current === workout.workoutId) {
+      for (const [key, record] of current) {
+        const previous = livePRsRef.current.get(key);
+        if (!previous || record.score > previous.score + Number.EPSILON) {
+          toast.success(`\uD83C\uDF89 New PR: ${record.exerciseName} — ${record.label}!`);
+        }
       }
-    } else if (unit === "bw") {
-      if (pr.bestReps > 0 && set.reps > pr.bestReps) label = `${set.reps} reps`;
-    } else if (unit === "time") {
-      const d = parseDuration(set.value);
-      if (pr.bestDurationSec > 0 && d > pr.bestDurationSec) {
-        label = formatSetValue(`${d}s`, "time");
-      }
-    } else if (unit === "km") {
-      const km = parseFloat(set.value) || 0;
-      if (pr.bestDistanceKm > 0 && km > pr.bestDistanceKm) label = `${km} km`;
     }
-
-    if (label) {
-      celebratedRef.current.add(key);
-      toast.success(`\uD83C\uDF89 New PR: ${ex.name} — ${label}!`);
-    }
-  };
+    livePRsRef.current = current;
+    livePRWorkoutIdRef.current = workout.workoutId;
+  }, [workout]);
 
   // Collapse an exercise once, at the moment its final pending set becomes
   // handled. A user can reopen it without this effect immediately closing it
@@ -952,7 +955,6 @@ const StartWorkoutComponent = () => {
       return;
     }
     markSet(exIdx, setIdx, "done");
-    celebratePR(exIdx, set);
 
     // True superset: don't rest between exercises in a group — only after the
     // last one. Nudge the user to move straight to the next exercise instead.
@@ -1121,12 +1123,8 @@ const StartWorkoutComponent = () => {
       0
     );
     const prs = [
-      ...new Set(
-        workout.exercises
-          .filter((ex) => ex.name.trim() && celebratedRef.current.has(normalizeExName(ex.name)))
-          .map((ex) => ex.name)
-      ),
-    ];
+      ...getLivePersonalRecords(workout, prSnapshotRef.current).values(),
+    ].map((record) => record.exerciseName);
     setSummary({ volume: Math.round(volume), totalReps, setsDone, durationSec, prs });
     setShowFinishConfirm(false);
     setShowSummary(true);

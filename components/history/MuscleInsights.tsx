@@ -9,8 +9,9 @@ import { MuscleMapView } from "@/components/history/MuscleMapView";
 import type { CompletedWorkout } from "@/lib/types";
 import { getCachedLibrary, loadExerciseLibrary, type LibraryExercise } from "@/lib/exercises";
 import {
-  muscleGroupSetCounts,
+  muscleGroupCountsFromExercises,
   totalSets,
+  collectCurrentWeekExercises,
   collectWindowExercises,
 } from "@/lib/muscle-stats";
 import { muscleScores, muscleHighlights } from "@/lib/muscle-map";
@@ -18,12 +19,13 @@ import { useMannequinGender } from "@/lib/use-body-gender";
 
 /**
  * Muscle-group training balance: a stylized body heatmap + a ranked bar
- * breakdown of completed working sets per muscle group over a 7- or 30-day
- * window. Uses the exercise library taxonomy (custom exercises included).
+ * breakdown of completed working sets per muscle group for this calendar week
+ * or a rolling 30-day window. Uses the exercise library taxonomy (custom
+ * exercises included).
  */
 export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
-  const [days, setDays] = React.useState<number>(7);
+  const [range, setRange] = React.useState<"week" | "30">("week");
   const gender = useMannequinGender();
 
   React.useEffect(() => {
@@ -36,13 +38,20 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
     };
   }, []);
 
+  const exercises = React.useMemo(
+    () =>
+      range === "week"
+        ? collectCurrentWeekExercises(history)
+        : collectWindowExercises(history, 30),
+    [history, range]
+  );
   const counts = React.useMemo(
-    () => muscleGroupSetCounts(history, library, days),
-    [history, library, days]
+    () => muscleGroupCountsFromExercises(exercises, library),
+    [exercises, library]
   );
   const highlights = React.useMemo(
-    () => muscleHighlights(muscleScores(collectWindowExercises(history, days), library)),
-    [history, library, days]
+    () => muscleHighlights(muscleScores(exercises, library)),
+    [exercises, library]
   );
   const total = totalSets(counts);
   const ranked = React.useMemo(() => [...counts].sort((a, b) => b.sets - a.sets), [counts]);
@@ -58,16 +67,16 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
           </div>
           <ToggleGroup
             type="single"
-            value={String(days)}
-            onValueChange={(v) => v && setDays(Number(v))}
+            value={range}
+            onValueChange={(value) => value && setRange(value as "week" | "30")}
             variant="outline"
             size="sm"
           >
             <ToggleGroupItem
-              value="7"
+              value="week"
               className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
             >
-              7 days
+              This week
             </ToggleGroupItem>
             <ToggleGroupItem
               value="30"
@@ -80,8 +89,10 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
 
         {total === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            No completed sets in the last {days} days. Finish a workout and your muscle balance will
-            show up here.
+            {range === "week"
+              ? "No completed sets this week."
+              : "No completed sets in the last 30 days."}{" "}
+            Finish a workout and your muscle balance will show up here.
           </p>
         ) : (
           <>
@@ -106,8 +117,8 @@ export function MuscleInsights({ history }: { history: CompletedWorkout[] }) {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {total} completed working {total === 1 ? "set" : "sets"} in the last {days} days.
-              Warm-ups excluded.
+              {total} completed working {total === 1 ? "set" : "sets"}{" "}
+              {range === "week" ? "this week" : "in the last 30 days"}. Warm-ups excluded.
             </p>
           </>
         )}

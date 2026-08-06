@@ -16,6 +16,7 @@ import type { CompletedWorkout } from "@/lib/types";
 import { dayKeyToDate } from "@/lib/date/day-key";
 import { formatClock, formatSetValue, setTypeShort } from "@/lib/workout";
 import { ExerciseProgressDialog } from "@/components/history/ExerciseProgressDialog";
+import { paginateHistory } from "@/lib/history-pagination";
 
 type DayGroup = {
   dayKey: string;
@@ -143,9 +144,17 @@ export function HistoryList({
   entries: CompletedWorkout[];
   onDelete: (entry: CompletedWorkout) => void;
 }) {
+  const [page, setPage] = React.useState(1);
+  const listTopRef = React.useRef<HTMLDivElement>(null);
+  const pageData = React.useMemo(() => paginateHistory(entries, page), [entries, page]);
+
+  React.useEffect(() => {
+    if (page !== pageData.page) setPage(pageData.page);
+  }, [page, pageData.page]);
+
   const groups = React.useMemo<DayGroup[]>(() => {
     const byDay = new Map<string, CompletedWorkout[]>();
-    for (const entry of entries) {
+    for (const entry of pageData.entries) {
       const key = entry.dayKey ?? entry.date.slice(0, 10);
       const list = byDay.get(key) ?? [];
       list.push(entry);
@@ -154,12 +163,17 @@ export function HistoryList({
     return [...byDay.entries()]
       .map(([dayKey, list]) => ({ dayKey, date: dayKeyToDate(dayKey), entries: list }))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [entries]);
+  }, [pageData.entries]);
 
   const [selectedExercise, setSelectedExercise] = React.useState<string | null>(null);
 
+  const goToPage = (nextPage: number) => {
+    setPage(nextPage);
+    window.requestAnimationFrame(() => listTopRef.current?.scrollIntoView({ block: "start" }));
+  };
+
   return (
-    <div className="space-y-4">
+    <div ref={listTopRef} className="scroll-mt-4 space-y-4">
       {groups.map((group) => (
         <div key={group.dayKey} className="space-y-2">
           <h3 className="text-sm font-medium text-muted-foreground">
@@ -167,7 +181,7 @@ export function HistoryList({
           </h3>
           <ul className="space-y-2">
             {group.entries.map((entry, i) => (
-              <li key={`${group.dayKey}-${i}`}>
+              <li key={`${entry.date}-${i}`}>
                 <EntryCard
                   entry={entry}
                   onDelete={onDelete}
@@ -178,6 +192,37 @@ export function HistoryList({
           </ul>
         </div>
       ))}
+      {pageData.totalPages > 1 && (
+        <nav
+          className="space-y-2 rounded-lg border bg-muted/30 p-3"
+          aria-label="Recent activity pages"
+        >
+          <p className="text-center text-xs text-muted-foreground" aria-live="polite">
+            Showing {pageData.rangeStart}–{pageData.rangeEnd} of {pageData.totalEntries} workouts
+          </p>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => goToPage(pageData.page - 1)}
+              disabled={pageData.page === 1}
+            >
+              Previous
+            </Button>
+            <span className="px-1 text-sm font-medium tabular-nums">
+              {pageData.page} / {pageData.totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => goToPage(pageData.page + 1)}
+              disabled={pageData.page === pageData.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </nav>
+      )}
       <ExerciseProgressDialog
         name={selectedExercise}
         onOpenChange={(open) => !open && setSelectedExercise(null)}

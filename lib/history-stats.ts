@@ -53,17 +53,21 @@ function summarizeExercise(sets: CompletedSet[], date: string, dayKey?: string):
     counts[u] += 1;
     if (u === "kg") {
       const w = setWeightKg(s.value, u);
+      volumeKg += setVolumeKg(s.reps, s.value, u);
+      if (s.excludeFromPR) continue;
       if (w > topWeightKg) {
         topWeightKg = w;
         topWeightReps = s.reps;
       }
       bestOneRepMax = Math.max(bestOneRepMax, estimateOneRepMax(w, s.reps));
-      volumeKg += setVolumeKg(s.reps, s.value, u);
     } else if (u === "bw") {
+      if (s.excludeFromPR) continue;
       bestReps = Math.max(bestReps, s.reps);
     } else if (u === "time") {
+      if (s.excludeFromPR) continue;
       bestDurationSec = Math.max(bestDurationSec, parseDuration(s.value));
     } else if (u === "km") {
+      if (s.excludeFromPR) continue;
       bestDistanceKm = Math.max(bestDistanceKm, parseFloat(s.value) || 0);
     }
   }
@@ -171,6 +175,53 @@ export type ExercisePR = {
   bestDistanceKm: number;
 } | null;
 
+export type SetPersonalRecord = {
+  label: string;
+  // Relative improvement over the pre-session record. Keeping this numeric lets
+  // live-session tracking move back down when a completed set is corrected.
+  score: number;
+};
+
+/** Describes whether one finalized working set beats a pre-session record. */
+export function getSetPersonalRecord(
+  set: CompletedSet,
+  pr: ExercisePR
+): SetPersonalRecord | null {
+  if (!pr || set.status !== "done" || set.type === "warmup" || set.excludeFromPR) return null;
+  const unit = setUnit(set);
+  if (unit === "kg") {
+    const weight = setWeightKg(set.value, unit);
+    const oneRepMax = estimateOneRepMax(weight, set.reps);
+    const beatsWeight = pr.maxWeightKg > 0 && weight > pr.maxWeightKg;
+    const beatsOneRepMax = pr.bestOneRepMax > 0 && oneRepMax > pr.bestOneRepMax;
+    if (!beatsWeight && !beatsOneRepMax) return null;
+    return {
+      label: beatsWeight
+        ? `${weight} kg × ${set.reps}`
+        : `est. 1RM ~${Math.round(oneRepMax)} kg`,
+      score: Math.max(
+        beatsWeight ? weight / pr.maxWeightKg : 0,
+        beatsOneRepMax ? oneRepMax / pr.bestOneRepMax : 0
+      ),
+    };
+  }
+  if (unit === "bw") {
+    if (pr.bestReps <= 0 || set.reps <= pr.bestReps) return null;
+    return { label: `${set.reps} reps`, score: set.reps / pr.bestReps };
+  }
+  if (unit === "time") {
+    const duration = parseDuration(set.value);
+    if (pr.bestDurationSec <= 0 || duration <= pr.bestDurationSec) return null;
+    return {
+      label: formatSetValue(`${duration}s`, "time"),
+      score: duration / pr.bestDurationSec,
+    };
+  }
+  const distance = parseFloat(set.value) || 0;
+  if (pr.bestDistanceKm <= 0 || distance <= pr.bestDistanceKm) return null;
+  return { label: `${distance} km`, score: distance / pr.bestDistanceKm };
+}
+
 export function getExercisePR(name: string, history?: CompletedWorkout[]): ExercisePR {
   const all = getExerciseHistory(name, history);
   if (!all.length) return null;
@@ -194,6 +245,69 @@ export function getExercisePR(name: string, history?: CompletedWorkout[]): Exerc
     pr.bestDistanceKm = Math.max(pr.bestDistanceKm, s.bestDistanceKm);
   }
   return pr;
+}
+
+const sameMetric = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+
+/**
+ * Excludes the set(s) responsible for an exercise's currently displayed PR.
+ * The workout and set stay intact for history, streak, reps, and volume.
+ * Returns null when there is no deletable record.
+ */
+export function excludeCurrentExercisePR(
+  name: string,
+  history: CompletedWorkout[]
+): CompletedWorkout[] | null {
+  const target = normalizeExName(name);
+  const pr = getExercisePR(name, history);
+  if (!target || !pr) return null;
+  let changed = false;
+
+  const next = history.map((workout) => {
+    if (!workout.exercises) return workout;
+    let workoutChanged = false;
+    const exercises = workout.exercises.map((exercise) => {
+      if (normalizeExName(exercise.name) !== target) return exercise;
+      let exerciseChanged = false;
+      const sets = exercise.sets.map((set) => {
+        if (
+          set.status !== "done" ||
+          set.type === "warmup" ||
+          set.excludeFromPR ||
+          setUnit(set) !== pr.kind
+        ) {
+          return set;
+        }
+
+        let isCurrentRecord = false;
+        if (pr.kind === "kg") {
+          const weight = setWeightKg(set.value, "kg");
+          const oneRepMax = estimateOneRepMax(weight, set.reps);
+          isCurrentRecord =
+            (pr.maxWeightKg > 0 && sameMetric(weight, pr.maxWeightKg)) ||
+            (pr.bestOneRepMax > 0 && sameMetric(oneRepMax, pr.bestOneRepMax));
+        } else if (pr.kind === "bw") {
+          isCurrentRecord = pr.bestReps > 0 && set.reps === pr.bestReps;
+        } else if (pr.kind === "time") {
+          isCurrentRecord =
+            pr.bestDurationSec > 0 && sameMetric(parseDuration(set.value), pr.bestDurationSec);
+        } else {
+          isCurrentRecord =
+            pr.bestDistanceKm > 0 &&
+            sameMetric(parseFloat(set.value) || 0, pr.bestDistanceKm);
+        }
+        if (!isCurrentRecord) return set;
+        changed = true;
+        exerciseChanged = true;
+        workoutChanged = true;
+        return { ...set, excludeFromPR: true };
+      });
+      return exerciseChanged ? { ...exercise, sets } : exercise;
+    });
+    return workoutChanged ? { ...workout, exercises } : workout;
+  });
+
+  return changed ? next : null;
 }
 
 /**

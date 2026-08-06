@@ -93,6 +93,7 @@ export function restoreAutoBackup(): boolean {
     version: 1,
     programs: Array.isArray(b.bundle.programs) ? b.bundle.programs : [],
     activeProgramId: b.bundle.activeProgramId,
+    progressByProgramId: b.bundle.programProgress,
   });
   writeJson(
     STORAGE_KEYS.completedWorkouts,

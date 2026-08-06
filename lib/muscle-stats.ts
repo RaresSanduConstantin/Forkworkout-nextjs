@@ -4,6 +4,7 @@
 // targets. Nothing new is persisted.
 
 import type { CompletedWorkout, SetStatus, SetType } from "./types";
+import { currentWeekDayKeys, toDayKey } from "./date/day-key";
 import {
   MUSCLE_GROUPS,
   groupsForExerciseName,
@@ -45,6 +46,35 @@ export function muscleGroupSetCounts(
   days: number
 ): MuscleGroupCount[] {
   return muscleGroupCountsFromExercises(collectWindowExercises(history, days), library);
+}
+
+/** Completed working sets per muscle group in the current local Mon–Sun week. */
+export function muscleGroupSetCountsThisWeek(
+  history: CompletedWorkout[],
+  library: LibraryExercise[],
+  now: Date = new Date()
+): MuscleGroupCount[] {
+  return muscleGroupCountsFromExercises(collectCurrentWeekExercises(history, now), library);
+}
+
+/**
+ * Flattened exercises from workouts in the current local calendar week. Uses
+ * the same Monday-starting day keys as dashboard workout goals.
+ */
+export function collectCurrentWeekExercises(
+  history: CompletedWorkout[],
+  now: Date = new Date()
+): { name: string; sets: { status?: SetStatus; type?: SetType }[] }[] {
+  const week = currentWeekDayKeys(now);
+  const exercises: { name: string; sets: { status?: SetStatus; type?: SetType }[] }[] = [];
+  for (const workout of history) {
+    const parsed = new Date(workout.date);
+    const dayKey = workout.dayKey ??
+      (Number.isFinite(parsed.getTime()) ? toDayKey(parsed) : undefined);
+    if (!dayKey || !week.has(dayKey)) continue;
+    if (workout.exercises) exercises.push(...workout.exercises);
+  }
+  return exercises;
 }
 
 /** Flattened exercises from all workouts within the last `days` days. */

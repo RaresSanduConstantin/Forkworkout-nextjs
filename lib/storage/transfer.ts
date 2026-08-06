@@ -32,6 +32,7 @@ import {
   type DailyTrainingState,
 } from "./daily-training-state";
 import { getProgramState, saveProgramState } from "./program-storage";
+import type { ProgramProgress } from "./program-storage";
 
 export type ExportBundle = {
   version: number;
@@ -39,6 +40,7 @@ export type ExportBundle = {
   workouts: Workout[];
   programs?: WorkoutProgram[];
   activeProgramId?: string;
+  programProgress?: Record<string, ProgramProgress>;
   completedWorkouts: CompletedWorkout[];
   bodyMetrics: BodyMetricEntry[];
   customExercises: CustomExercise[];
@@ -52,12 +54,14 @@ export type ExportBundle = {
 
 /** Builds a full snapshot of the user's local data. */
 export function buildExport(): ExportBundle {
+  const programState = getProgramState();
   return {
     version: 1,
     exportedAt: new Date().toISOString(),
     workouts: getWorkouts(),
-    programs: getProgramState().programs,
-    activeProgramId: getProgramState().activeProgramId,
+    programs: programState.programs,
+    activeProgramId: programState.activeProgramId,
+    programProgress: programState.progressByProgramId,
     completedWorkouts: getCompletedWorkouts(),
     bodyMetrics: getBodyMetrics(),
     customExercises: getCustomExercises(),
@@ -130,17 +134,27 @@ export function mergeImport(text: string): {
   const programState = getProgramState();
   const programIds = new Set(programState.programs.map((program) => program.id));
   const programs = [...programState.programs];
+  const addedProgramIds = new Set<string>();
   let programsAdded = 0;
   for (const program of importedPrograms) {
     if (program && typeof program.id === "string" && !programIds.has(program.id)) {
       programs.push(program);
       programIds.add(program.id);
+      addedProgramIds.add(program.id);
       programsAdded += 1;
+    }
+  }
+  const progressByProgramId = { ...programState.progressByProgramId };
+  if (bundle.programProgress && typeof bundle.programProgress === "object") {
+    for (const programId of addedProgramIds) {
+      const progress = bundle.programProgress[programId];
+      if (progress) progressByProgramId[programId] = progress;
     }
   }
   saveProgramState({
     version: 1,
     programs,
+    progressByProgramId,
     activeProgramId:
       programState.activeProgramId ??
       (typeof bundle.activeProgramId === "string" ? bundle.activeProgramId : undefined),

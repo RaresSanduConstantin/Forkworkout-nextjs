@@ -15,7 +15,11 @@ import CalendarComponent from "@/components/Calendar";
 import { StreakSummary } from "@/components/history/StreakSummary";
 import { VolumeChart } from "@/components/history/VolumeChart";
 import { MuscleInsights } from "@/components/history/MuscleInsights";
-import { RecordsList, buildExerciseRecords } from "@/components/history/RecordsList";
+import {
+  RecordsList,
+  buildExerciseRecords,
+  type RecordRow,
+} from "@/components/history/RecordsList";
 import {
   Accordion,
   AccordionContent,
@@ -27,7 +31,9 @@ import { CloudBackupCard } from "@/components/history/CloudBackupCard";
 import {
   getCompletedWorkouts,
   deleteCompletedWorkout,
+  saveCompletedWorkouts,
 } from "@/lib/storage/history-storage";
+import { excludeCurrentExercisePR } from "@/lib/history-stats";
 import { downloadExport, mergeImport } from "@/lib/storage/transfer";
 import { downloadExcel } from "@/lib/storage/excel-export";
 import {
@@ -43,6 +49,7 @@ const HistoryComponent = () => {
   const [entries, setEntries] = React.useState<CompletedWorkout[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [pendingDelete, setPendingDelete] = React.useState<CompletedWorkout | null>(null);
+  const [pendingPRDelete, setPendingPRDelete] = React.useState<RecordRow | null>(null);
   const [backup, setBackup] = React.useState<AutoBackup | null>(null);
   const [showRestore, setShowRestore] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
@@ -80,6 +87,18 @@ const HistoryComponent = () => {
     refresh();
     toast.success("Removed from history");
     setPendingDelete(null);
+  };
+
+  const confirmPRDelete = () => {
+    if (!pendingPRDelete) return;
+    const next = excludeCurrentExercisePR(pendingPRDelete.name, entries);
+    if (!next || !saveCompletedWorkouts(next)) {
+      toast.error("Couldn't delete that personal record.");
+      return;
+    }
+    refresh();
+    toast.success(`Deleted ${pendingPRDelete.name} PR`);
+    setPendingPRDelete(null);
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -207,7 +226,7 @@ const HistoryComponent = () => {
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <RecordsList history={entries} />
+                  <RecordsList history={entries} onDelete={setPendingPRDelete} />
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -247,6 +266,18 @@ const HistoryComponent = () => {
         confirmLabel="Remove"
         destructive
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        open={pendingPRDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPRDelete(null);
+        }}
+        title={`Delete ${pendingPRDelete?.name ?? "this"} personal record?`}
+        description="The workout and completed set will stay in your history, but this result will no longer count toward PRs. Your next-best result may take its place."
+        confirmLabel="Delete PR"
+        destructive
+        onConfirm={confirmPRDelete}
       />
 
       <ConfirmDialog

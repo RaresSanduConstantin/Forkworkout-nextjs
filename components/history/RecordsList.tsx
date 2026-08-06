@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Trophy } from "lucide-react";
+import { Trash2, Trophy } from "lucide-react";
 
 import type { CompletedWorkout } from "@/lib/types";
 import { getAllExerciseNames, getExercisePR } from "@/lib/history-stats";
 import { formatSetValue } from "@/lib/workout";
+import { Button } from "@/components/ui/button";
 
-type RecordRow = { name: string; main: string; sub?: string };
+export type RecordRow = { name: string; main: string; sub?: string };
 
 export function buildExerciseRecords(history: CompletedWorkout[]): RecordRow[] {
   const rows: RecordRow[] = [];
@@ -37,7 +38,13 @@ export function buildExerciseRecords(history: CompletedWorkout[]): RecordRow[] {
  * (heaviest lift + est. 1RM, most reps, longest time, or furthest distance).
  * Renders nothing when there are no records yet.
  */
-export function RecordsList({ history }: { history: CompletedWorkout[] }) {
+export function RecordsList({
+  history,
+  onDelete,
+}: {
+  history: CompletedWorkout[];
+  onDelete: (record: RecordRow) => void;
+}) {
   const records = React.useMemo(() => buildExerciseRecords(history), [history]);
   if (records.length === 0) return null;
 
@@ -52,7 +59,20 @@ export function RecordsList({ history }: { history: CompletedWorkout[] }) {
               {r.sub && <div className="text-xs text-muted-foreground">{r.sub}</div>}
             </div>
           </div>
-          <div className="shrink-0 font-semibold tabular-nums">{r.main}</div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="font-semibold tabular-nums">{r.main}</div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 px-2 text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(r)}
+              aria-label={`Delete ${r.name} personal record`}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
+          </div>
         </li>
       ))}
     </ul>

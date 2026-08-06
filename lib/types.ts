@@ -73,6 +73,9 @@ export type CompletedSet = {
   status: SetStatus;
   type?: SetType;
   rpe?: number; // optional rate of perceived exertion (1–10)
+  // Keeps the performed set in workout history while excluding a mistaken
+  // result from PR/progression calculations. Optional for legacy data.
+  excludeFromPR?: boolean;
 };
 
 export type CompletedExercise = {

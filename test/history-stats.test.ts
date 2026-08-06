@@ -1,16 +1,18 @@
 import { describe, it, expect } from "vitest";
 
-import type { CompletedWorkout } from "@/lib/types";
+import type { CompletedSet, CompletedWorkout } from "@/lib/types";
 import {
   estimateOneRepMax,
+  excludeCurrentExercisePR,
   getExerciseHistory,
   getLastPerformance,
   getExercisePR,
+  getSetPersonalRecord,
   suggestNextWeight,
   getTypicalDurationSec,
 } from "@/lib/history-stats";
 
-function session(date: string, name: string, sets: CompletedWorkout["exercises"][number]["sets"]): CompletedWorkout {
+function session(date: string, name: string, sets: CompletedSet[]): CompletedWorkout {
   return { date, title: "W", exercises: [{ name, sets }] } as CompletedWorkout;
 }
 
@@ -52,6 +54,48 @@ describe("per-exercise history", () => {
     const pr = getExercisePR("Bench Press", history);
     expect(pr?.maxWeightKg).toBe(62.5);
     expect(pr?.kind).toBe("kg");
+  });
+
+  it("re-evaluates a live PR from corrected set values", () => {
+    const pr = getExercisePR("Bench Press", history);
+    expect(
+      getSetPersonalRecord(
+        { reps: 8, value: "65", unit: "kg", status: "done" },
+        pr
+      )?.label
+    ).toBe("65 kg × 8");
+    expect(
+      getSetPersonalRecord(
+        { reps: 8, value: "55", unit: "kg", status: "done" },
+        pr
+      )
+    ).toBeNull();
+    expect(
+      getSetPersonalRecord(
+        { reps: 8, value: "65", unit: "kg", status: "done" },
+        pr
+      )?.label
+    ).toBe("65 kg × 8");
+  });
+
+  it("does not count a warm-up as a PR", () => {
+    expect(
+      getSetPersonalRecord(
+        { reps: 8, value: "100", unit: "kg", status: "done", type: "warmup" },
+        getExercisePR("Bench Press", history)
+      )
+    ).toBeNull();
+  });
+
+  it("deletes the current PR without deleting its workout volume", () => {
+    const next = excludeCurrentExercisePR("Bench Press", history);
+
+    expect(next).not.toBeNull();
+    expect(getExercisePR("Bench Press", next!)?.maxWeightKg).toBe(60);
+    expect(getExerciseHistory("Bench Press", next!)[1].volumeKg).toBe(500);
+    expect(next?.[1].exercises?.[0].sets[0]).toEqual(
+      expect.objectContaining({ value: "62.5", status: "done", excludeFromPR: true })
+    );
   });
 });
 
