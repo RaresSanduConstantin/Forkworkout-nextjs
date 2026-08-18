@@ -446,6 +446,19 @@ const StartWorkoutComponent = () => {
     return { done, total, percent: total ? (done / total) * 100 : 0 };
   }, [workout]);
 
+  // The first exercise with work left is the current one. When it belongs to
+  // a superset, keep the whole group highlighted so the user sees the pair as
+  // one active block rather than two unrelated exercises.
+  const currentExercise = useMemo(() => {
+    if (!workout) return { index: -1, superset: null as string | null };
+    const index = workout.exercises.findIndex((exercise) =>
+      exercise.sets.some((set) => set.status === "pending")
+    );
+    const superset =
+      index >= 0 ? workout.exercises[index]?.superset?.trim() || null : null;
+    return { index, superset };
+  }, [workout]);
+
   // Estimated total workout time (shared with the generator so they agree).
   const estimateSec = useMemo(() => {
     if (!workout) return 0;
@@ -1254,6 +1267,10 @@ const StartWorkoutComponent = () => {
           const nextGroup = workout.exercises[exIdx + 1]?.superset;
           const inGroup = !!group && (group === prevGroup || group === nextGroup);
           const isGroupStart = inGroup && group !== prevGroup;
+          const isCurrentExercise =
+            exIdx === currentExercise.index ||
+            (!!currentExercise.superset &&
+              exercise.superset?.trim() === currentExercise.superset);
           return (
             <div
               key={exercise.id ?? exIdx}
@@ -1280,9 +1297,12 @@ const StartWorkoutComponent = () => {
                 }
                 className={cn(
                   "rounded-xl border bg-card text-card-foreground shadow-sm",
+                  isCurrentExercise &&
+                    "border-violet-700 bg-violet-500/[0.04] ring-2 ring-violet-700/25 dark:border-violet-400 dark:ring-violet-400/25",
                   exercise.id === highlightExId &&
                     "ring-2 ring-primary ring-offset-2 transition-shadow"
                 )}
+                aria-current={isCurrentExercise ? "step" : undefined}
               >
                 <AccordionItem value="details" className="border-b-0">
                   <AccordionTrigger
@@ -1309,6 +1329,14 @@ const StartWorkoutComponent = () => {
                           {handledSetCount}/{exercise.sets.length} sets
                         </span>
                       </span>
+                      {isCurrentExercise && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 border-violet-700/40 bg-violet-700/10 px-1.5 text-violet-800 dark:border-violet-400/40 dark:text-violet-300 sm:px-2.5"
+                        >
+                          Current
+                        </Badge>
+                      )}
                       {exerciseComplete && (
                         <Badge className="shrink-0 bg-lime-600 px-1.5 text-white hover:bg-lime-600 sm:px-2.5">
                           Complete

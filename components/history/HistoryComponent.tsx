@@ -27,6 +27,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { HistoryList } from "@/components/history/HistoryList";
+import { EditHistoryEntryDialog } from "@/components/history/EditHistoryEntryDialog";
 import { CloudBackupCard } from "@/components/history/CloudBackupCard";
 import {
   getCompletedWorkouts,
@@ -49,6 +50,8 @@ const HistoryComponent = () => {
   const [entries, setEntries] = React.useState<CompletedWorkout[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [pendingDelete, setPendingDelete] = React.useState<CompletedWorkout | null>(null);
+  const [editingEntry, setEditingEntry] = React.useState<CompletedWorkout | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
   const [pendingPRDelete, setPendingPRDelete] = React.useState<RecordRow | null>(null);
   const [backup, setBackup] = React.useState<AutoBackup | null>(null);
   const [showRestore, setShowRestore] = React.useState(false);
@@ -251,10 +254,24 @@ const HistoryComponent = () => {
               }
             />
           ) : (
-            <HistoryList entries={entries} onDelete={setPendingDelete} />
+            <HistoryList
+              entries={entries}
+              onEdit={(entry) => {
+                setEditingEntry(entry);
+                setEditOpen(true);
+              }}
+              onDelete={setPendingDelete}
+            />
           )}
         </section>
       </div>
+
+      <EditHistoryEntryDialog
+        open={editOpen}
+        entry={editingEntry}
+        onOpenChange={setEditOpen}
+        onSaved={refresh}
+      />
 
       <ConfirmDialog
         open={pendingDelete !== null}

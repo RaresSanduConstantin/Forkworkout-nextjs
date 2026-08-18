@@ -106,6 +106,35 @@ export function saveCompletedWorkouts(entries: CompletedWorkout[]): boolean {
   return writeJson(STORAGE_KEYS.completedWorkouts, normalized);
 }
 
+/**
+ * Replaces one completed-workout entry, matched by its original ISO timestamp.
+ * The timestamp is the legacy history identifier, so callers pass it separately
+ * when the edited completion date itself changes.
+ */
+export function updateCompletedWorkout(
+  originalDate: string,
+  replacement: CompletedWorkout
+): boolean {
+  const parsedDate = new Date(replacement.date);
+  if (!Number.isFinite(parsedDate.getTime())) return false;
+
+  const all = getCompletedWorkouts();
+  const index = all.findIndex((entry) => entry.date === originalDate);
+  if (index === -1) return false;
+
+  // Always regenerate dayKey from the edited timestamp so calendar and streak
+  // views move with the entry instead of retaining its previous local day.
+  const normalized = normalizeCompleted({
+    ...replacement,
+    date: parsedDate.toISOString(),
+    dayKey: toDayKey(parsedDate),
+  });
+  if (!normalized) return false;
+
+  all[index] = normalized;
+  return writeJson(STORAGE_KEYS.completedWorkouts, all);
+}
+
 /** Returns the set of local day keys that have at least one completed workout. */
 export function getCompletedDayKeys(): string[] {
   const keys = new Set<string>();

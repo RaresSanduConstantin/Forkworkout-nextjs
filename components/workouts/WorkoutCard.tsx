@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Dumbbell, Layers, Pencil, Play, Share2, Trash2 } from "lucide-react";
+import { Copy, Dumbbell, Eye, Layers, Pencil, Play, Share2, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import type { Workout } from "@/lib/types";
 export function WorkoutCard({
   workout,
   onStart,
+  onPreview,
   onEdit,
   onDelete,
   onCopy,
@@ -18,6 +19,7 @@ export function WorkoutCard({
 }: {
   workout: Workout;
   onStart: (id: string) => void;
+  onPreview: (workout: Workout) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onCopy: (id: string) => void;
@@ -81,10 +83,21 @@ export function WorkoutCard({
           )}
         </div>
 
-        <div className="mt-1 flex gap-2">
-          <Button className="flex-1 gap-2" onClick={() => onStart(workout.id)}>
+        <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <Button
+            className="col-span-2 gap-2 sm:col-span-1"
+            onClick={() => onStart(workout.id)}
+          >
             <Play className="size-4" />
             Start
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => onPreview(workout)}
+          >
+            <Eye className="size-4" />
+            Preview
           </Button>
           <Button
             variant="outline"

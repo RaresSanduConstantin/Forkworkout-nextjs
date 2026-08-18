@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format, isToday, isYesterday } from "date-fns";
-import { LineChart, Trash2 } from "lucide-react";
+import { LineChart, Pencil, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,10 +32,12 @@ function labelForDate(date: Date) {
 
 function EntryCard({
   entry,
+  onEdit,
   onDelete,
   onSelectExercise,
 }: {
   entry: CompletedWorkout;
+  onEdit: (entry: CompletedWorkout) => void;
   onDelete: (entry: CompletedWorkout) => void;
   onSelectExercise: (name: string) => void;
 }) {
@@ -53,10 +55,10 @@ function EntryCard({
     <Card className="overflow-hidden py-0">
       <Accordion type="single" collapsible>
         <AccordionItem value={entry.date} className="border-0">
-          {/* Relative wrapper: the trigger fills the whole header, the delete
-              button is overlaid so there are no unclickable gaps. */}
+          {/* Relative wrapper: the trigger fills the whole header, while the
+              edit/delete actions remain independently tappable. */}
           <div className="relative">
-            <AccordionTrigger className="w-full items-center px-3 py-3 pr-12 hover:no-underline data-[state=open]:bg-muted/40 [&>svg]:size-5 [&>svg]:translate-y-0 [&>svg]:text-primary">
+            <AccordionTrigger className="w-full items-center px-3 py-3 pr-24 hover:no-underline data-[state=open]:bg-muted/40 [&>svg]:size-5 [&>svg]:translate-y-0 [&>svg]:text-primary">
               <div className="flex min-w-0 flex-1 flex-col items-start pr-2 text-left">
                 <span className="break-words font-medium">{entry.title}</span>
                 {meta.length > 0 && (
@@ -65,6 +67,15 @@ function EntryCard({
                 <span className="mt-0.5 text-xs text-primary/80">Tap to see details</span>
               </div>
             </AccordionTrigger>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="absolute right-10 top-1/2 z-10 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label={`Edit ${entry.title} history entry`}
+              onClick={() => onEdit(entry)}
+            >
+              <Pencil className="size-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -139,9 +150,11 @@ function EntryCard({
 /** Grouped list of completed workouts, most recent first. Each expands to detail. */
 export function HistoryList({
   entries,
+  onEdit,
   onDelete,
 }: {
   entries: CompletedWorkout[];
+  onEdit: (entry: CompletedWorkout) => void;
   onDelete: (entry: CompletedWorkout) => void;
 }) {
   const [page, setPage] = React.useState(1);
@@ -184,6 +197,7 @@ export function HistoryList({
               <li key={`${entry.date}-${i}`}>
                 <EntryCard
                   entry={entry}
+                  onEdit={onEdit}
                   onDelete={onDelete}
                   onSelectExercise={setSelectedExercise}
                 />

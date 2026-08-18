@@ -42,6 +42,20 @@ export function MuscleMapView({
         interactive: false,
         multiSelect: false,
       });
+
+      // MuscleMapJS applies `touch-action: none` to every canvas, including
+      // read-only maps. Override it here so a swipe that starts on the body map
+      // continues scrolling the page or dialog on touch devices.
+      const makeCanvasScrollSafe = (container: HTMLDivElement, label: string) => {
+        const canvas = container.querySelector("canvas");
+        if (!canvas) return;
+        canvas.style.touchAction = "pan-y";
+        canvas.style.pointerEvents = "none";
+        canvas.setAttribute("aria-label", label);
+      };
+      makeCanvasScrollSafe(frontRef.current, "Front muscle heat map");
+      makeCanvasScrollSafe(backRef.current, "Back muscle heat map");
+
       frontMap.current.setHighlightData(highlightsRef.current);
       backMap.current.setHighlightData(highlightsRef.current);
       cleanup = () => {
@@ -64,13 +78,13 @@ export function MuscleMapView({
   }, [highlights]);
 
   return (
-    <div className="flex items-end justify-center gap-4">
+    <div className="flex touch-pan-y select-none items-end justify-center gap-2 rounded-xl bg-muted/60 px-2 py-3 sm:gap-4 sm:px-4">
       <figure className="flex flex-col items-center gap-1">
-        <div ref={frontRef} className="h-56 w-28" />
+        <div ref={frontRef} className="pointer-events-none h-56 w-28 touch-pan-y" />
         <figcaption className="text-xs text-muted-foreground">Front</figcaption>
       </figure>
       <figure className="flex flex-col items-center gap-1">
-        <div ref={backRef} className="h-56 w-28" />
+        <div ref={backRef} className="pointer-events-none h-56 w-28 touch-pan-y" />
         <figcaption className="text-xs text-muted-foreground">Back</figcaption>
       </figure>
     </div>

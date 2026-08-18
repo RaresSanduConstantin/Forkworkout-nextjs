@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { StatCard } from "@/components/shared/StatCard";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { WorkoutCard } from "@/components/workouts/WorkoutCard";
+import { WorkoutPreviewDialog } from "@/components/workouts/WorkoutPreviewDialog";
 import { StarterWorkouts } from "@/components/workouts/StarterWorkouts";
 import { WeeklyGoalCard } from "@/components/dashboard/WeeklyGoalCard";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
@@ -70,6 +71,8 @@ const WorkoutList = () => {
   const [programShareTarget, setProgramShareTarget] = useState<WorkoutProgram | null>(null);
   const [pendingProgramImport, setPendingProgramImport] = useState<DecodedProgramShare | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Workout | null>(null);
+  const [previewWorkout, setPreviewWorkout] = useState<Workout | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [showClearAll, setShowClearAll] = useState(false);
   const [keepCustomExercises, setKeepCustomExercises] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
@@ -635,6 +638,10 @@ const WorkoutList = () => {
                 <WorkoutCard
                   workout={workout}
                   onStart={handleStart}
+                  onPreview={(selectedWorkout) => {
+                    setPreviewWorkout(selectedWorkout);
+                    setPreviewOpen(true);
+                  }}
                   onEdit={handleEdit}
                   onDelete={() => setPendingDelete(workout)}
                   onCopy={handleCopy}
@@ -781,6 +788,13 @@ const WorkoutList = () => {
         description="Drag the handles to reorder your workouts."
         items={workouts.map((w) => ({ id: w.id, title: w.title || "Untitled workout" }))}
         onMove={moveWorkout}
+      />
+
+      <WorkoutPreviewDialog
+        open={previewOpen}
+        workout={previewWorkout}
+        onOpenChange={setPreviewOpen}
+        onStart={handleStart}
       />
 
       <OnboardingDialog
