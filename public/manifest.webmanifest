@@ -9,6 +9,16 @@
   "background_color": "#f8fafc",
   "theme_color": "#f8fafc",
   "categories": ["health", "fitness", "sports"],
+  "share_target": {
+    "action": "/app?shareTarget=1",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "sharedTitle",
+      "text": "sharedText",
+      "url": "sharedUrl"
+    }
+  },
   "icons": [
     {
       "src": "/icons/icon-192.png",

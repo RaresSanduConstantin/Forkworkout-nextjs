@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, SkipForward, Sparkles, Trash2, Trophy, ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, CalendarDays, ClipboardPaste, Copy, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -31,8 +32,13 @@ import { ProgramDialog } from "@/components/programs/ProgramDialog";
 import { ProgramCard } from "@/components/programs/ProgramCard";
 import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle, saveWorkouts } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
-import { buildShareUrl, decodeWorkout } from "@/lib/storage/share";
+import { buildShareUrl, decodeWorkout, type DecodedShare } from "@/lib/storage/share";
 import { buildProgramShareUrl, decodeProgram, type DecodedProgramShare } from "@/lib/storage/program-share";
+import {
+  buildSharedImportUrl,
+  extractSharedImport,
+  type SharedImportReference,
+} from "@/lib/storage/share-link";
 import {
   createProgram,
   deleteProgram,
@@ -56,6 +62,51 @@ import { toast } from "sonner";
 
 type AddCustomInput = Parameters<typeof addCustomExercise>[0];
 
+type IncomingShare =
+  | { kind: "workout"; decoded: DecodedShare }
+  | { kind: "program"; decoded: DecodedProgramShare };
+
+function decodeIncomingShare(reference: SharedImportReference): IncomingShare | null {
+  if (reference.kind === "program") {
+    const decoded = decodeProgram(reference.encoded);
+    return decoded ? { kind: "program", decoded } : null;
+  }
+  const decoded = decodeWorkout(reference.encoded);
+  return decoded ? { kind: "workout", decoded } : null;
+}
+
+function isStandaloneApp(): boolean {
+  if (typeof window === "undefined") return false;
+  const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    navigatorWithStandalone.standalone === true
+  );
+}
+
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    // Older/iOS embedded browsers may not expose the async Clipboard API.
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      return copied;
+    } catch {
+      return false;
+    }
+  }
+}
+
 const WorkoutList = () => {
   const router = useRouter();
   const [workouts, setWorkouts] = useState<Workout[]>([]);
@@ -78,6 +129,10 @@ const WorkoutList = () => {
   const [showWizard, setShowWizard] = useState(false);
   const [pendingImport, setPendingImport] = useState<Workout | null>(null);
   const [pendingCustom, setPendingCustom] = useState<AddCustomInput[]>([]);
+  const [pendingShareLink, setPendingShareLink] = useState<string | null>(null);
+  const [standalone, setStandalone] = useState(false);
+  const [importLinkOpen, setImportLinkOpen] = useState(false);
+  const [importLinkValue, setImportLinkValue] = useState("");
   const [shareTarget, setShareTarget] = useState<Workout | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -113,6 +168,7 @@ const WorkoutList = () => {
   };
 
   useEffect(() => {
+    setStandalone(isStandaloneApp());
     const loaded = getWorkouts();
     setWorkouts(loaded);
     setStreak(computeStreak(getCompletedDayKeys()));
@@ -137,25 +193,58 @@ const WorkoutList = () => {
     }
   }, []);
 
-  // Detect a shared workout in the URL fragment (#import=…) and offer to import.
+  const showIncomingShare = useCallback(
+    (incoming: IncomingShare, reference: SharedImportReference) => {
+      setPendingShareLink(buildSharedImportUrl(reference, window.location.origin));
+      if (incoming.kind === "program") {
+        setPendingImport(null);
+        setPendingCustom([]);
+        setPendingProgramImport(incoming.decoded);
+        return;
+      }
+      setPendingProgramImport(null);
+      setPendingImport(incoming.decoded.workout);
+      setPendingCustom(incoming.decoded.customExercises);
+    },
+    []
+  );
+
+  // Detect direct share links and operating-system PWA share-target launches.
   useEffect(() => {
-    const programMatch = window.location.hash.match(/[#&]importProgram=([^&]+)/);
-    const workoutMatch = window.location.hash.match(/[#&]import=([^&]+)/);
-    if (!programMatch && !workoutMatch) return;
-    // Clear the fragment so a refresh doesn't re-prompt.
-    history.replaceState(null, "", window.location.pathname + window.location.search);
-    if (programMatch) {
-      const decoded = decodeProgram(programMatch[1]);
-      if (decoded) setPendingProgramImport(decoded);
-      else toast.error("That shared program link looks invalid.");
+    const search = new URLSearchParams(window.location.search);
+    const fromShareTarget = search.get("shareTarget") === "1";
+    const candidates = [
+      window.location.href,
+      search.get("sharedUrl"),
+      search.get("sharedText"),
+    ];
+    const reference = candidates
+      .map(extractSharedImport)
+      .find((candidate): candidate is SharedImportReference => candidate !== null);
+
+    if (!reference && !fromShareTarget) return;
+
+    // Remove handoff parameters before showing a dialog so refresh never
+    // repeats an import and the address bar does not retain the shared payload.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.hash = "";
+    ["shareTarget", "sharedTitle", "sharedText", "sharedUrl"].forEach((key) =>
+      cleanUrl.searchParams.delete(key)
+    );
+    window.history.replaceState(
+      null,
+      "",
+      `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`
+    );
+
+    if (!reference) {
+      toast.error("No ForkWorkout share link was found.");
       return;
     }
-    const decoded = workoutMatch ? decodeWorkout(workoutMatch[1]) : null;
-    if (decoded) {
-      setPendingImport(decoded.workout);
-      setPendingCustom(decoded.customExercises);
-    } else toast.error("That shared workout link looks invalid.");
-  }, []);
+    const incoming = decodeIncomingShare(reference);
+    if (incoming) showIncomingShare(incoming, reference);
+    else toast.error(`That shared ${reference.kind} link looks invalid.`);
+  }, [showIncomingShare]);
 
   const handleEdit = (id: string) => router.push(ROUTES.editWorkout(id));
   const handleStart = (id: string) => router.push(ROUTES.startWorkout(id));
@@ -207,6 +296,59 @@ const WorkoutList = () => {
     }
   };
 
+  const dismissWorkoutImport = () => {
+    setPendingImport(null);
+    setPendingCustom([]);
+    setPendingShareLink(null);
+  };
+
+  const dismissProgramImport = () => {
+    setPendingProgramImport(null);
+    setPendingShareLink(null);
+  };
+
+  const copyImportForInstalledApp = async () => {
+    if (!pendingShareLink) return;
+    if (await copyText(pendingShareLink)) {
+      toast.success("Shared link copied", {
+        description: "Open ForkWorkout from your Home Screen, tap Import link, then paste it.",
+      });
+    } else {
+      toast.error("Couldn't copy the link. Select and copy it manually instead.");
+    }
+  };
+
+  const pasteImportLink = async () => {
+    try {
+      const value = await navigator.clipboard.readText();
+      if (!value.trim()) {
+        toast.error("Your clipboard is empty.");
+        return;
+      }
+      setImportLinkValue(value.trim());
+    } catch {
+      toast.info("Press and hold in the field, then choose Paste.");
+    }
+  };
+
+  const submitImportLink = () => {
+    const reference = extractSharedImport(importLinkValue);
+    if (!reference) {
+      toast.error("Paste a ForkWorkout workout or program link.");
+      return;
+    }
+    const incoming = decodeIncomingShare(reference);
+    if (!incoming) {
+      toast.error(`That shared ${reference.kind} link looks invalid.`);
+      return;
+    }
+
+    setImportLinkOpen(false);
+    setImportLinkValue("");
+    // Let the paste dialog release its focus trap before opening confirmation.
+    window.setTimeout(() => showIncomingShare(incoming, reference), 180);
+  };
+
   const confirmImport = () => {
     if (!pendingImport) return;
     // Register any bundled custom exercises we don't already have (by name), so
@@ -227,6 +369,7 @@ const WorkoutList = () => {
     toast.success(`Added “${imported.title}” to your workouts`);
     setPendingImport(null);
     setPendingCustom([]);
+    setPendingShareLink(null);
   };
 
   const handleAddTemplate = (template: WorkoutTemplate) => {
@@ -385,6 +528,7 @@ const WorkoutList = () => {
     setProgramProgress(nextState.progressByProgramId ?? {});
     toast.success(`Imported “${importedProgram.title}” with ${importedWorkouts.length} workouts`);
     setPendingProgramImport(null);
+    setPendingShareLink(null);
   };
 
   const handleClearAll = () => {
@@ -599,6 +743,18 @@ const WorkoutList = () => {
               </Button>
             )}
             <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                setImportLinkValue("");
+                setImportLinkOpen(true);
+              }}
+            >
+              <ClipboardPaste className="size-4" />
+              Import link
+            </Button>
+            <Button
               variant="secondary"
               className="gap-2"
               onClick={() => setShowWizard(true)}
@@ -727,8 +883,8 @@ const WorkoutList = () => {
 
       {/* Delete all data — with an option to keep custom exercises */}
       <Dialog open={showClearAll} onOpenChange={setShowClearAll}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader className="text-left">
+        <DialogContent className="flex max-h-[calc(100dvh-1rem)] min-w-0 max-w-sm flex-col overflow-hidden">
+          <DialogHeader className="min-w-0 shrink-0 text-left">
             <DialogTitle>Delete all your data?</DialogTitle>
             <DialogDescription>
               This permanently removes every workout, completed-workout history, body
@@ -817,6 +973,52 @@ const WorkoutList = () => {
           }
         }}
       />
+
+      {/* Universal handoff into this storage container (especially iOS PWAs). */}
+      <Dialog open={importLinkOpen} onOpenChange={setImportLinkOpen}>
+        <DialogContent className="flex max-h-[calc(100dvh-1rem)] min-w-0 max-w-sm flex-col overflow-hidden">
+          <DialogHeader className="min-w-0 shrink-0 text-left">
+            <DialogTitle>Import a shared link</DialogTitle>
+            <DialogDescription>
+              Paste a ForkWorkout workout or program link. It will be saved in this
+              app&apos;s local library.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 min-w-0 space-y-2 overflow-x-hidden overflow-y-auto">
+            <Textarea
+              value={importLinkValue}
+              onChange={(event) => setImportLinkValue(event.target.value)}
+              placeholder="https://…/app#import=…"
+              rows={4}
+              wrap="soft"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-label="Shared ForkWorkout link"
+              className="h-28 min-h-28 min-w-0 max-w-full resize-none break-all [field-sizing:fixed] [overflow-wrap:anywhere]"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5"
+              onClick={pasteImportLink}
+            >
+              <ClipboardPaste className="size-4" />
+              Paste from clipboard
+            </Button>
+          </div>
+          <DialogFooter className="shrink-0 gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setImportLinkOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitImportLink} disabled={!importLinkValue.trim()}>
+              <Download className="size-4" />
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Share a workout — add an optional message, then send the link */}
       <Dialog
@@ -910,17 +1112,34 @@ const WorkoutList = () => {
       {/* Import a complete shared program. */}
       <Dialog
         open={pendingProgramImport !== null}
-        onOpenChange={(open) => !open && setPendingProgramImport(null)}
+        onOpenChange={(open) => !open && dismissProgramImport()}
       >
         <DialogContent className="max-w-sm">
           <DialogHeader className="text-left">
             <DialogTitle>Import this program?</DialogTitle>
             <DialogDescription>
-              All included workouts will be added to your library in rotation order.
+              All included workouts will be added to this local library in rotation order.
             </DialogDescription>
           </DialogHeader>
           {pendingProgramImport && (
             <div className="space-y-3">
+              {!standalone && pendingShareLink && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  <p className="font-medium">Using the Home Screen app?</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Your browser and installed app save separately. Copy this link,
+                    open ForkWorkout from your Home Screen, then use Import link.
+                  </p>
+                  <Input
+                    readOnly
+                    value={pendingShareLink}
+                    onFocus={(event) => event.currentTarget.select()}
+                    onClick={(event) => event.currentTarget.select()}
+                    className="mt-2 h-8 bg-background/70 text-xs"
+                    aria-label="Shared program link for manual copying"
+                  />
+                </div>
+              )}
               {pendingProgramImport.message && (
                 <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm italic">
                   “{pendingProgramImport.message}”
@@ -936,31 +1155,62 @@ const WorkoutList = () => {
               </div>
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setPendingProgramImport(null)}>
-              No thanks
-            </Button>
-            <Button className="gap-1.5" onClick={confirmProgramImport}>
-              <Download className="size-4" /> Import program
-            </Button>
-          </DialogFooter>
+          {!standalone && pendingShareLink ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button className="gap-1.5 sm:col-span-2" onClick={copyImportForInstalledApp}>
+                <Copy className="size-4" /> Copy for Home Screen app
+              </Button>
+              <Button variant="outline" onClick={dismissProgramImport}>
+                Not now
+              </Button>
+              <Button variant="outline" onClick={confirmProgramImport}>
+                <Download className="size-4" /> Import in browser
+              </Button>
+            </div>
+          ) : (
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button variant="outline" onClick={dismissProgramImport}>
+                No thanks
+              </Button>
+              <Button className="gap-1.5" onClick={confirmProgramImport}>
+                <Download className="size-4" /> Import program
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Import a shared workout */}
       <Dialog
         open={pendingImport !== null}
-        onOpenChange={(open) => !open && setPendingImport(null)}
+        onOpenChange={(open) => !open && dismissWorkoutImport()}
       >
         <DialogContent className="max-w-sm">
           <DialogHeader className="text-left">
             <DialogTitle>Import this workout?</DialogTitle>
             <DialogDescription>
-              Someone shared a workout with you. Add it to your workouts?
+              Someone shared a workout with you. Add it to this local library?
             </DialogDescription>
           </DialogHeader>
           {pendingImport && (
             <div className="space-y-3">
+              {!standalone && pendingShareLink && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  <p className="font-medium">Using the Home Screen app?</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Your browser and installed app save separately. Copy this link,
+                    open ForkWorkout from your Home Screen, then use Import link.
+                  </p>
+                  <Input
+                    readOnly
+                    value={pendingShareLink}
+                    onFocus={(event) => event.currentTarget.select()}
+                    onClick={(event) => event.currentTarget.select()}
+                    className="mt-2 h-8 bg-background/70 text-xs"
+                    aria-label="Shared workout link for manual copying"
+                  />
+                </div>
+              )}
               {pendingImport.sharedMessage && (
                 <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm italic text-foreground">
                   “{pendingImport.sharedMessage}”
@@ -987,15 +1237,29 @@ const WorkoutList = () => {
               )}
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setPendingImport(null)}>
-              No thanks
-            </Button>
-            <Button className="flex-1 gap-1" onClick={confirmImport}>
-              <Download className="size-4" />
-              Import
-            </Button>
-          </DialogFooter>
+          {!standalone && pendingShareLink ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button className="gap-1.5 sm:col-span-2" onClick={copyImportForInstalledApp}>
+                <Copy className="size-4" /> Copy for Home Screen app
+              </Button>
+              <Button variant="outline" onClick={dismissWorkoutImport}>
+                Not now
+              </Button>
+              <Button variant="outline" onClick={confirmImport}>
+                <Download className="size-4" /> Import in browser
+              </Button>
+            </div>
+          ) : (
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button variant="outline" className="flex-1" onClick={dismissWorkoutImport}>
+                No thanks
+              </Button>
+              <Button className="flex-1 gap-1" onClick={confirmImport}>
+                <Download className="size-4" />
+                Import
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
