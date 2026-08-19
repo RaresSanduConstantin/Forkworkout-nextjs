@@ -9,6 +9,7 @@ export const ROUTES = {
   newWorkout: "/create-workout",
   editWorkout: (id: string) => `/create-workout/${id}`,
   startWorkout: (id: string) => `/start-workout/${id}`,
+  sharedWorkout: (id: string) => `/s/${id}`,
   credits: "/credits",
   privacy: "/privacy",
   terms: "/terms",

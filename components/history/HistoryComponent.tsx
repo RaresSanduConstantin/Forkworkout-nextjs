@@ -52,6 +52,9 @@ import {
   buildSharedImportUrl,
   extractSharedImport,
 } from "@/lib/storage/share-link";
+import { buildShortShareUrl, extractShortShare } from "@/lib/sharing/link";
+import { parseShareFile } from "@/lib/sharing/file";
+import { storeShareHandoff } from "@/lib/sharing/handoff";
 import {
   getAutoBackup,
   autoBackupHasData,
@@ -127,6 +130,22 @@ const HistoryComponent = () => {
     if (!file) return;
     try {
       const text = await file.text();
+      const sharedReference = parseShareFile(text);
+      if (sharedReference) {
+        const valid =
+          sharedReference.kind === "program"
+            ? decodeProgram(sharedReference.encoded) !== null
+            : decodeWorkout(sharedReference.encoded) !== null;
+        if (!valid) throw new Error("That ForkWorkout share file is invalid.");
+
+        const handoffId = storeShareHandoff({ reference: sharedReference });
+        window.location.assign(
+          handoffId
+            ? `${ROUTES.dashboard}?shareHandoff=${handoffId}`
+            : buildSharedImportUrl(sharedReference, window.location.origin)
+        );
+        return;
+      }
       const {
         workoutsAdded,
         historyAdded,
@@ -165,6 +184,11 @@ const HistoryComponent = () => {
   };
 
   const submitImportLink = () => {
+    const shortShare = extractShortShare(importLinkValue);
+    if (shortShare) {
+      window.location.assign(buildShortShareUrl(shortShare, window.location.origin));
+      return;
+    }
     const reference = extractSharedImport(importLinkValue);
     if (!reference) {
       toast.error("Paste a ForkWorkout workout or program link.");
@@ -209,7 +233,7 @@ const HistoryComponent = () => {
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="size-4" />
-            Restore (JSON)
+            Restore / import file
           </Button>
         </div>
         <Button
@@ -235,13 +259,13 @@ const HistoryComponent = () => {
         <input
           ref={fileInputRef}
           type="file"
-          accept="application/json,.json"
+          accept="application/json,.json,.forkworkout,application/vnd.forkworkout.share+json"
           className="hidden"
           onChange={handleImportFile}
         />
         <p className="text-xs text-muted-foreground">
-          The JSON backup is what you restore from. Excel is a read-only snapshot to view or
-          analyze — it can&apos;t be imported.
+          Restore a JSON backup or import a portable .forkworkout share file. Excel is a
+          read-only snapshot — it can&apos;t be imported.
         </p>
         <CloudBackupCard onRestored={refresh} />
       </div>
@@ -352,7 +376,7 @@ const HistoryComponent = () => {
             <Textarea
               value={importLinkValue}
               onChange={(event) => setImportLinkValue(event.target.value)}
-              placeholder="https://…/app#import=…"
+              placeholder="https://…/s/… or https://…/app#import=…"
               rows={4}
               wrap="soft"
               autoCapitalize="none"

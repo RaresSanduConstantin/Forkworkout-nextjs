@@ -66,6 +66,26 @@ There are two ways it can work:
 > and safe. Never put an OAuth *client secret* in the app; this flow doesn't use
 > one. Costs: the Drive API and OAuth are free for this usage.
 
+## Encrypted short workout links (optional)
+
+Large programs can be shared through short, expiring links without adding user
+accounts. The browser encrypts the existing compressed share payload, a Next.js
+Route Handler stores only the ciphertext in Upstash Redis, and the decryption
+key remains in the URL fragment.
+
+1. Connect an **Upstash Redis** database from the Vercel Marketplace.
+2. Copy the share variables from `.env.example` into `.env.local` and Vercel.
+3. Create an Upstash Developer API key for the monthly usage guard and set the
+   database id, account email, and API key variables.
+4. Configure an Upstash provider-level monthly budget/free-tier alert.
+5. Set `SHARE_SERVICE_ENABLED=true` and redeploy.
+
+The default policy stores links for 30 days, caps compressed content at 256 KiB,
+and pauses new links at 80% of the configured monthly command allowance. Reads
+remain available so already-shared links have reserved capacity. Setting
+`SHARE_SERVICE_ENABLED=false` is the emergency off switch; local workouts and
+legacy self-contained links continue to work.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -21,17 +21,19 @@ export type DecodedProgramShare = {
   message?: string;
 };
 
-export function buildProgramShareUrl(
+export function encodeProgram(
   program: WorkoutProgram,
   workouts: Workout[],
-  origin: string,
-  message?: string
+  message?: string,
+  maxEncodedLength = MAX_ENCODED_LENGTH
 ): string | null {
   const ordered = program.workoutIds
     .map((id) => workouts.find((workout) => workout.id === id))
     .filter((workout): workout is Workout => !!workout);
   if (ordered.length === 0) return null;
-  const encodedWorkouts = ordered.map((workout) => encodeWorkout(workout));
+  const encodedWorkouts = ordered.map((workout) =>
+    encodeWorkout(workout, undefined, maxEncodedLength)
+  );
   if (encodedWorkouts.some((encoded) => !encoded)) return null;
   const payload: ProgramSharePayload = {
     v: 1,
@@ -41,7 +43,17 @@ export function buildProgramShareUrl(
     workouts: encodedWorkouts as string[],
   };
   const encoded = compressToEncodedURIComponent(JSON.stringify(payload));
-  if (encoded.length > MAX_ENCODED_LENGTH) return null;
+  return encoded.length > maxEncodedLength ? null : encoded;
+}
+
+export function buildProgramShareUrl(
+  program: WorkoutProgram,
+  workouts: Workout[],
+  origin: string,
+  message?: string
+): string | null {
+  const encoded = encodeProgram(program, workouts, message);
+  if (!encoded) return null;
   return `${origin}/app#importProgram=${encoded}`;
 }
 

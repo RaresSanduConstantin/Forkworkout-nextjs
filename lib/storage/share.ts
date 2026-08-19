@@ -87,9 +87,13 @@ function toPayload(workout: Workout, message?: string): SharePayload {
 }
 
 /** Encodes a workout (+ optional message) to a URL-safe string, or null if too large. */
-export function encodeWorkout(workout: Workout, message?: string): string | null {
+export function encodeWorkout(
+  workout: Workout,
+  message?: string,
+  maxEncodedLength = MAX_ENCODED_LENGTH
+): string | null {
   const encoded = compressToEncodedURIComponent(JSON.stringify(toPayload(workout, message)));
-  return encoded.length > MAX_ENCODED_LENGTH ? null : encoded;
+  return encoded.length > maxEncodedLength ? null : encoded;
 }
 
 /** A share link that opens the app's dashboard and offers to import. */

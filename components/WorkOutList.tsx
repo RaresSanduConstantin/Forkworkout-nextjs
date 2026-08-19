@@ -32,13 +32,17 @@ import { ProgramDialog } from "@/components/programs/ProgramDialog";
 import { ProgramCard } from "@/components/programs/ProgramCard";
 import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle, saveWorkouts } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
-import { buildShareUrl, decodeWorkout, type DecodedShare } from "@/lib/storage/share";
-import { buildProgramShareUrl, decodeProgram, type DecodedProgramShare } from "@/lib/storage/program-share";
+import { buildShareUrl, decodeWorkout, encodeWorkout, type DecodedShare } from "@/lib/storage/share";
+import { buildProgramShareUrl, decodeProgram, encodeProgram, type DecodedProgramShare } from "@/lib/storage/program-share";
 import {
   buildSharedImportUrl,
   extractSharedImport,
   type SharedImportReference,
 } from "@/lib/storage/share-link";
+import { consumeShareHandoff } from "@/lib/sharing/handoff";
+import { buildShortShareUrl, extractShortShare } from "@/lib/sharing/link";
+import { deliverSharedReference } from "@/lib/sharing/delivery";
+import { MAX_SHARE_PAYLOAD_BYTES } from "@/lib/sharing/types";
 import {
   createProgram,
   deleteProgram,
@@ -192,8 +196,14 @@ const WorkoutList = () => {
   }, []);
 
   const showIncomingShare = useCallback(
-    (incoming: IncomingShare, reference: SharedImportReference) => {
-      setPendingShareLink(buildSharedImportUrl(reference, window.location.origin));
+    (
+      incoming: IncomingShare,
+      reference: SharedImportReference,
+      sourceUrl?: string
+    ) => {
+      setPendingShareLink(
+        sourceUrl ?? buildSharedImportUrl(reference, window.location.origin)
+      );
       if (incoming.kind === "program") {
         setPendingImport(null);
         setPendingCustom([]);
@@ -211,23 +221,30 @@ const WorkoutList = () => {
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
     const fromShareTarget = search.get("shareTarget") === "1";
+    const hasHandoff = search.has("shareHandoff");
+    const handoff = consumeShareHandoff(search.get("shareHandoff"));
     const candidates = [
       window.location.href,
       search.get("sharedUrl"),
       search.get("sharedText"),
     ];
-    const reference = candidates
-      .map(extractSharedImport)
-      .find((candidate): candidate is SharedImportReference => candidate !== null);
+    const shortShare = candidates
+      .map(extractShortShare)
+      .find((candidate) => candidate !== null);
+    const reference =
+      handoff?.reference ??
+      candidates
+        .map(extractSharedImport)
+        .find((candidate): candidate is SharedImportReference => candidate !== null);
 
-    if (!reference && !fromShareTarget) return;
+    if (!reference && !shortShare && !fromShareTarget && !hasHandoff) return;
 
     // Remove handoff parameters before showing a dialog so refresh never
     // repeats an import and the address bar does not retain the shared payload.
     const cleanUrl = new URL(window.location.href);
     cleanUrl.hash = "";
-    ["shareTarget", "sharedTitle", "sharedText", "sharedUrl"].forEach((key) =>
-      cleanUrl.searchParams.delete(key)
+    ["shareTarget", "sharedTitle", "sharedText", "sharedUrl", "shareHandoff"].forEach(
+      (key) => cleanUrl.searchParams.delete(key)
     );
     window.history.replaceState(
       null,
@@ -235,12 +252,16 @@ const WorkoutList = () => {
       `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`
     );
 
+    if (shortShare && !reference) {
+      window.location.replace(buildShortShareUrl(shortShare, window.location.origin));
+      return;
+    }
     if (!reference) {
       toast.error("No ForkWorkout share link was found.");
       return;
     }
     const incoming = decodeIncomingShare(reference);
-    if (incoming) showIncomingShare(incoming, reference);
+    if (incoming) showIncomingShare(incoming, reference, handoff?.sourceUrl);
     else toast.error(`That shared ${reference.kind} link looks invalid.`);
   }, [showIncomingShare]);
 
@@ -264,33 +285,34 @@ const WorkoutList = () => {
 
   const doShare = async () => {
     if (!shareTarget) return;
-    const url = buildShareUrl(shareTarget, window.location.origin, shareMessage);
-    if (!url) {
-      toast.error("This workout is too large to share by link — use Export instead.");
+    const target = shareTarget;
+    const encoded = encodeWorkout(target, shareMessage, MAX_SHARE_PAYLOAD_BYTES);
+    if (!encoded) {
+      toast.error("This workout is too large to share (maximum 256 KB).");
       return;
     }
     setShareTarget(null);
-    const shareData = {
-      title: shareTarget.title || "ForkWorkout",
-      text: shareMessage.trim()
-        ? shareMessage.trim()
-        : `Check out my “${shareTarget.title || "workout"}” on ForkWorkout`,
-      url,
-    };
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        return;
+      const result = await deliverSharedReference({
+        reference: { kind: "workout", encoded },
+        legacyUrl: buildShareUrl(target, window.location.origin, shareMessage),
+        title: target.title || "ForkWorkout",
+        text:
+          shareMessage.trim() ||
+          `Check out my “${target.title || "workout"}” on ForkWorkout`,
+        origin: window.location.origin,
+      });
+      if (result.method === "clipboard") {
+        toast.success(
+          result.usedCloud
+            ? "Short share link copied to clipboard"
+            : "Share link copied to clipboard"
+        );
+      } else if (result.method === "download") {
+        toast.info("Sharing service unavailable — a portable workout file was downloaded.");
       }
     } catch {
-      // user cancelled or share failed — don't fall back to clipboard
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Share link copied to clipboard");
-    } catch {
-      toast.error("Couldn't copy the link.");
+      toast.error("Couldn't share this workout.");
     }
   };
 
@@ -435,36 +457,37 @@ const WorkoutList = () => {
 
   const doShareProgram = async () => {
     if (!programShareTarget) return;
-    const url = buildProgramShareUrl(
-      programShareTarget,
-      workouts,
-      window.location.origin,
-      shareMessage
-    );
-    if (!url) {
-      toast.error("This program is too large to share by link — use Export instead.");
+    const target = programShareTarget;
+    const encoded = encodeProgram(target, workouts, shareMessage, MAX_SHARE_PAYLOAD_BYTES);
+    if (!encoded) {
+      toast.error("This program is too large to share (maximum 256 KB).");
       return;
     }
-    const target = programShareTarget;
     setProgramShareTarget(null);
-    const shareData = {
-      title: target.title,
-      text: shareMessage.trim() || `Try my “${target.title}” program on ForkWorkout`,
-      url,
-    };
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        return;
+      const result = await deliverSharedReference({
+        reference: { kind: "program", encoded },
+        legacyUrl: buildProgramShareUrl(
+          target,
+          workouts,
+          window.location.origin,
+          shareMessage
+        ),
+        title: target.title,
+        text: shareMessage.trim() || `Try my “${target.title}” program on ForkWorkout`,
+        origin: window.location.origin,
+      });
+      if (result.method === "clipboard") {
+        toast.success(
+          result.usedCloud
+            ? "Short program link copied to clipboard"
+            : "Program link copied to clipboard"
+        );
+      } else if (result.method === "download") {
+        toast.info("Sharing service unavailable — a portable program file was downloaded.");
       }
     } catch {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Program link copied to clipboard");
-    } catch {
-      toast.error("Couldn't copy the link.");
+      toast.error("Couldn't share this program.");
     }
   };
 

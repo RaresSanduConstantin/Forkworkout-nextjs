@@ -22,12 +22,22 @@ const withPWA = withPWAInit({
   // runtime-only caching) so the installed PWA launches offline on first run.
   cacheStartUrl: true,
   dynamicStartUrl: false,
+  // Share envelopes must always honor server-side expiry. Never let the PWA's
+  // default API cache reopen an expired share from a device cache.
+  extendDefaultRuntimeCaching: true,
   // Serve a friendly offline page when a navigation isn't cached and we're offline.
   fallbacks: {
     document: "/offline",
   },
   workboxOptions: {
     disableDevLogs: true,
+    runtimeCaching: [
+      {
+        urlPattern: /\/api\/shares(?:\/.*)?$/,
+        handler: "NetworkOnly",
+        method: "GET",
+      },
+    ],
   },
 });
 
