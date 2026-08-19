@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { CalendarDays, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +17,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -24,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TimePicker } from "@/components/ui/time-picker";
 import { toDayKey } from "@/lib/date/day-key";
 import { updateCompletedWorkout } from "@/lib/storage/history-storage";
 import type {
@@ -44,6 +53,27 @@ function toLocalDateTimeValue(iso: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
     date.getHours()
   )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function dateFromLocalDateTimeValue(value: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T/.exec(value);
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return undefined;
+  }
+  return date;
+}
+
+function timeFromLocalDateTimeValue(value: string): string {
+  return value.split("T")[1] ?? "";
 }
 
 function splitDuration(seconds?: number) {
@@ -115,6 +145,7 @@ export function EditHistoryEntryDialog({
   const [maxHeartRate, setMaxHeartRate] = React.useState("");
   const [exercises, setExercises] = React.useState<CompletedExercise[]>([]);
   const [exerciseDataChanged, setExerciseDataChanged] = React.useState(false);
+  const [datePickerOpen, setDatePickerOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!open || !entry) return;
@@ -131,7 +162,11 @@ export function EditHistoryEntryDialog({
     setMaxHeartRate(entry.maxHeartRate != null ? String(entry.maxHeartRate) : "");
     setExercises(cloneExercises(entry.exercises));
     setExerciseDataChanged(false);
+    setDatePickerOpen(false);
   }, [open, entry]);
+
+  const completionDate = dateFromLocalDateTimeValue(completedAt);
+  const completionTime = timeFromLocalDateTimeValue(completedAt);
 
   const totals = React.useMemo(() => derivedTotals(exercises), [exercises]);
   const displayedTotals =
@@ -347,17 +382,56 @@ export function EditHistoryEntryDialog({
                 maxLength={80}
               />
             </div>
-            <div className="space-y-1.5">
-              <label htmlFor="history-edit-date" className="text-sm font-medium">
-                Completed date and time
-              </label>
-              <Input
-                id="history-edit-date"
-                type="datetime-local"
-                step={1}
-                value={completedAt}
-                onChange={(event) => setCompletedAt(event.target.value)}
-              />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
+              <div className="min-w-0 space-y-1.5">
+                <Label htmlFor="history-edit-date">Completed date</Label>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="history-edit-date"
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarDays className="size-4 text-muted-foreground" />
+                      {completionDate ? (
+                        format(completionDate, "PPP")
+                      ) : (
+                        <span className="text-muted-foreground">Pick a date</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={completionDate}
+                      defaultMonth={completionDate}
+                      onSelect={(date) => {
+                        if (!date) return;
+                        setCompletedAt(
+                          `${toDayKey(date)}T${completionTime || "00:00:00"}`
+                        );
+                        setDatePickerOpen(false);
+                      }}
+                      disabled={{ after: new Date() }}
+                      weekStartsOn={1}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="min-w-0 space-y-1.5">
+                <Label id="history-edit-time-label">Completed time</Label>
+                <TimePicker
+                  value={completionTime}
+                  aria-labelledby="history-edit-time-label"
+                  onValueChange={(time) => {
+                    const datePart = completionDate
+                      ? toDayKey(completionDate)
+                      : toDayKey();
+                    setCompletedAt(`${datePart}T${time}`);
+                  }}
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <span className="text-sm font-medium">Duration</span>

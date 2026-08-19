@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpDown, CalendarDays, ClipboardPaste, Copy, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
+import { ArrowUpDown, CalendarDays, Copy, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -131,8 +131,6 @@ const WorkoutList = () => {
   const [pendingCustom, setPendingCustom] = useState<AddCustomInput[]>([]);
   const [pendingShareLink, setPendingShareLink] = useState<string | null>(null);
   const [standalone, setStandalone] = useState(false);
-  const [importLinkOpen, setImportLinkOpen] = useState(false);
-  const [importLinkValue, setImportLinkValue] = useState("");
   const [shareTarget, setShareTarget] = useState<Workout | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -311,42 +309,11 @@ const WorkoutList = () => {
     if (!pendingShareLink) return;
     if (await copyText(pendingShareLink)) {
       toast.success("Shared link copied", {
-        description: "Open ForkWorkout from your Home Screen, tap Import link, then paste it.",
+        description: "Open ForkWorkout from your Home Screen, go to History, then tap Import link.",
       });
     } else {
       toast.error("Couldn't copy the link. Select and copy it manually instead.");
     }
-  };
-
-  const pasteImportLink = async () => {
-    try {
-      const value = await navigator.clipboard.readText();
-      if (!value.trim()) {
-        toast.error("Your clipboard is empty.");
-        return;
-      }
-      setImportLinkValue(value.trim());
-    } catch {
-      toast.info("Press and hold in the field, then choose Paste.");
-    }
-  };
-
-  const submitImportLink = () => {
-    const reference = extractSharedImport(importLinkValue);
-    if (!reference) {
-      toast.error("Paste a ForkWorkout workout or program link.");
-      return;
-    }
-    const incoming = decodeIncomingShare(reference);
-    if (!incoming) {
-      toast.error(`That shared ${reference.kind} link looks invalid.`);
-      return;
-    }
-
-    setImportLinkOpen(false);
-    setImportLinkValue("");
-    // Let the paste dialog release its focus trap before opening confirmation.
-    window.setTimeout(() => showIncomingShare(incoming, reference), 180);
   };
 
   const confirmImport = () => {
@@ -743,18 +710,6 @@ const WorkoutList = () => {
               </Button>
             )}
             <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => {
-                setImportLinkValue("");
-                setImportLinkOpen(true);
-              }}
-            >
-              <ClipboardPaste className="size-4" />
-              Import link
-            </Button>
-            <Button
               variant="secondary"
               className="gap-2"
               onClick={() => setShowWizard(true)}
@@ -974,52 +929,6 @@ const WorkoutList = () => {
         }}
       />
 
-      {/* Universal handoff into this storage container (especially iOS PWAs). */}
-      <Dialog open={importLinkOpen} onOpenChange={setImportLinkOpen}>
-        <DialogContent className="flex max-h-[calc(100dvh-1rem)] min-w-0 max-w-sm flex-col overflow-hidden">
-          <DialogHeader className="min-w-0 shrink-0 text-left">
-            <DialogTitle>Import a shared link</DialogTitle>
-            <DialogDescription>
-              Paste a ForkWorkout workout or program link. It will be saved in this
-              app&apos;s local library.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 min-w-0 space-y-2 overflow-x-hidden overflow-y-auto">
-            <Textarea
-              value={importLinkValue}
-              onChange={(event) => setImportLinkValue(event.target.value)}
-              placeholder="https://…/app#import=…"
-              rows={4}
-              wrap="soft"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              aria-label="Shared ForkWorkout link"
-              className="h-28 min-h-28 min-w-0 max-w-full resize-none break-all [field-sizing:fixed] [overflow-wrap:anywhere]"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full gap-1.5"
-              onClick={pasteImportLink}
-            >
-              <ClipboardPaste className="size-4" />
-              Paste from clipboard
-            </Button>
-          </div>
-          <DialogFooter className="shrink-0 gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setImportLinkOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submitImportLink} disabled={!importLinkValue.trim()}>
-              <Download className="size-4" />
-              Continue
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Share a workout — add an optional message, then send the link */}
       <Dialog
         open={shareTarget !== null}
@@ -1128,7 +1037,7 @@ const WorkoutList = () => {
                   <p className="font-medium">Using the Home Screen app?</p>
                   <p className="mt-1 text-muted-foreground">
                     Your browser and installed app save separately. Copy this link,
-                    open ForkWorkout from your Home Screen, then use Import link.
+                    open ForkWorkout from your Home Screen, go to History, then use Import link.
                   </p>
                   <Input
                     readOnly
@@ -1199,7 +1108,7 @@ const WorkoutList = () => {
                   <p className="font-medium">Using the Home Screen app?</p>
                   <p className="mt-1 text-muted-foreground">
                     Your browser and installed app save separately. Copy this link,
-                    open ForkWorkout from your Home Screen, then use Import link.
+                    open ForkWorkout from your Home Screen, go to History, then use Import link.
                   </p>
                   <Input
                     readOnly
