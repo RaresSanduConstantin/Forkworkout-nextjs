@@ -19,3 +19,14 @@ export const STORAGE_KEYS = {
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
+
+export const STORAGE_KEY_VALUES: readonly StorageKey[] = Object.values(STORAGE_KEYS);
+export const THEME_STORAGE_KEY = "theme";
+export const STORAGE_RESET_KEY = "forkworkout:storage-reset-at";
+
+// The LocalStorage schema marker is implementation bookkeeping rather than
+// user data, so it does not need to be retained in IndexedDB. Theme remains
+// LocalStorage-owned because next-themes updates it outside our storage layer.
+export const MIRRORED_LOCAL_STORAGE_KEYS: readonly string[] = [
+  ...STORAGE_KEY_VALUES.filter((key) => key !== STORAGE_KEYS.schemaVersion),
+];

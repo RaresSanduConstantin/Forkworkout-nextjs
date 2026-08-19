@@ -72,11 +72,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <StorageBoot />
-          <ActiveSessionBanner />
-          <BottomNav />
-          <Toaster richColors position="top-center" />
+          <StorageBoot>
+            {children}
+            <ActiveSessionBanner />
+            <BottomNav />
+            <Toaster richColors position="top-center" />
+          </StorageBoot>
         </ThemeProvider>
       </body>
     </html>

@@ -3,7 +3,7 @@ import { getWorkouts, saveWorkouts } from "./workout-storage";
 import { getCompletedWorkouts } from "./history-storage";
 import { getBodyMetrics } from "./body-storage";
 import { getBodyProfile, updateBodyProfile, type BodyProfile } from "./profile";
-import { getSettings, type AppSettings } from "./settings";
+import { getSettings, saveSettings, type AppSettings } from "./settings";
 import {
   getHomeEquipment,
   saveHomeEquipment,
@@ -94,13 +94,17 @@ export function downloadExport(): void {
  * completed entries with new timestamps, skipping exact duplicates. Throws on
  * invalid JSON. Returns how many items were added.
  */
-export function mergeImport(text: string): {
+export function mergeImport(
+  text: string,
+  options: { restoreSettings?: boolean } = {}
+): {
   workoutsAdded: number;
   historyAdded: number;
   bodyAdded: number;
   exercisesAdded: number;
   programsAdded: number;
   profileRestored: boolean;
+  settingsRestored: boolean;
   homeEquipmentRestored: boolean;
 } {
   let parsed: unknown;
@@ -230,8 +234,7 @@ export function mergeImport(text: string): {
   }
 
   // Restore body profile: only fill fields that aren't already set locally, so
-  // an import never clobbers the current device's profile. (Settings are
-  // device-local preferences, so they're left untouched on merge-import.)
+  // an import never clobbers the current device's profile.
   let profileRestored = false;
   const bp = bundle.bodyProfile;
   if (bp && typeof bp === "object") {
@@ -246,6 +249,15 @@ export function mergeImport(text: string): {
       updateBodyProfile(patch);
       profileRestored = true;
     }
+  }
+
+  // Regular cross-device merging keeps this device's preferences. A JSON or
+  // cloud backup recovery opts in because settings (including onboarding,
+  // weekly goal, sound, and vibration) are part of a complete backup.
+  let settingsRestored = false;
+  if (options.restoreSettings && bundle.settings && typeof bundle.settings === "object") {
+    saveSettings(bundle.settings);
+    settingsRestored = true;
   }
 
   // Restore home equipment only when this device has none set yet, so an import
@@ -271,6 +283,7 @@ export function mergeImport(text: string): {
     exercisesAdded,
     programsAdded,
     profileRestored,
+    settingsRestored,
     homeEquipmentRestored,
   };
 }

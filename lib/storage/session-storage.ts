@@ -1,6 +1,6 @@
 import type { ActiveSession } from "@/lib/types";
 import { STORAGE_KEYS } from "./keys";
-import { readJson, writeJson } from "./safe-storage";
+import { readJson, removeJson, writeJson } from "./safe-storage";
 
 /** Returns the saved active session, or null if none / corrupted. */
 export function getActiveSession(): ActiveSession | null {
@@ -38,11 +38,5 @@ export function saveActiveSession(session: ActiveSession): boolean {
 
 /** Clears the active session (on finish or discard). */
 export function clearActiveSession(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    window.localStorage.removeItem(STORAGE_KEYS.activeSession);
-    return true;
-  } catch {
-    return false;
-  }
+  return removeJson(STORAGE_KEYS.activeSession);
 }

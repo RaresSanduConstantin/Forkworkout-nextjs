@@ -21,8 +21,50 @@ import {
   skipNextProgramWorkout,
 } from "@/lib/storage/program-storage";
 import { saveWorkouts } from "@/lib/storage/workout-storage";
+import { getSettings, saveSettings } from "@/lib/storage/settings";
 
 beforeEach(() => localStorage.clear());
+
+describe("export/import — settings", () => {
+  it("restores device settings when recovering a backup", () => {
+    saveSettings({
+      weeklyGoal: 6,
+      onboardingDone: true,
+      restVibration: false,
+      restSound: false,
+    });
+    const bundle = buildExport();
+
+    localStorage.clear();
+    const result = mergeImport(JSON.stringify(bundle), { restoreSettings: true });
+
+    expect(result.settingsRestored).toBe(true);
+    expect(getSettings()).toEqual(bundle.settings);
+  });
+
+  it("keeps device settings during a regular merge import", () => {
+    saveSettings({
+      weeklyGoal: 2,
+      onboardingDone: true,
+      restVibration: true,
+      restSound: true,
+    });
+    const incoming = {
+      ...buildExport(),
+      settings: {
+        weeklyGoal: 7,
+        onboardingDone: false,
+        restVibration: false,
+        restSound: false,
+      },
+    };
+
+    const result = mergeImport(JSON.stringify(incoming));
+
+    expect(result.settingsRestored).toBe(false);
+    expect(getSettings().weeklyGoal).toBe(2);
+  });
+});
 
 describe("export/import — programs", () => {
   it("backs up and restores program order and the active program", () => {

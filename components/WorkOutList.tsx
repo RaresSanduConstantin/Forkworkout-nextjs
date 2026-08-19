@@ -614,8 +614,8 @@ const WorkoutList = () => {
     setPendingShareLink(null);
   };
 
-  const handleClearAll = () => {
-    clearAllData({ keepCustomExercises });
+  const handleClearAll = async () => {
+    await clearAllData({ keepCustomExercises });
     setWorkouts([]);
     setStreak(0);
     setTotalCompleted(0);

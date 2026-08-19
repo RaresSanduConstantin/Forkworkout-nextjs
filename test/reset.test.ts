@@ -9,12 +9,13 @@ import { getSettings } from "@/lib/storage/settings";
 beforeEach(() => localStorage.clear());
 
 describe("clearAllData", () => {
-  it("removes every user-owned value and restarts onboarding", () => {
+  it("removes every user-owned value and restarts onboarding", async () => {
     for (const key of Object.values(STORAGE_KEYS)) {
       localStorage.setItem(key, JSON.stringify({ saved: true }));
     }
+    localStorage.setItem("theme", "dark");
 
-    clearAllData();
+    await clearAllData();
 
     for (const key of Object.values(STORAGE_KEYS)) {
       if (key === STORAGE_KEYS.schemaVersion) continue;
@@ -23,15 +24,16 @@ describe("clearAllData", () => {
     expect(localStorage.getItem(STORAGE_KEYS.schemaVersion)).toBe(
       JSON.stringify(CURRENT_SCHEMA_VERSION)
     );
+    expect(localStorage.getItem("theme")).toBeNull();
     expect(getSettings().onboardingDone).toBe(false);
   });
 
-  it("can preserve custom exercises without preserving other user data", () => {
+  it("can preserve custom exercises without preserving other user data", async () => {
     localStorage.setItem(STORAGE_KEYS.customExercises, JSON.stringify([{ name: "My move" }]));
     localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify({ onboardingDone: true }));
     localStorage.setItem(STORAGE_KEYS.autoBackup, JSON.stringify({ saved: true }));
 
-    clearAllData({ keepCustomExercises: true });
+    await clearAllData({ keepCustomExercises: true });
 
     expect(localStorage.getItem(STORAGE_KEYS.customExercises)).not.toBeNull();
     expect(localStorage.getItem(STORAGE_KEYS.settings)).toBeNull();
@@ -39,10 +41,10 @@ describe("clearAllData", () => {
     expect(getSettings().onboardingDone).toBe(false);
   });
 
-  it("does not recreate an auto-backup on the next migration check", () => {
+  it("does not recreate an auto-backup on the next migration check", async () => {
     localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify({ onboardingDone: true }));
 
-    clearAllData();
+    await clearAllData();
     runMigrations();
 
     expect(localStorage.getItem(STORAGE_KEYS.autoBackup)).toBeNull();

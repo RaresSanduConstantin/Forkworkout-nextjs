@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/test/fixtures/private/
 
 # next.js
 /.next/

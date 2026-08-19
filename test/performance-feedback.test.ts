@@ -53,9 +53,9 @@ describe("performance feedback storage", () => {
     expect(getPerformanceFeedback()).toEqual([]);
   });
 
-  it("is removed by the application data reset", () => {
+  it("is removed by the application data reset", async () => {
     addPerformanceFeedback(feedback);
-    clearAllData({ keepCustomExercises: true });
+    await clearAllData({ keepCustomExercises: true });
     expect(getPerformanceFeedback()).toEqual([]);
   });
 });

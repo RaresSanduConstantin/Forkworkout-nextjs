@@ -7,6 +7,7 @@ import { Dumbbell, Play, Timer, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useStorageReady } from "@/components/StorageBoot";
 import {
   getActiveSession,
   clearActiveSession,
@@ -21,6 +22,7 @@ import type { ActiveSession } from "@/lib/types";
  * rest countdown is running it also shows the live remaining time.
  */
 export function ActiveSessionBanner() {
+  const storageReady = useStorageReady();
   const pathname = usePathname();
   const [session, setSession] = React.useState<ActiveSession | null>(null);
   const [now, setNow] = React.useState(() => Date.now());
@@ -28,10 +30,11 @@ export function ActiveSessionBanner() {
   const refresh = React.useCallback(() => setSession(getActiveSession()), []);
 
   React.useEffect(() => {
+    if (!storageReady) return;
     refresh();
     window.addEventListener("storage", refresh);
     return () => window.removeEventListener("storage", refresh);
-  }, [refresh, pathname]);
+  }, [refresh, pathname, storageReady]);
 
   // Remaining rest seconds (if a countdown is active and hasn't finished).
   const restEndsAt = session?.restTimer?.endsAt ?? null;
@@ -47,7 +50,7 @@ export function ActiveSessionBanner() {
 
   // Hide on the live session screen (you're already there).
   const onSessionScreen = pathname?.startsWith("/start-workout");
-  if (!session || onSessionScreen) return null;
+  if (!storageReady || !session || onSessionScreen) return null;
 
   const handleDelete = () => {
     clearActiveSession();

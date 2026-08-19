@@ -60,9 +60,9 @@ describe("exercise preference storage", () => {
     expect(getExercisePreferences()).toEqual([]);
   });
 
-  it("is removed by the app's data reset", () => {
+  it("is removed by the app's data reset", async () => {
     setExercisePreference({ exerciseId: "one", level: "prefer" });
-    clearAllData({ keepCustomExercises: true });
+    await clearAllData({ keepCustomExercises: true });
     expect(getExercisePreferences()).toEqual([]);
   });
 });

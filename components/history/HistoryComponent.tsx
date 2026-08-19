@@ -49,6 +49,7 @@ import {
   type AutoBackup,
 } from "@/lib/storage/migrations";
 import { ROUTES } from "@/lib/routes";
+import { flushStoragePersistence } from "@/lib/storage/safe-storage";
 import type { CompletedWorkout } from "@/lib/types";
 
 const HistoryComponent = () => {
@@ -137,8 +138,10 @@ const HistoryComponent = () => {
         bodyAdded,
         exercisesAdded,
         profileRestored,
+        settingsRestored,
         homeEquipmentRestored,
-      } = mergeImport(text);
+      } = mergeImport(text, { restoreSettings: true });
+      const persisted = await flushStoragePersistence();
       refresh();
       const parts = [
         `${workoutsAdded} workout${workoutsAdded === 1 ? "" : "s"}`,
@@ -148,8 +151,15 @@ const HistoryComponent = () => {
       if (exercisesAdded)
         parts.push(`${exercisesAdded} exercise${exercisesAdded === 1 ? "" : "s"}`);
       if (profileRestored) parts.push("profile");
+      if (settingsRestored) parts.push("settings");
       if (homeEquipmentRestored) parts.push("home equipment");
-      toast.success(`Imported ${parts.join(", ")}`);
+      if (!persisted) {
+        toast.warning(
+          `Imported ${parts.join(", ")}, but the device database could not be verified. Export a backup before closing the app.`
+        );
+      } else {
+        toast.success(`Imported ${parts.join(", ")}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed");
     }
@@ -325,11 +335,17 @@ const HistoryComponent = () => {
         description="This replaces your current workouts, history and body metrics with the auto-backup snapshot. Consider exporting your current data first — this can't be undone."
         confirmLabel="Restore"
         destructive
-        onConfirm={() => {
+        onConfirm={async () => {
           setShowRestore(false);
           if (restoreAutoBackup()) {
+            const persisted = await flushStoragePersistence();
             refresh();
-            toast.success("Backup restored");
+            if (persisted) toast.success("Backup restored");
+            else {
+              toast.warning(
+                "Backup restored, but the device database could not be verified. Export a backup before closing the app."
+              );
+            }
           } else {
             toast.error("No backup available");
           }

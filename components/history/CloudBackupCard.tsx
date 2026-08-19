@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { buildExport, mergeImport } from "@/lib/storage/transfer";
+import { flushStoragePersistence } from "@/lib/storage/safe-storage";
 import {
   getGDriveConfig,
   updateGDriveConfig,
@@ -111,7 +112,8 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
         toast.error("No backup found in this Google account yet.");
         return;
       }
-      const r = mergeImport(result.text);
+      const r = mergeImport(result.text, { restoreSettings: true });
+      const persisted = await flushStoragePersistence();
       const parts: string[] = [];
       if (r.workoutsAdded) parts.push(`${r.workoutsAdded} workouts`);
       if (r.historyAdded) parts.push(`${r.historyAdded} sessions`);
@@ -119,7 +121,13 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
       if (r.exercisesAdded) parts.push(`${r.exercisesAdded} exercises`);
       updateGDriveConfig({ fileId: result.fileId, lastSyncAt: new Date().toISOString() });
       setConfig(getGDriveConfig());
-      toast.success(parts.length ? `Restored ${parts.join(", ")}.` : "Already up to date — nothing new to restore.");
+      if (!persisted) {
+        toast.warning(
+          "Backup restored, but the device database could not be verified. Export a backup before closing the app."
+        );
+      } else {
+        toast.success(parts.length ? `Restored ${parts.join(", ")}.` : "Already up to date — nothing new to restore.");
+      }
       onRestored?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Restore failed.");
