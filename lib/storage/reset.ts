@@ -62,7 +62,11 @@ export async function clearAllData(options?: { keepCustomExercises?: boolean }):
   // it so the reset cannot race a subsequent import.
   if (keptCustomExercises !== null) {
     try {
-      await browserIndexedDbStorage.set(STORAGE_KEYS.customExercises, keptCustomExercises);
+      await browserIndexedDbStorage.set(
+        STORAGE_KEYS.customExercises,
+        keptCustomExercises,
+        runtimeStorageCache.getRevision()
+      );
     } catch {
       // The LocalStorage fallback still contains the retained exercises.
     }

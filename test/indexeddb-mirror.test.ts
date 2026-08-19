@@ -72,6 +72,23 @@ describe("IndexedDB LocalStorage mirror", () => {
     );
   });
 
+  it("does not let delayed writes overwrite a newer per-key revision", async () => {
+    await mirror.set(STORAGE_KEYS.activeSession, '{"state":"new"}', 3);
+    await mirror.set(STORAGE_KEYS.activeSession, '{"state":"stale"}', 2);
+
+    expect(await mirror.get(STORAGE_KEYS.activeSession)).toBe('{"state":"new"}');
+    expect((await mirror.getSnapshot()).keyRevisions[STORAGE_KEYS.activeSession]).toBe(3);
+  });
+
+  it("does not resurrect a value with a write older than its deletion", async () => {
+    await mirror.set(STORAGE_KEYS.activeSession, '{"state":"saved"}', 3);
+    await mirror.delete(STORAGE_KEYS.activeSession, 4);
+    await mirror.set(STORAGE_KEYS.activeSession, '{"state":"stale"}', 2);
+
+    expect(await mirror.get(STORAGE_KEYS.activeSession)).toBeNull();
+    expect((await mirror.getSnapshot()).keyRevisions[STORAGE_KEYS.activeSession]).toBe(4);
+  });
+
   it("fails open when IndexedDB is unavailable", async () => {
     const unavailable = new IndexedDbLocalStorageMirror(() => undefined);
     localStorage.setItem(STORAGE_KEYS.workouts, "[]");

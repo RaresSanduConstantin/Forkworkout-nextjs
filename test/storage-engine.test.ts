@@ -6,7 +6,11 @@ import {
   browserIndexedDbStorage,
   IndexedDbLocalStorageMirror,
 } from "@/lib/storage/indexeddb-mirror";
-import { STORAGE_KEYS, STORAGE_RESET_KEY } from "@/lib/storage/keys";
+import {
+  STORAGE_KEYS,
+  STORAGE_RESET_KEY,
+  STORAGE_REVISION_KEY,
+} from "@/lib/storage/keys";
 import { runtimeStorageCache } from "@/lib/storage/runtime-cache";
 import {
   flushStoragePersistence,
@@ -84,6 +88,56 @@ describe("IndexedDB primary storage cutover", () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.workouts) ?? "[]")[0].id).toBe(
       "workout-idb"
     );
+  });
+
+  it("replays a newer completed-set save after an abrupt PWA close", async () => {
+    const oldSession = {
+      workoutId: "workout-1",
+      title: "Push",
+      startedAt: "2026-08-19T10:00:00.000Z",
+      exercises: [
+        { name: "Bench Press", sets: [{ reps: 10, value: "60", status: "pending" }] },
+      ],
+    };
+    const completedSession = {
+      ...oldSession,
+      exercises: [
+        { name: "Bench Press", sets: [{ reps: 10, value: "60", status: "done" }] },
+      ],
+    };
+    const indexedDbOnlySettings = JSON.stringify({ weeklyGoal: 5 });
+
+    localStorage.setItem(STORAGE_KEYS.activeSession, JSON.stringify(oldSession));
+    localStorage.setItem(STORAGE_KEYS.settings, indexedDbOnlySettings);
+    await database.syncFromStorage(localStorage, undefined, "primary", 1);
+
+    // The synchronous compatibility write completed, but the app was killed
+    // before its queued IndexedDB transaction could run.
+    localStorage.setItem(STORAGE_KEYS.activeSession, JSON.stringify(completedSession));
+    localStorage.removeItem(STORAGE_KEYS.settings);
+    localStorage.setItem(
+      STORAGE_REVISION_KEY,
+      JSON.stringify({
+        revision: 2,
+        updatedAt: "2026-08-19T10:01:00.000Z",
+        changes: {
+          [STORAGE_KEYS.activeSession]: { revision: 2, deleted: false },
+        },
+      })
+    );
+    runtimeStorageCache.reset();
+
+    await initializeStorageEngine({ storage: localStorage, database });
+
+    expect(readJson<typeof completedSession | null>(STORAGE_KEYS.activeSession, null))
+      .toEqual(completedSession);
+    expect(await database.get(STORAGE_KEYS.activeSession)).toBe(
+      JSON.stringify(completedSession)
+    );
+    // Reconciliation touches only the proven-newer key, retaining data that
+    // could not fit in the LocalStorage fallback.
+    expect(await database.get(STORAGE_KEYS.settings)).toBe(indexedDbOnlySettings);
+    expect(localStorage.getItem(STORAGE_KEYS.settings)).toBe(indexedDbOnlySettings);
   });
 
   it("repairs malformed primary records from a valid LocalStorage fallback", async () => {

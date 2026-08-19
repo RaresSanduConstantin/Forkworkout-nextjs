@@ -5,6 +5,10 @@ import {
   type IndexedDbStorageSnapshot,
 } from "./indexeddb-mirror";
 import { runtimeStorageCache, type RuntimeStorageMode } from "./runtime-cache";
+import {
+  readStorageRevision,
+  type StorageRevisionMarker,
+} from "./storage-revision";
 
 type BrowserStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -19,6 +23,7 @@ function readLocalRecords(storage: BrowserStorage): {
   available: boolean;
   records: Record<string, string>;
   resetAt?: string;
+  revision: StorageRevisionMarker | null;
 } {
   try {
     const records: Record<string, string> = {};
@@ -30,9 +35,10 @@ function readLocalRecords(storage: BrowserStorage): {
       available: true,
       records,
       resetAt: storage.getItem(STORAGE_RESET_KEY) ?? undefined,
+      revision: readStorageRevision(storage),
     };
   } catch {
-    return { available: false, records: {} };
+    return { available: false, records: {}, revision: null };
   }
 }
 
@@ -107,6 +113,41 @@ async function repairCorruptedPrimaryRecords(
   return repaired;
 }
 
+async function replayNewerLocalChanges(
+  database: IndexedDbLocalStorageMirror,
+  snapshot: IndexedDbStorageSnapshot,
+  localRecords: Record<string, string>,
+  marker: StorageRevisionMarker | null
+): Promise<IndexedDbStorageSnapshot> {
+  const records = { ...snapshot.records };
+  if (!marker) return snapshot;
+
+  const changes = Object.entries(marker.changes).sort(
+    ([, left], [, right]) => left.revision - right.revision
+  );
+  for (const [key, change] of changes) {
+    const indexedDbRevision = snapshot.keyRevisions[key] ?? 0;
+    if (change.revision <= indexedDbRevision) continue;
+
+    if (change.deleted) {
+      delete records[key];
+      await database.delete(key, change.revision);
+      continue;
+    }
+
+    const localValue = localRecords[key];
+    if (localValue === undefined) continue;
+    records[key] = localValue;
+    await database.set(key, localValue, change.revision);
+  }
+  // A second tab may have committed while reconciliation was in progress.
+  // Re-read the transactionally committed snapshot before hydrating the app.
+  const committed = await database.getSnapshot();
+  return committed.state === "ready"
+    ? { ...committed, records: managedRecords(committed.records) }
+    : { ...snapshot, records };
+}
+
 /**
  * Chooses the authoritative local source, performs the one-time cutover, and
  * hydrates the synchronous runtime cache used by the existing storage APIs.
@@ -125,13 +166,19 @@ export async function initializeStorageEngine({
   // A reset tombstone prevents an old/blocked database from resurrecting data.
   if (isResetNewerThanSnapshot(local.resetAt, snapshot)) {
     await database.deleteDatabase();
-    snapshot = { state: "not-started", mode: "mirror", records: {} };
+    snapshot = {
+      state: "not-started",
+      mode: "mirror",
+      records: {},
+      revision: 0,
+      keyRevisions: {},
+    };
   }
 
   if (snapshot.state === "unavailable") {
     const records = { ...local.records };
     addLocalOnlyValues(storage, records);
-    runtimeStorageCache.hydrate(records, "localstorage");
+    runtimeStorageCache.hydrate(records, "localstorage", local.revision?.revision ?? 0);
     return {
       mode: "localstorage",
       source: Object.keys(local.records).length > 0 ? "localstorage" : "fresh",
@@ -141,14 +188,24 @@ export async function initializeStorageEngine({
   }
 
   if (snapshot.state === "ready" && snapshot.mode === "primary") {
+    const reconciledSnapshot = await replayNewerLocalChanges(
+      database,
+      snapshot,
+      local.records,
+      local.revision
+    );
     const primaryRecords = await repairCorruptedPrimaryRecords(
       database,
-      snapshot.records,
+      reconciledSnapshot.records,
       local.records
     );
     const records = { ...primaryRecords };
     addLocalOnlyValues(storage, records);
-    runtimeStorageCache.hydrate(records, "indexeddb");
+    runtimeStorageCache.hydrate(
+      records,
+      "indexeddb",
+      Math.max(reconciledSnapshot.revision, local.revision?.revision ?? 0)
+    );
     shadowToLocalStorage(storage, primaryRecords);
     return {
       mode: "indexeddb",
@@ -165,12 +222,13 @@ export async function initializeStorageEngine({
     const promoted = await database.syncFromStorage(
       storage,
       MIRRORED_LOCAL_STORAGE_KEYS,
-      "primary"
+      "primary",
+      local.revision?.revision ?? 0
     );
     const records = { ...local.records };
     addLocalOnlyValues(storage, records);
     const mode: RuntimeStorageMode = promoted.state === "ready" ? "indexeddb" : "localstorage";
-    runtimeStorageCache.hydrate(records, mode);
+    runtimeStorageCache.hydrate(records, mode, local.revision?.revision ?? 0);
     return {
       mode,
       source: "localstorage",
@@ -189,7 +247,7 @@ export async function initializeStorageEngine({
     const records = { ...snapshot.records };
     addLocalOnlyValues(storage, records);
     const mode: RuntimeStorageMode = promoted ? "indexeddb" : "localstorage";
-    runtimeStorageCache.hydrate(records, mode);
+    runtimeStorageCache.hydrate(records, mode, snapshot.revision);
     if (promoted) shadowToLocalStorage(storage, snapshot.records);
     return {
       mode,
@@ -204,7 +262,7 @@ export async function initializeStorageEngine({
   await database.deleteDatabase();
   const records: Record<string, string> = {};
   addLocalOnlyValues(storage, records);
-  runtimeStorageCache.hydrate(records, "indexeddb");
+  runtimeStorageCache.hydrate(records, "indexeddb", local.revision?.revision ?? 0);
   return {
     mode: "indexeddb",
     source: "fresh",

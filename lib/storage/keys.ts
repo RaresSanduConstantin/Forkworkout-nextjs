@@ -23,6 +23,7 @@ export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 export const STORAGE_KEY_VALUES: readonly StorageKey[] = Object.values(STORAGE_KEYS);
 export const THEME_STORAGE_KEY = "theme";
 export const STORAGE_RESET_KEY = "forkworkout:storage-reset-at";
+export const STORAGE_REVISION_KEY = "forkworkout:storage-revision";
 
 // The LocalStorage schema marker is implementation bookkeeping rather than
 // user data, so it does not need to be retained in IndexedDB. Theme remains

@@ -19,6 +19,8 @@ type MirrorMeta = {
   formatVersion: number;
   mode?: IndexedDbStorageMode;
   completedAt?: string;
+  revision?: number;
+  keyRevisions?: Record<string, number>;
 };
 
 export type IndexedDbStorageMode = "mirror" | "primary";
@@ -28,6 +30,8 @@ export type IndexedDbStorageSnapshot = {
   mode: IndexedDbStorageMode;
   records: Record<string, string>;
   completedAt?: string;
+  revision: number;
+  keyRevisions: Record<string, number>;
 };
 
 export type IndexedDbMirrorStatus =
@@ -154,7 +158,8 @@ export class IndexedDbLocalStorageMirror {
   private async syncNow(
     storage: StorageReader,
     keys: readonly string[],
-    mode: IndexedDbStorageMode
+    mode: IndexedDbStorageMode,
+    revision: number
   ): Promise<IndexedDbMirrorStatus> {
     // Capture one coherent LocalStorage snapshot before opening a transaction.
     // If storage access itself throws, leave any previous mirror untouched.
@@ -186,6 +191,8 @@ export class IndexedDbLocalStorageMirror {
       state: "copying",
       formatVersion: MIRROR_FORMAT_VERSION,
       mode,
+      revision,
+      keyRevisions: Object.fromEntries(keys.map((key) => [key, revision])),
     } satisfies MirrorMeta);
     for (const record of snapshot) records.put(record);
     await done;
@@ -208,6 +215,8 @@ export class IndexedDbLocalStorageMirror {
       formatVersion: MIRROR_FORMAT_VERSION,
       mode,
       completedAt,
+      revision,
+      keyRevisions: Object.fromEntries(keys.map((key) => [key, revision])),
     } satisfies MirrorMeta);
     await readyDone;
 
@@ -217,43 +226,70 @@ export class IndexedDbLocalStorageMirror {
   async syncFromStorage(
     storage: StorageReader,
     keys: readonly string[] = MIRRORED_LOCAL_STORAGE_KEYS,
-    mode: IndexedDbStorageMode = "mirror"
+    mode: IndexedDbStorageMode = "mirror",
+    revision = 0
   ): Promise<IndexedDbMirrorStatus> {
     try {
-      return await this.enqueue(() => this.syncNow(storage, keys, mode));
+      return await this.enqueue(() => this.syncNow(storage, keys, mode, revision));
     } catch {
       return { state: "unavailable", recordCount: 0 };
     }
   }
 
-  async set(key: string, value: string): Promise<void> {
-    return this.enqueue(async () => {
-      const database = await this.openDatabase();
-      const transaction = database.transaction([RECORD_STORE, META_STORE], "readwrite");
-      const done = transactionComplete(transaction);
-      transaction.objectStore(RECORD_STORE).put({
-        key,
-        value,
-        updatedAt: new Date().toISOString(),
-      } satisfies MirrorRecord);
-      transaction.objectStore(META_STORE).put({
+  private async mutateRecordNow(
+    key: string,
+    revision: number | undefined,
+    mutate: (records: IDBObjectStore) => void
+  ): Promise<void> {
+    const database = await this.openDatabase();
+    const transaction = database.transaction([RECORD_STORE, META_STORE], "readwrite");
+    const done = transactionComplete(transaction);
+    const records = transaction.objectStore(RECORD_STORE);
+    const meta = transaction.objectStore(META_STORE);
+    const metaRequest = meta.get(MIRROR_META_KEY) as IDBRequest<MirrorMeta | undefined>;
+
+    metaRequest.onsuccess = () => {
+      const current = metaRequest.result;
+      const currentRevision = current?.revision ?? 0;
+      const currentKeyRevision = current?.keyRevisions?.[key] ?? 0;
+      const nextRevision = revision ?? Math.max(currentRevision, currentKeyRevision) + 1;
+
+      // Another tab may commit a newer mutation first. Do not let a delayed
+      // transaction overwrite it or move the revision clock backwards.
+      if (nextRevision < currentKeyRevision) return;
+
+      mutate(records);
+      meta.put({
         key: MIRROR_META_KEY,
         state: "ready",
         formatVersion: MIRROR_FORMAT_VERSION,
         mode: "primary",
         completedAt: new Date().toISOString(),
+        revision: Math.max(currentRevision, nextRevision),
+        keyRevisions: {
+          ...(current?.keyRevisions ?? {}),
+          [key]: nextRevision,
+        },
       } satisfies MirrorMeta);
-      await done;
+    };
+    await done;
+  }
+
+  async set(key: string, value: string, revision?: number): Promise<void> {
+    return this.enqueue(async () => {
+      await this.mutateRecordNow(key, revision, (records) => {
+        records.put({
+          key,
+          value,
+          updatedAt: new Date().toISOString(),
+        } satisfies MirrorRecord);
+      });
     });
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string, revision?: number): Promise<void> {
     return this.enqueue(async () => {
-      const database = await this.openDatabase();
-      const transaction = database.transaction(RECORD_STORE, "readwrite");
-      const done = transactionComplete(transaction);
-      transaction.objectStore(RECORD_STORE).delete(key);
-      await done;
+      await this.mutateRecordNow(key, revision, (records) => records.delete(key));
     });
   }
 
@@ -322,15 +358,31 @@ export class IndexedDbLocalStorageMirror {
           records[record.key] = record.value;
         }
       }
-      if (!meta) return { state: "not-started", mode: "mirror", records: {} };
+      if (!meta) {
+        return {
+          state: "not-started",
+          mode: "mirror",
+          records: {},
+          revision: 0,
+          keyRevisions: {},
+        };
+      }
       return {
         state: meta.state,
         mode: meta.mode ?? "mirror",
         records,
         completedAt: meta.completedAt,
+        revision: meta.revision ?? 0,
+        keyRevisions: meta.keyRevisions ?? {},
       };
     } catch {
-      return { state: "unavailable", mode: "mirror", records: {} };
+      return {
+        state: "unavailable",
+        mode: "mirror",
+        records: {},
+        revision: 0,
+        keyRevisions: {},
+      };
     }
   }
 
@@ -340,13 +392,20 @@ export class IndexedDbLocalStorageMirror {
         const database = await this.openDatabase();
         const transaction = database.transaction(META_STORE, "readwrite");
         const done = transactionComplete(transaction);
-        transaction.objectStore(META_STORE).put({
-          key: MIRROR_META_KEY,
-          state: "ready",
-          formatVersion: MIRROR_FORMAT_VERSION,
-          mode: "primary",
-          completedAt: new Date().toISOString(),
-        } satisfies MirrorMeta);
+        const meta = transaction.objectStore(META_STORE);
+        const request = meta.get(MIRROR_META_KEY) as IDBRequest<MirrorMeta | undefined>;
+        request.onsuccess = () => {
+          meta.put({
+            ...request.result,
+            key: MIRROR_META_KEY,
+            state: "ready",
+            formatVersion: MIRROR_FORMAT_VERSION,
+            mode: "primary",
+            completedAt: new Date().toISOString(),
+            revision: request.result?.revision ?? 0,
+            keyRevisions: request.result?.keyRevisions ?? {},
+          } satisfies MirrorMeta);
+        };
         await done;
         return true;
       });
@@ -382,15 +441,19 @@ export const browserIndexedDbStorage = new IndexedDbLocalStorageMirror(() =>
 );
 
 /** Queues an authoritative IndexedDB write without blocking synchronous UI APIs. */
-export function scheduleIndexedDbMirrorWrite(key: string, value: string): void {
+export function scheduleIndexedDbMirrorWrite(
+  key: string,
+  value: string,
+  revision?: number
+): void {
   if (!MIRRORED_LOCAL_STORAGE_KEYS.includes(key)) return;
-  void browserIndexedDbStorage.set(key, value).catch(() => undefined);
+  void browserIndexedDbStorage.set(key, value, revision).catch(() => undefined);
 }
 
 /** Queues an authoritative IndexedDB deletion. */
-export function scheduleIndexedDbMirrorDelete(key: string): void {
+export function scheduleIndexedDbMirrorDelete(key: string, revision?: number): void {
   if (!MIRRORED_LOCAL_STORAGE_KEYS.includes(key)) return;
-  void browserIndexedDbStorage.delete(key).catch(() => undefined);
+  void browserIndexedDbStorage.delete(key, revision).catch(() => undefined);
 }
 
 /** Completely removes the IndexedDB database after a user data reset. */

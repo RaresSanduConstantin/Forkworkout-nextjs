@@ -30,7 +30,7 @@ ForkWorkout is a workout tracking app with:
 - Sound feedback
 - Workout history
 - Calendar/streak visualization
-- LocalStorage persistence
+- IndexedDB persistence with a LocalStorage compatibility/recovery fallback
 - Mobile-first UI
 - Playful animations
 
@@ -48,7 +48,7 @@ Verify these in the repository before acting:
 - Tailwind CSS
 - shadcn/ui
 - Framer Motion
-- LocalStorage persistence
+- IndexedDB primary persistence with stable LocalStorage fallback keys
 
 If the repository differs from this stack, adapt to the existing implementation and document the difference in your notes.
 
@@ -83,14 +83,16 @@ Create a quick internal map of:
 
 ### Preserve user data
 
-LocalStorage data may already exist in users' browsers. Never rename storage keys or change data shape without a migration.
+LocalStorage and IndexedDB data may already exist in users' browsers. Never
+rename storage keys, bypass revision reconciliation, or change data shape
+without a migration.
 
 When modifying persisted structures:
 
 - Keep backwards compatibility where possible.
 - Add a migration utility when shape changes are necessary.
 - Handle corrupted, empty, or old data gracefully.
-- Never crash the app because LocalStorage contains unexpected data.
+- Never crash the app because LocalStorage or IndexedDB contains unexpected data.
 
 ### Preserve existing functionality
 
@@ -106,6 +108,22 @@ The revamp must not remove core features:
 - Program/workout discovery, if currently present
 
 If functionality is broken today, fix it rather than deleting it.
+
+### Maintain the changelog
+
+Before implementing a feature or bug fix, read `CHANGELOG.md` to understand
+when related behavior was introduced and whether the request improves an
+existing capability.
+
+For every meaningful user-facing feature, fix, removal, security update,
+data/storage migration, dependency change, or architectural change:
+
+- Add a concise entry to the `Unreleased` section of `CHANGELOG.md` in the same
+  change.
+- Describe the impact rather than copying the commit message.
+- Use the existing `Added`, `Changed`, `Fixed`, `Removed`, and `Security`
+  categories.
+- Do not add formatting-only edits or generated lockfile noise.
 
 ### Use shadcn/ui correctly
 
@@ -272,7 +290,7 @@ Checklist:
 - First workout creation is obvious.
 - Empty states are helpful and action-oriented.
 - shadcn/ui components are used consistently.
-- LocalStorage is safe and resilient.
+- IndexedDB and its LocalStorage recovery path are safe and resilient.
 - No crashes on refresh.
 - No hydration warnings.
 - Inputs are validated.

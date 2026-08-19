@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format } from "date-fns";
-import { ArrowLeft, CalendarDays, Download, Dumbbell, FileSpreadsheet, History, ShieldCheck, Trophy, Upload } from "lucide-react";
+import { ArrowLeft, CalendarDays, Download, Dumbbell, FileSpreadsheet, HardDrive, Trophy, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,7 @@ import {
 import { HistoryList } from "@/components/history/HistoryList";
 import { EditHistoryEntryDialog } from "@/components/history/EditHistoryEntryDialog";
 import { CloudBackupCard } from "@/components/history/CloudBackupCard";
+import { StorageStatusDialog } from "@/components/storage/StorageStatusDialog";
 import {
   getCompletedWorkouts,
   deleteCompletedWorkout,
@@ -42,12 +42,6 @@ import { decodeProgram } from "@/lib/storage/program-share";
 import { buildSharedImportUrl } from "@/lib/storage/share-link";
 import { parseShareFile } from "@/lib/sharing/file";
 import { storeShareHandoff } from "@/lib/sharing/handoff";
-import {
-  getAutoBackup,
-  autoBackupHasData,
-  restoreAutoBackup,
-  type AutoBackup,
-} from "@/lib/storage/migrations";
 import { ROUTES } from "@/lib/routes";
 import { flushStoragePersistence } from "@/lib/storage/safe-storage";
 import type { CompletedWorkout } from "@/lib/types";
@@ -59,22 +53,19 @@ const HistoryComponent = () => {
   const [editingEntry, setEditingEntry] = React.useState<CompletedWorkout | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
   const [pendingPRDelete, setPendingPRDelete] = React.useState<RecordRow | null>(null);
-  const [backup, setBackup] = React.useState<AutoBackup | null>(null);
-  const [showRestore, setShowRestore] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
+  const [storageStatusOpen, setStorageStatusOpen] = React.useState(false);
   // Bumped on mutations to force storage-reading children (calendar, streak) to refresh.
   const [version, setVersion] = React.useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setEntries(getCompletedWorkouts());
-    setBackup(getAutoBackup());
     setLoaded(true);
   }, []);
 
   const refresh = () => {
     setEntries(getCompletedWorkouts());
-    setBackup(getAutoBackup());
     setVersion((v) => v + 1);
   };
 
@@ -215,25 +206,16 @@ const HistoryComponent = () => {
           read-only snapshot — it can&apos;t be imported.
         </p>
         <CloudBackupCard onRestored={refresh} />
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full gap-2"
+          onClick={() => setStorageStatusOpen(true)}
+        >
+          <HardDrive className="size-4" />
+          Storage &amp; recovery
+        </Button>
       </div>
-
-      {backup && autoBackupHasData(backup) && (
-        <div className="mb-6 flex flex-col gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            <ShieldCheck className="mr-1 inline size-4 text-primary" />
-            Auto-backup saved {format(new Date(backup.savedAt), "MMM d, HH:mm")}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setShowRestore(true)}
-          >
-            <History className="size-4" />
-            Restore backup
-          </Button>
-        </div>
-      )}
 
       <div className="space-y-8">
         <StreakSummary key={`streak-${version}`} />
@@ -328,29 +310,12 @@ const HistoryComponent = () => {
         onConfirm={confirmPRDelete}
       />
 
-      <ConfirmDialog
-        open={showRestore}
-        onOpenChange={setShowRestore}
-        title="Restore the last backup?"
-        description="This replaces your current workouts, history and body metrics with the auto-backup snapshot. Consider exporting your current data first — this can't be undone."
-        confirmLabel="Restore"
-        destructive
-        onConfirm={async () => {
-          setShowRestore(false);
-          if (restoreAutoBackup()) {
-            const persisted = await flushStoragePersistence();
-            refresh();
-            if (persisted) toast.success("Backup restored");
-            else {
-              toast.warning(
-                "Backup restored, but the device database could not be verified. Export a backup before closing the app."
-              );
-            }
-          } else {
-            toast.error("No backup available");
-          }
-        }}
+      <StorageStatusDialog
+        open={storageStatusOpen}
+        onOpenChange={setStorageStatusOpen}
+        showBackupNavigation={false}
       />
+
     </PageContainer>
   );
 };

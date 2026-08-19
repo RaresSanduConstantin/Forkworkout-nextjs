@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpDown, CalendarDays, Copy, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, ScanLine, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
+import { ArrowUpDown, CalendarDays, Copy, Download, Dumbbell, Flame, HardDrive, Layers3, Play, Plus, Scale, ScanLine, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
 import { ProgramDialog } from "@/components/programs/ProgramDialog";
 import { ProgramCard } from "@/components/programs/ProgramCard";
 import { ImportShareDialog } from "@/components/sharing/ImportShareDialog";
+import { StorageStatusDialog } from "@/components/storage/StorageStatusDialog";
 import {
   ShareMethodTabs,
   type ShareMethod,
@@ -134,6 +135,7 @@ const WorkoutList = () => {
   const [previewWorkout, setPreviewWorkout] = useState<Workout | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [showClearAll, setShowClearAll] = useState(false);
+  const [showStorageStatus, setShowStorageStatus] = useState(false);
   const [keepCustomExercises, setKeepCustomExercises] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [pendingImport, setPendingImport] = useState<Workout | null>(null);
@@ -902,10 +904,18 @@ const WorkoutList = () => {
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground">Your data</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            ForkWorkout stores everything locally on this device. You can wipe it
-            all at any time.
+            ForkWorkout stores everything locally in IndexedDB, with a compatibility
+            copy for recovery. You stay in control of exports and deletion.
           </p>
         </div>
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          onClick={() => setShowStorageStatus(true)}
+        >
+          <HardDrive className="size-4" />
+          Storage &amp; recovery
+        </Button>
         <Button
           variant="outline"
           className="w-full gap-2 text-destructive hover:text-destructive"
@@ -995,6 +1005,8 @@ const WorkoutList = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StorageStatusDialog open={showStorageStatus} onOpenChange={setShowStorageStatus} />
 
       <WorkoutWizard
         open={showWizard}

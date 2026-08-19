@@ -9,10 +9,32 @@ import {
   scheduleIndexedDbMirrorDelete,
   scheduleIndexedDbMirrorWrite,
 } from "./indexeddb-mirror";
-import { MIRRORED_LOCAL_STORAGE_KEYS, STORAGE_RESET_KEY } from "./keys";
+import {
+  MIRRORED_LOCAL_STORAGE_KEYS,
+  STORAGE_RESET_KEY,
+  STORAGE_REVISION_KEY,
+} from "./keys";
 import { runtimeStorageCache } from "./runtime-cache";
+import {
+  createStorageRevision,
+  readStorageRevision,
+  writeStorageRevision,
+  type StorageRevisionMarker,
+} from "./storage-revision";
 
 const isBrowser = () => typeof window !== "undefined";
+
+function nextRevision(key: string, deleted: boolean): StorageRevisionMarker {
+  const current = readStorageRevision(window.localStorage);
+  const marker = createStorageRevision(
+    current,
+    runtimeStorageCache.isReady() ? runtimeStorageCache.getRevision() : 0,
+    key,
+    deleted
+  );
+  if (runtimeStorageCache.isReady()) runtimeStorageCache.advanceRevision(marker.revision);
+  return marker;
+}
 
 export function safeJsonParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback;
@@ -43,57 +65,49 @@ export function writeJson<T>(key: string, value: T): boolean {
   const serialized = JSON.stringify(value);
   if (typeof serialized !== "string") return false;
 
-  if (runtimeStorageCache.isReady()) {
-    runtimeStorageCache.set(key, serialized);
-    const indexedDbPrimary =
-      runtimeStorageCache.getMode() === "indexeddb" &&
-      MIRRORED_LOCAL_STORAGE_KEYS.includes(key);
-    if (indexedDbPrimary) scheduleIndexedDbMirrorWrite(key, serialized);
-
-    let localStorageSaved = false;
-    try {
-      window.localStorage.setItem(key, serialized);
-      localStorageSaved = true;
-    } catch {
-      // IndexedDB remains authoritative when the compatibility fallback is full.
-    }
-    return indexedDbPrimary || localStorageSaved;
-  }
-
+  const managed = MIRRORED_LOCAL_STORAGE_KEYS.includes(key);
+  if (runtimeStorageCache.isReady()) runtimeStorageCache.set(key, serialized);
+  const marker = managed ? nextRevision(key, false) : null;
+  let localStorageSaved = false;
   try {
     window.localStorage.setItem(key, serialized);
-    return true;
+    localStorageSaved = true;
+    if (marker) writeStorageRevision(window.localStorage, marker);
   } catch {
-    return false;
+    // IndexedDB remains authoritative when the compatibility fallback is full.
   }
+
+  const indexedDbPrimary =
+    runtimeStorageCache.isReady() &&
+    runtimeStorageCache.getMode() === "indexeddb" &&
+    managed;
+  if (indexedDbPrimary) {
+    scheduleIndexedDbMirrorWrite(key, serialized, marker?.revision);
+  }
+  return indexedDbPrimary || localStorageSaved;
 }
 
 /** Remove a value from LocalStorage and its best-effort IndexedDB mirror. */
 export function removeJson(key: string): boolean {
   if (!isBrowser()) return false;
-  if (runtimeStorageCache.isReady()) {
-    runtimeStorageCache.delete(key);
-    const indexedDbPrimary =
-      runtimeStorageCache.getMode() === "indexeddb" &&
-      MIRRORED_LOCAL_STORAGE_KEYS.includes(key);
-    if (indexedDbPrimary) scheduleIndexedDbMirrorDelete(key);
-
-    let localStorageRemoved = false;
-    try {
-      window.localStorage.removeItem(key);
-      localStorageRemoved = true;
-    } catch {
-      // The authoritative IndexedDB delete has already been queued.
-    }
-    return indexedDbPrimary || localStorageRemoved;
-  }
-
+  const managed = MIRRORED_LOCAL_STORAGE_KEYS.includes(key);
+  if (runtimeStorageCache.isReady()) runtimeStorageCache.delete(key);
+  const marker = managed ? nextRevision(key, true) : null;
+  let localStorageRemoved = false;
   try {
     window.localStorage.removeItem(key);
-    return true;
+    localStorageRemoved = true;
+    if (marker) writeStorageRevision(window.localStorage, marker);
   } catch {
-    return false;
+    // The authoritative IndexedDB delete is still queued below when available.
   }
+
+  const indexedDbPrimary =
+    runtimeStorageCache.isReady() &&
+    runtimeStorageCache.getMode() === "indexeddb" &&
+    managed;
+  if (indexedDbPrimary) scheduleIndexedDbMirrorDelete(key, marker?.revision);
+  return indexedDbPrimary || localStorageRemoved;
 }
 
 /**
@@ -112,10 +126,11 @@ export async function flushStoragePersistence(): Promise<boolean> {
     // These operations are serialized behind any reset or writes already in
     // progress. Re-applying the complete snapshot also repairs a failed queued
     // write instead of merely waiting for it.
+    const revision = runtimeStorageCache.getRevision();
     for (const key of MIRRORED_LOCAL_STORAGE_KEYS) {
       const value = runtimeStorageCache.get(key);
-      if (value === null) await browserIndexedDbStorage.delete(key);
-      else await browserIndexedDbStorage.set(key, value);
+      if (value === null) await browserIndexedDbStorage.delete(key, revision);
+      else await browserIndexedDbStorage.set(key, value, revision);
     }
 
     const snapshot = await browserIndexedDbStorage.getSnapshot();
@@ -150,21 +165,31 @@ export function applyExternalStorageChange(event: StorageEvent): void {
   }
 
   if (event.key === STORAGE_RESET_KEY && event.newValue !== null) {
-    runtimeStorageCache.hydrate({}, "indexeddb");
+    const revision = readStorageRevision(window.localStorage)?.revision ?? 0;
+    runtimeStorageCache.hydrate({}, "indexeddb", revision);
     void deleteIndexedDbMirror().finally(() => window.location.reload());
+    return;
+  }
+  if (event.key === STORAGE_REVISION_KEY) {
+    const marker = readStorageRevision(window.localStorage);
+    if (marker) runtimeStorageCache.advanceRevision(marker.revision);
     return;
   }
   if (!MIRRORED_LOCAL_STORAGE_KEYS.includes(event.key)) return;
 
+  const marker = readStorageRevision(window.localStorage);
+  if (marker) runtimeStorageCache.advanceRevision(marker.revision);
+  const revision = marker?.changes[event.key]?.revision;
+
   if (event.newValue === null) {
     runtimeStorageCache.delete(event.key);
     if (runtimeStorageCache.getMode() === "indexeddb") {
-      scheduleIndexedDbMirrorDelete(event.key);
+      scheduleIndexedDbMirrorDelete(event.key, revision);
     }
   } else {
     runtimeStorageCache.set(event.key, event.newValue);
     if (runtimeStorageCache.getMode() === "indexeddb") {
-      scheduleIndexedDbMirrorWrite(event.key, event.newValue);
+      scheduleIndexedDbMirrorWrite(event.key, event.newValue, revision);
     }
   }
 }

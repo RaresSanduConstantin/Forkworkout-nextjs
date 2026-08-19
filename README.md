@@ -20,6 +20,31 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Local data and recovery
+
+ForkWorkout is account-free and local-first:
+
+- **IndexedDB is the primary store** for workouts, programs, active sessions,
+  history, body data, preferences, and settings.
+- An in-memory cache keeps the existing application APIs synchronous after the
+  startup hydration gate.
+- **LocalStorage is a compatibility and crash-recovery copy.** A per-key
+  revision journal lets startup replay only LocalStorage values that are proven
+  newer than IndexedDB, such as a completed set saved immediately before the
+  phone terminates the PWA.
+- Existing LocalStorage installations migrate automatically on first launch.
+  IndexedDB failures fall back to LocalStorage without blocking the app.
+- **Dashboard → Your data → Storage & recovery** shows the active source, most
+  recent durable save, last recorded backup, approximate size, and export or
+  restore actions.
+- A temporary **migration safety snapshot** may appear in that panel after a
+  storage schema upgrade. It is a rollback aid, not a recurring backup, and is
+  automatically removed after 30 days.
+
+JSON export remains the portable backup format. Optional Google Drive backup is
+described below. Neither local persistence mode requires a ForkWorkout account
+or server.
+
 ## Google Drive backup (optional)
 
 ForkWorkout is local-first and account-free. The **History → Cloud backup

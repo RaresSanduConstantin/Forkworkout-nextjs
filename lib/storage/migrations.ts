@@ -1,4 +1,4 @@
-// Versioned LocalStorage migrations with a one-time auto-backup.
+// Versioned local-storage migrations with a temporary safety snapshot.
 //
 // The app's persisted shapes are read through back-compat normalizers, so no
 // destructive migration is needed today — the value here is the framework plus a
@@ -6,17 +6,20 @@
 // Future breaking changes append a migration to MIGRATIONS.
 
 import { STORAGE_KEYS } from "./keys";
-import { readJson, writeJson } from "./safe-storage";
+import { readJson, removeJson, writeJson } from "./safe-storage";
 import { saveWorkouts } from "./workout-storage";
 import { buildExport, type ExportBundle } from "./transfer";
 import { saveProgramState } from "./program-storage";
 
 export const CURRENT_SCHEMA_VERSION = 1;
+export const MIGRATION_BACKUP_RETENTION_DAYS = 30;
+const MIGRATION_BACKUP_RETENTION_MS =
+  MIGRATION_BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 // MIGRATIONS[v] upgrades storage from version v to v+1. Empty for now.
 const MIGRATIONS: (() => void)[] = [];
 
-export type AutoBackup = {
+export type MigrationSafetyBackup = {
   fromVersion: number;
   savedAt: string;
   bundle: ExportBundle;
@@ -27,14 +30,20 @@ export function getSchemaVersion(): number {
   return typeof v === "number" && v >= 0 ? v : 0;
 }
 
-export function getAutoBackup(): AutoBackup | null {
-  const b = readJson<AutoBackup | null>(STORAGE_KEYS.autoBackup, null);
+export function getMigrationSafetyBackup(now = Date.now()): MigrationSafetyBackup | null {
+  const b = readJson<MigrationSafetyBackup | null>(STORAGE_KEYS.autoBackup, null);
   if (!b || typeof b !== "object" || !b.bundle || typeof b.bundle !== "object") return null;
+  const savedAt = Date.parse(b.savedAt);
+  if (!Number.isFinite(savedAt)) return null;
+  if (now - savedAt > MIGRATION_BACKUP_RETENTION_MS) {
+    removeJson(STORAGE_KEYS.autoBackup);
+    return null;
+  }
   return b;
 }
 
 /** Whether the backup actually contains any user data worth restoring. */
-export function autoBackupHasData(b: AutoBackup | null): boolean {
+export function migrationSafetyBackupHasData(b: MigrationSafetyBackup | null): boolean {
   if (!b) return false;
   const { workouts, completedWorkouts, bodyMetrics } = b.bundle;
   return (
@@ -42,9 +51,13 @@ export function autoBackupHasData(b: AutoBackup | null): boolean {
     (Array.isArray(b.bundle.programs) && b.bundle.programs.length > 0) ||
     (Array.isArray(completedWorkouts) && completedWorkouts.length > 0) ||
     (Array.isArray(bodyMetrics) && bodyMetrics.length > 0) ||
+    (Array.isArray(b.bundle.customExercises) && b.bundle.customExercises.length > 0) ||
     (Array.isArray(b.bundle.exercisePreferences) && b.bundle.exercisePreferences.length > 0) ||
     (Array.isArray(b.bundle.performanceFeedback) && b.bundle.performanceFeedback.length > 0) ||
-    (Array.isArray(b.bundle.dailyTrainingStates) && b.bundle.dailyTrainingStates.length > 0)
+    (Array.isArray(b.bundle.dailyTrainingStates) && b.bundle.dailyTrainingStates.length > 0) ||
+    Boolean(b.bundle.bodyProfile) ||
+    Boolean(b.bundle.settings) ||
+    Boolean(b.bundle.homeEquipment)
   );
 }
 
@@ -55,12 +68,14 @@ export function autoBackupHasData(b: AutoBackup | null): boolean {
  */
 export function runMigrations(): void {
   if (typeof window === "undefined") return;
+  // Also acts as lightweight startup maintenance for an old safety snapshot.
+  getMigrationSafetyBackup();
   const from = getSchemaVersion();
   if (from >= CURRENT_SCHEMA_VERSION) return;
 
   // Snapshot current data before touching anything (best-effort).
   try {
-    const backup: AutoBackup = {
+    const backup: MigrationSafetyBackup = {
       fromVersion: from,
       savedAt: new Date().toISOString(),
       bundle: buildExport(),
@@ -84,9 +99,9 @@ export function runMigrations(): void {
   writeJson(STORAGE_KEYS.schemaVersion, CURRENT_SCHEMA_VERSION);
 }
 
-/** Restores the auto-backup, replacing current workouts / history / body data. */
-export function restoreAutoBackup(): boolean {
-  const b = getAutoBackup();
+/** Restores the migration snapshot, replacing current workouts/history/body data. */
+export function restoreMigrationSafetyBackup(): boolean {
+  const b = getMigrationSafetyBackup();
   if (!b) return false;
   saveWorkouts(Array.isArray(b.bundle.workouts) ? b.bundle.workouts : []);
   saveProgramState({
