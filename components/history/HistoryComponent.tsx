@@ -3,19 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { ArrowLeft, CalendarDays, ClipboardPaste, Download, Dumbbell, FileSpreadsheet, History, ShieldCheck, Trophy, Upload } from "lucide-react";
+import { ArrowLeft, CalendarDays, Download, Dumbbell, FileSpreadsheet, History, ShieldCheck, Trophy, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -48,11 +39,7 @@ import { downloadExport, mergeImport } from "@/lib/storage/transfer";
 import { downloadExcel } from "@/lib/storage/excel-export";
 import { decodeWorkout } from "@/lib/storage/share";
 import { decodeProgram } from "@/lib/storage/program-share";
-import {
-  buildSharedImportUrl,
-  extractSharedImport,
-} from "@/lib/storage/share-link";
-import { buildShortShareUrl, extractShortShare } from "@/lib/sharing/link";
+import { buildSharedImportUrl } from "@/lib/storage/share-link";
 import { parseShareFile } from "@/lib/sharing/file";
 import { storeShareHandoff } from "@/lib/sharing/handoff";
 import {
@@ -74,8 +61,6 @@ const HistoryComponent = () => {
   const [backup, setBackup] = React.useState<AutoBackup | null>(null);
   const [showRestore, setShowRestore] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
-  const [importLinkOpen, setImportLinkOpen] = React.useState(false);
-  const [importLinkValue, setImportLinkValue] = React.useState("");
   // Bumped on mutations to force storage-reading children (calendar, streak) to refresh.
   const [version, setVersion] = React.useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -170,43 +155,6 @@ const HistoryComponent = () => {
     }
   };
 
-  const pasteImportLink = async () => {
-    try {
-      const value = await navigator.clipboard.readText();
-      if (!value.trim()) {
-        toast.error("Your clipboard is empty.");
-        return;
-      }
-      setImportLinkValue(value.trim());
-    } catch {
-      toast.info("Press and hold in the field, then choose Paste.");
-    }
-  };
-
-  const submitImportLink = () => {
-    const shortShare = extractShortShare(importLinkValue);
-    if (shortShare) {
-      window.location.assign(buildShortShareUrl(shortShare, window.location.origin));
-      return;
-    }
-    const reference = extractSharedImport(importLinkValue);
-    if (!reference) {
-      toast.error("Paste a ForkWorkout workout or program link.");
-      return;
-    }
-
-    const valid =
-      reference.kind === "program"
-        ? decodeProgram(reference.encoded) !== null
-        : decodeWorkout(reference.encoded) !== null;
-    if (!valid) {
-      toast.error(`That shared ${reference.kind} link looks invalid.`);
-      return;
-    }
-
-    window.location.assign(buildSharedImportUrl(reference, window.location.origin));
-  };
-
   return (
     <PageContainer className="pb-24">
       <Button asChild variant="ghost" size="sm" className="mb-2 gap-1 px-2">
@@ -244,17 +192,6 @@ const HistoryComponent = () => {
         >
           <FileSpreadsheet className="size-4" />
           {exporting ? "Preparing…" : "Export to Excel (for viewing)"}
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full gap-2"
-          onClick={() => {
-            setImportLinkValue("");
-            setImportLinkOpen(true);
-          }}
-        >
-          <ClipboardPaste className="size-4" />
-          Import link
         </Button>
         <input
           ref={fileInputRef}
@@ -356,63 +293,6 @@ const HistoryComponent = () => {
         onOpenChange={setEditOpen}
         onSaved={refresh}
       />
-
-      <Dialog
-        open={importLinkOpen}
-        onOpenChange={(nextOpen) => {
-          setImportLinkOpen(nextOpen);
-          if (!nextOpen) setImportLinkValue("");
-        }}
-      >
-        <DialogContent className="flex max-h-[calc(100dvh-1rem)] min-w-0 max-w-sm flex-col overflow-hidden">
-          <DialogHeader className="min-w-0 shrink-0 text-left">
-            <DialogTitle>Import a shared link</DialogTitle>
-            <DialogDescription>
-              Paste a ForkWorkout workout or program link. You&apos;ll review it before
-              adding it to this app&apos;s local library.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 min-w-0 space-y-2 overflow-x-hidden overflow-y-auto">
-            <Textarea
-              value={importLinkValue}
-              onChange={(event) => setImportLinkValue(event.target.value)}
-              placeholder="https://…/s/… or https://…/app#import=…"
-              rows={4}
-              wrap="soft"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              aria-label="Shared ForkWorkout link"
-              className="h-28 min-h-28 min-w-0 max-w-full resize-none break-all [field-sizing:fixed] [overflow-wrap:anywhere]"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full gap-1.5"
-              onClick={pasteImportLink}
-            >
-              <ClipboardPaste className="size-4" />
-              Paste from clipboard
-            </Button>
-          </div>
-          <DialogFooter className="shrink-0 gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setImportLinkOpen(false);
-                setImportLinkValue("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={submitImportLink} disabled={!importLinkValue.trim()}>
-              <Download className="size-4" />
-              Continue
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog
         open={pendingDelete !== null}

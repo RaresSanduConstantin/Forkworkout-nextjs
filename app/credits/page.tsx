@@ -38,6 +38,18 @@ const CREDITS: Credit[] = [
     href: "https://lucide.dev",
   },
   {
+    title: "QR code generation",
+    used: "qrcode.react — renders workout and program share codes.",
+    license: "ISC",
+    href: "https://github.com/zpao/qrcode.react",
+  },
+  {
+    title: "QR code scanning",
+    used: "qr-scanner — reads shared codes from the camera or an image.",
+    license: "MIT",
+    href: "https://github.com/nimiq/qr-scanner",
+  },
+  {
     title: "Display font",
     used: "Outfit, used for headings.",
     license: "SIL Open Font License",

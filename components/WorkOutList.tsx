@@ -1,15 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpDown, CalendarDays, Copy, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, Share2, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
+import { ArrowUpDown, CalendarDays, Copy, Download, Dumbbell, Flame, Layers3, Play, Plus, Scale, ScanLine, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +29,11 @@ import { ReorderExercisesDialog } from "@/components/exercises/ReorderExercisesD
 import { WorkoutWizard } from "@/components/workouts/WorkoutWizard";
 import { ProgramDialog } from "@/components/programs/ProgramDialog";
 import { ProgramCard } from "@/components/programs/ProgramCard";
+import { ImportShareDialog } from "@/components/sharing/ImportShareDialog";
+import {
+  ShareMethodTabs,
+  type ShareMethod,
+} from "@/components/sharing/ShareMethodTabs";
 import { getWorkouts, deleteWorkout, upsertWorkout, duplicateWorkout, uniqueWorkoutTitle, saveWorkouts } from "@/lib/storage/workout-storage";
 import { getCompletedDayKeys, getCompletedWorkouts } from "@/lib/storage/history-storage";
 import { buildShareUrl, decodeWorkout, encodeWorkout, type DecodedShare } from "@/lib/storage/share";
@@ -42,6 +46,7 @@ import {
 import { consumeShareHandoff } from "@/lib/sharing/handoff";
 import { buildShortShareUrl, extractShortShare } from "@/lib/sharing/link";
 import { deliverSharedReference } from "@/lib/sharing/delivery";
+import { createCloudShare } from "@/lib/sharing/client";
 import { MAX_SHARE_PAYLOAD_BYTES } from "@/lib/sharing/types";
 import {
   createProgram,
@@ -137,9 +142,15 @@ const WorkoutList = () => {
   const [standalone, setStandalone] = useState(false);
   const [shareTarget, setShareTarget] = useState<Workout | null>(null);
   const [shareMessage, setShareMessage] = useState("");
+  const [shareMethod, setShareMethod] = useState<ShareMethod>("link");
+  const [shareQrUrl, setShareQrUrl] = useState<string | null>(null);
+  const [shareQrLoading, setShareQrLoading] = useState(false);
+  const [shareQrError, setShareQrError] = useState<string | null>(null);
+  const [importShareOpen, setImportShareOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [lastWorkoutId, setLastWorkoutId] = useState<string | null>(null);
+  const qrRequestRef = useRef(0);
 
   // Derive from current workouts so the card hides if that workout is deleted.
   const lastWorkout = lastWorkoutId
@@ -276,11 +287,93 @@ const WorkoutList = () => {
     }
   };
 
+  const resetShareQr = () => {
+    qrRequestRef.current += 1;
+    setShareMethod("link");
+    setShareQrUrl(null);
+    setShareQrLoading(false);
+    setShareQrError(null);
+  };
+
   const handleShare = (id: string) => {
     const workout = workouts.find((w) => w.id === id);
     if (!workout) return;
+    resetShareQr();
     setShareMessage("");
     setShareTarget(workout);
+  };
+
+  const handleProgramShare = (program: WorkoutProgram) => {
+    resetShareQr();
+    setShareMessage("");
+    setProgramShareTarget(program);
+  };
+
+  const closeShareDialog = () => {
+    resetShareQr();
+    setShareTarget(null);
+    setProgramShareTarget(null);
+  };
+
+  const updateShareMessage = (message: string) => {
+    setShareMessage(message);
+    setShareQrUrl(null);
+    setShareQrError(null);
+  };
+
+  const generateShareQr = async () => {
+    const workoutTarget = shareTarget;
+    const programTarget = programShareTarget;
+    if (!workoutTarget && !programTarget) return;
+
+    const encoded = workoutTarget
+      ? encodeWorkout(workoutTarget, shareMessage, MAX_SHARE_PAYLOAD_BYTES)
+      : encodeProgram(
+          programTarget as WorkoutProgram,
+          workouts,
+          shareMessage,
+          MAX_SHARE_PAYLOAD_BYTES
+        );
+    if (!encoded) {
+      setShareQrError("This workout or program is too large to share (maximum 256 KB).");
+      return;
+    }
+
+    const requestId = qrRequestRef.current + 1;
+    qrRequestRef.current = requestId;
+    setShareQrLoading(true);
+    setShareQrError(null);
+    setShareQrUrl(null);
+    try {
+      const url = await createCloudShare(
+        { kind: workoutTarget ? "workout" : "program", encoded },
+        window.location.origin
+      );
+      if (qrRequestRef.current === requestId) setShareQrUrl(url);
+    } catch (reason) {
+      if (qrRequestRef.current === requestId) {
+        setShareQrError(
+          reason instanceof Error
+            ? reason.message
+            : "The QR code could not be created. Try again."
+        );
+      }
+    } finally {
+      if (qrRequestRef.current === requestId) setShareQrLoading(false);
+    }
+  };
+
+  const changeShareMethod = (method: ShareMethod) => {
+    setShareMethod(method);
+    if (method === "qr" && !shareQrUrl && !shareQrLoading) {
+      void generateShareQr();
+    }
+  };
+
+  const copyQrLink = async () => {
+    if (!shareQrUrl) return;
+    if (await copyText(shareQrUrl)) toast.success("Share link copied to clipboard");
+    else toast.error("Couldn't copy the share link.");
   };
 
   const doShare = async () => {
@@ -291,7 +384,7 @@ const WorkoutList = () => {
       toast.error("This workout is too large to share (maximum 256 KB).");
       return;
     }
-    setShareTarget(null);
+    closeShareDialog();
     try {
       const result = await deliverSharedReference({
         reference: { kind: "workout", encoded },
@@ -331,7 +424,7 @@ const WorkoutList = () => {
     if (!pendingShareLink) return;
     if (await copyText(pendingShareLink)) {
       toast.success("Shared link copied", {
-        description: "Open ForkWorkout from your Home Screen, go to History, then tap Import link.",
+        description: "Open ForkWorkout from your Home Screen, then tap Import workout or program.",
       });
     } else {
       toast.error("Couldn't copy the link. Select and copy it manually instead.");
@@ -463,7 +556,7 @@ const WorkoutList = () => {
       toast.error("This program is too large to share (maximum 256 KB).");
       return;
     }
-    setProgramShareTarget(null);
+    closeShareDialog();
     try {
       const result = await deliverSharedReference({
         reference: { kind: "program", encoded },
@@ -654,6 +747,15 @@ const WorkoutList = () => {
             Browse &amp; manage exercises
           </Link>
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full gap-2"
+          onClick={() => setImportShareOpen(true)}
+        >
+          <ScanLine className="size-4" />
+          Import workout or program
+        </Button>
       </div>
 
       {/* Programs */}
@@ -705,10 +807,7 @@ const WorkoutList = () => {
                   setEditingProgram(program);
                   setProgramDialogOpen(true);
                 }}
-                onShare={() => {
-                  setShareMessage("");
-                  setProgramShareTarget(program);
-                }}
+                onShare={() => handleProgramShare(program)}
                 onDelete={() => setPendingProgramDelete(program)}
               />
             ))}
@@ -955,13 +1054,13 @@ const WorkoutList = () => {
       {/* Share a workout — add an optional message, then send the link */}
       <Dialog
         open={shareTarget !== null}
-        onOpenChange={(open) => !open && setShareTarget(null)}
+        onOpenChange={(open) => !open && closeShareDialog()}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-sm flex-col overflow-hidden">
           <DialogHeader className="text-left">
             <DialogTitle>Share this workout?</DialogTitle>
             <DialogDescription>
-              Send a link to another ForkWorkout user — they can import it in one tap.
+              Send a link or let another ForkWorkout user scan a QR code.
             </DialogDescription>
           </DialogHeader>
           {shareTarget && (
@@ -973,41 +1072,38 @@ const WorkoutList = () => {
               </p>
             </div>
           )}
-          <div className="space-y-1.5">
-            <label htmlFor="share-msg" className="text-sm font-medium">
-              Add a message to them (optional)
-            </label>
-            <Textarea
-              id="share-msg"
-              value={shareMessage}
-              onChange={(e) => setShareMessage(e.target.value)}
-              placeholder="e.g. Try this leg day — brutal but worth it 🔥"
-              rows={3}
-              maxLength={280}
+          <div className="min-h-0 overflow-y-auto">
+            <ShareMethodTabs
+              method={shareMethod}
+              onMethodChange={changeShareMethod}
+              message={shareMessage}
+              onMessageChange={updateShareMessage}
+              messageId="share-msg"
+              messagePlaceholder="e.g. Try this leg day — brutal but worth it 🔥"
+              shareLabel="Share"
+              qrTitle="ForkWorkout shared workout QR code"
+              onShare={doShare}
+              onClose={closeShareDialog}
+              qrUrl={shareQrUrl}
+              qrLoading={shareQrLoading}
+              qrError={shareQrError}
+              onGenerateQr={generateShareQr}
+              onCopyQrLink={copyQrLink}
             />
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setShareTarget(null)}>
-              Cancel
-            </Button>
-            <Button className="flex-1 gap-1" onClick={doShare}>
-              <Share2 className="size-4" />
-              Share
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Share a complete program and its workouts. */}
       <Dialog
         open={programShareTarget !== null}
-        onOpenChange={(open) => !open && setProgramShareTarget(null)}
+        onOpenChange={(open) => !open && closeShareDialog()}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-sm flex-col overflow-hidden">
           <DialogHeader className="text-left">
             <DialogTitle>Share this program?</DialogTitle>
             <DialogDescription>
-              The link includes every workout in rotation order.
+              Share every workout in rotation order by link or QR code.
             </DialogDescription>
           </DialogHeader>
           {programShareTarget && (
@@ -1019,27 +1115,29 @@ const WorkoutList = () => {
               </p>
             </div>
           )}
-          <div className="space-y-1.5">
-            <label htmlFor="program-share-msg" className="text-sm font-medium">
-              Add a message (optional)
-            </label>
-            <Textarea
-              id="program-share-msg"
-              value={shareMessage}
-              onChange={(event) => setShareMessage(event.target.value)}
-              placeholder="e.g. Here is the full routine 🔥"
-              rows={3}
-              maxLength={280}
+          <div className="min-h-0 overflow-y-auto">
+            <ShareMethodTabs
+              method={shareMethod}
+              onMethodChange={changeShareMethod}
+              message={shareMessage}
+              onMessageChange={updateShareMessage}
+              messageId="program-share-msg"
+              messagePlaceholder="e.g. Here is the full routine 🔥"
+              shareLabel="Share program"
+              qrTitle="ForkWorkout shared program QR code"
+              onShare={doShareProgram}
+              onClose={closeShareDialog}
+              qrUrl={shareQrUrl}
+              qrLoading={shareQrLoading}
+              qrError={shareQrError}
+              onGenerateQr={generateShareQr}
+              onCopyQrLink={copyQrLink}
             />
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setProgramShareTarget(null)}>Cancel</Button>
-            <Button className="gap-1.5" onClick={doShareProgram}>
-              <Share2 className="size-4" /> Share program
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportShareDialog open={importShareOpen} onOpenChange={setImportShareOpen} />
 
       {/* Import a complete shared program. */}
       <Dialog
@@ -1060,7 +1158,7 @@ const WorkoutList = () => {
                   <p className="font-medium">Using the Home Screen app?</p>
                   <p className="mt-1 text-muted-foreground">
                     Your browser and installed app save separately. Copy this link,
-                    open ForkWorkout from your Home Screen, go to History, then use Import link.
+                    open ForkWorkout from your Home Screen, then tap Import workout or program.
                   </p>
                   <Input
                     readOnly
@@ -1131,7 +1229,7 @@ const WorkoutList = () => {
                   <p className="font-medium">Using the Home Screen app?</p>
                   <p className="mt-1 text-muted-foreground">
                     Your browser and installed app save separately. Copy this link,
-                    open ForkWorkout from your Home Screen, go to History, then use Import link.
+                    open ForkWorkout from your Home Screen, then tap Import workout or program.
                   </p>
                   <Input
                     readOnly
