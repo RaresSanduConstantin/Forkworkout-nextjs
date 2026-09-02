@@ -13,6 +13,11 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added in-session YouTube video editing from the exercise How to dialog, with
+  validated links and the existing exercise-management edit flow preserved.
+- Added a persistent Make current action in live workouts so users can switch
+  exercise or superset focus without changing the workout order.
+- Added drag-and-drop workout ordering inside the program editor.
 - Added a dashboard Storage & recovery panel showing the active persistence
   source, last durable save, last recorded backup, approximate local data size,
   record count, revision, JSON export, and restore navigation.
@@ -23,6 +28,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Made every row in workout and exercise reorder lists draggable on mouse,
+  touch, and keyboard instead of limiting dragging to the grip icon.
+- Ensured backup recovery replaces edited body entries that share an existing
+  ID, and added coverage for weight, measurements, notes, and body profile data.
 - Prevented a synchronous LocalStorage save made immediately before an abrupt
   app shutdown from being replaced by an older IndexedDB value on restart.
 - Preserved IndexedDB-only records when replaying a different, proven-newer

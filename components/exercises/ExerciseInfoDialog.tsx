@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Dumbbell, ExternalLink, ListChecks, PlayCircle, Target } from "lucide-react";
+import { Dumbbell, ExternalLink, ListChecks, PlayCircle, Save, Target } from "lucide-react";
 
 import {
   Dialog,
@@ -13,6 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -30,7 +32,14 @@ import {
   getCachedLibrary,
   type LibraryExercise,
 } from "@/lib/exercises";
-import { getExerciseVideoId } from "@/lib/exercise-videos";
+import {
+  extractYouTubeId,
+  getExerciseVideoId,
+  getExerciseVideoUrl,
+} from "@/lib/exercise-videos";
+import { upsertCustomExercise } from "@/lib/storage/custom-exercises";
+import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
+import { toast } from "sonner";
 
 const formatNameForUrl = (name: string) =>
   name.replace(/[\/\s]+/g, "_").replace(/^_+|_+$/g, "");
@@ -52,13 +61,19 @@ export function ExerciseInfoDialog({
   exerciseName,
   open,
   onOpenChange,
+  allowVideoEdit = false,
+  onVideoSaved,
 }: {
   exerciseName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  allowVideoEdit?: boolean;
+  onVideoSaved?: (exerciseName: string) => void;
 }) {
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [tab, setTab] = React.useState("how-to");
+  const [videoUrl, setVideoUrl] = React.useState("");
+  const [videoId, setVideoId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -72,7 +87,11 @@ export function ExerciseInfoDialog({
   }, [open]);
 
   React.useEffect(() => {
-    if (open) setTab("how-to");
+    if (open) {
+      setTab("how-to");
+      setVideoUrl(getExerciseVideoUrl(exerciseName) ?? "");
+      setVideoId(getExerciseVideoId(exerciseName));
+    }
   }, [open, exerciseName]);
 
   const details = React.useMemo(
@@ -80,16 +99,55 @@ export function ExerciseInfoDialog({
       library.find((e) => e.name.toLowerCase() === exerciseName.toLowerCase()) ?? null,
     [library, exerciseName]
   );
-  const videoId = getExerciseVideoId(exerciseName);
   const openSearch = (url: string) =>
     window.open(url, "_blank", "noopener,noreferrer");
+
+  const saveVideo = () => {
+    const name = exerciseName.trim();
+    const nextUrl = videoUrl.trim();
+    const nextVideoId = extractYouTubeId(nextUrl);
+    if (!name) return;
+    if (nextUrl && !nextVideoId) {
+      toast.error("That doesn't look like a valid YouTube link.");
+      return;
+    }
+
+    const exercise = details;
+    const saved = upsertCustomExercise(name, {
+      id: exercise?.id,
+      name: exercise?.name ?? name,
+      defaultUnit:
+        exercise?.defaultUnit ?? (exercise && isBodyweightExercise(exercise) ? "bw" : "kg"),
+      force: exercise?.force,
+      level: exercise?.level,
+      mechanic: exercise?.mechanic,
+      category: exercise?.category,
+      equipment: exercise?.equipment,
+      primaryMuscles: exercise?.primaryMuscles,
+      secondaryMuscles: exercise?.secondaryMuscles,
+      instructions: exercise?.instructions,
+      videoUrl: nextUrl || undefined,
+      sourceName:
+        exercise?.sourceName ?? (exercise && !exercise.custom ? exercise.name : undefined),
+    });
+    if (!saved) {
+      toast.error("Couldn't save the video. Storage may be full.");
+      return;
+    }
+
+    setVideoUrl(saved.videoUrl ?? "");
+    setVideoId(saved.videoUrl ? extractYouTubeId(saved.videoUrl) : getExerciseVideoId(name));
+    setLibrary(getCachedLibrary());
+    onVideoSaved?.(saved.name);
+    toast.success(nextUrl ? "Exercise video updated." : "Custom video removed.");
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="space-y-1 border-b p-6 pb-4 text-left">
-          <DialogTitle className="text-xl">{exerciseName || "Exercise"}</DialogTitle>
-        <DialogDescription>Instructions, muscles worked, images, and video guidance.</DialogDescription>
+          <DialogTitle className="break-words text-xl">{exerciseName || "Exercise"}</DialogTitle>
+          <DialogDescription>Instructions, muscles worked, images, and video guidance.</DialogDescription>
         </DialogHeader>
 
         <Tabs
@@ -199,8 +257,9 @@ export function ExerciseInfoDialog({
           </TabsContent>
 
           <TabsContent value="video" className="min-h-0 overflow-y-auto p-6">
-            {tab === "video" && videoId ? (
+            {tab === "video" ? (
               <div className="space-y-3">
+                {videoId ? (
                 <div className="relative mx-auto aspect-video w-full overflow-hidden rounded-lg bg-black">
                   <iframe
                     key={`${videoId}-${open}`}
@@ -212,6 +271,14 @@ export function ExerciseInfoDialog({
                     allowFullScreen
                   />
                 </div>
+                ) : (
+                  <div className="rounded-lg border bg-muted/40 p-4 text-center">
+                    <PlayCircle className="mx-auto size-8 text-muted-foreground" />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No saved demo yet. Search for form guidance in a new tab.
+                    </p>
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   className="w-full justify-between"
@@ -223,44 +290,42 @@ export function ExerciseInfoDialog({
                     )
                   }
                 >
-                  Search more on YouTube
+                  Search on YouTube
                   <ExternalLink className="size-4" />
                 </Button>
-              </div>
-            ) : tab === "video" ? (
-              <div className="space-y-3">
-                <div className="rounded-lg border bg-muted/40 p-4 text-center">
-                  <PlayCircle className="mx-auto size-8 text-muted-foreground" />
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    No saved demo yet. Search for form guidance in a new tab.
-                  </p>
-                </div>
-                <Button
-                  className="w-full justify-between bg-red-600 text-white hover:bg-red-700"
-                  onClick={() =>
-                    openSearch(
-                      `https://www.youtube.com/results?search_query=${encodeURIComponent(
-                        `${exerciseName} exercise form #shorts`
-                      )}`
-                    )
-                  }
-                >
-                  YouTube videos
-                  <ExternalLink className="size-4" />
-                </Button>
-                <Button
-                  className="w-full justify-between bg-neutral-900 text-white hover:bg-neutral-800"
-                  onClick={() =>
-                    openSearch(
-                      `https://www.tiktok.com/search?q=${encodeURIComponent(
-                        `${exerciseName} exercise form`
-                      )}`
-                    )
-                  }
-                >
-                  TikTok videos
-                  <ExternalLink className="size-4" />
-                </Button>
+                {!videoId && (
+                  <Button
+                    className="w-full justify-between bg-neutral-900 text-white hover:bg-neutral-800"
+                    onClick={() =>
+                      openSearch(
+                        `https://www.tiktok.com/search?q=${encodeURIComponent(
+                          `${exerciseName} exercise form`
+                        )}`
+                      )
+                    }
+                  >
+                    TikTok videos
+                    <ExternalLink className="size-4" />
+                  </Button>
+                )}
+                {allowVideoEdit && (
+                  <div className="space-y-2 border-t pt-4">
+                    <Label htmlFor="exercise-video-url">YouTube video URL</Label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        id="exercise-video-url"
+                        value={videoUrl}
+                        onChange={(event) => setVideoUrl(event.target.value)}
+                        placeholder="https://youtube.com/watch?v=..."
+                        inputMode="url"
+                      />
+                      <Button type="button" className="shrink-0 gap-1.5" onClick={saveVideo}>
+                        <Save className="size-4" />
+                        Save video
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
           </TabsContent>

@@ -22,8 +22,78 @@ import {
 } from "@/lib/storage/program-storage";
 import { saveWorkouts } from "@/lib/storage/workout-storage";
 import { getSettings, saveSettings } from "@/lib/storage/settings";
+import { addBodyMetric, getBodyMetrics, updateBodyMetric } from "@/lib/storage/body-storage";
+import { getBodyProfile, updateBodyProfile } from "@/lib/storage/profile";
 
 beforeEach(() => localStorage.clear());
+
+describe("export/import — body data", () => {
+  it("backs up and restores weight, every body measurement, notes, and profile data", () => {
+    addBodyMetric({
+      date: "2026-08-20T08:30:00.000Z",
+      weightKg: 81.4,
+      measurements: {
+        waist: 82,
+        chest: 101,
+        arms: 37.5,
+        thighs: 58,
+        hips: 96,
+        neck: 39,
+      },
+      note: "Morning check-in",
+    });
+    updateBodyProfile({
+      heightCm: 181,
+      sex: "male",
+      birthYear: 1990,
+      activity: "active",
+      goalWeightKg: 78,
+    });
+    const bundle = buildExport();
+
+    expect(bundle.bodyMetrics[0]).toEqual(
+      expect.objectContaining({
+        weightKg: 81.4,
+        measurements: {
+          waist: 82,
+          chest: 101,
+          arms: 37.5,
+          thighs: 58,
+          hips: 96,
+          neck: 39,
+        },
+        note: "Morning check-in",
+      })
+    );
+
+    localStorage.clear();
+    const result = mergeImport(JSON.stringify(bundle), {
+      restoreSettings: true,
+      restoreBodyData: true,
+    });
+
+    expect(result.bodyAdded).toBe(1);
+    expect(getBodyMetrics()).toEqual(bundle.bodyMetrics);
+    expect(getBodyProfile()).toEqual(bundle.bodyProfile);
+  });
+
+  it("restores an edited body entry when its id already exists locally", () => {
+    addBodyMetric({
+      date: "2026-08-20T08:30:00.000Z",
+      weightKg: 80,
+      measurements: { arms: 38, waist: 81 },
+    });
+    const bundle = buildExport();
+    const entryId = bundle.bodyMetrics[0].id;
+    updateBodyMetric(entryId, { weightKg: 83, measurements: { arms: 40 } });
+
+    const result = mergeImport(JSON.stringify(bundle), { restoreBodyData: true });
+
+    expect(result.bodyAdded).toBe(0);
+    expect(result.bodyUpdated).toBe(1);
+    expect(getBodyMetrics()[0]).toEqual(bundle.bodyMetrics[0]);
+  });
+});
 
 describe("export/import — settings", () => {
   it("restores device settings when recovering a backup", () => {

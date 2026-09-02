@@ -96,11 +96,12 @@ export function downloadExport(): void {
  */
 export function mergeImport(
   text: string,
-  options: { restoreSettings?: boolean } = {}
+  options: { restoreSettings?: boolean; restoreBodyData?: boolean } = {}
 ): {
   workoutsAdded: number;
   historyAdded: number;
   bodyAdded: number;
+  bodyUpdated: number;
   exercisesAdded: number;
   programsAdded: number;
   profileRestored: boolean;
@@ -177,15 +178,25 @@ export function mergeImport(
   }
   writeJson(STORAGE_KEYS.completedWorkouts, history);
 
-  // Merge body metrics by id.
+  // Merge body metrics by id. Explicit backup recovery lets the snapshot win
+  // for matching ids so edits to an existing measurement are restored too.
   const body = getBodyMetrics();
-  const bodyIds = new Set(body.map((b) => b.id));
+  const bodyIndexes = new Map(body.map((entry, index) => [entry.id, index]));
   let bodyAdded = 0;
+  let bodyUpdated = 0;
   for (const b of importedBody) {
-    if (b && typeof b.id === "string" && !bodyIds.has(b.id)) {
+    if (!b || typeof b.id !== "string") continue;
+    const existingIndex = bodyIndexes.get(b.id);
+    if (existingIndex === undefined) {
       body.push(b);
-      bodyIds.add(b.id);
+      bodyIndexes.set(b.id, body.length - 1);
       bodyAdded += 1;
+    } else if (
+      options.restoreBodyData &&
+      JSON.stringify(body[existingIndex]) !== JSON.stringify(b)
+    ) {
+      body[existingIndex] = b;
+      bodyUpdated += 1;
     }
   }
   writeJson(STORAGE_KEYS.bodyMetrics, body);
@@ -280,6 +291,7 @@ export function mergeImport(
     workoutsAdded,
     historyAdded,
     bodyAdded,
+    bodyUpdated,
     exercisesAdded,
     programsAdded,
     profileRestored,

@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp } from "lucide-react";
-
 import type { Workout, WorkoutProgram } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SortableItemList } from "@/components/exercises/ReorderExercisesDialog";
 import {
   Dialog,
   DialogContent,
@@ -42,12 +41,14 @@ export function ProgramDialog({
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
     );
   };
-  const move = (index: number, delta: number) => {
+  const move = (from: number, to: number) => {
     setWorkoutIds((current) => {
-      const target = index + delta;
-      if (target < 0 || target >= current.length) return current;
+      if (from === to || from < 0 || to < 0 || from >= current.length || to >= current.length) {
+        return current;
+      }
       const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
       return next;
     });
   };
@@ -92,38 +93,13 @@ export function ProgramDialog({
           {workoutIds.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Rotation order</p>
-              {workoutIds.map((id, index) => {
-                const workout = workouts.find((item) => item.id === id);
-                if (!workout) return null;
-                return (
-                  <div key={id} className="flex items-center gap-2 rounded-lg bg-muted/50 p-2">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm">{workout.title}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={index === 0}
-                      onClick={() => move(index, -1)}
-                      aria-label={`Move ${workout.title} up`}
-                    >
-                      <ArrowUp className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={index === workoutIds.length - 1}
-                      onClick={() => move(index, 1)}
-                      aria-label={`Move ${workout.title} down`}
-                    >
-                      <ArrowDown className="size-4" />
-                    </Button>
-                  </div>
-                );
-              })}
+              <SortableItemList
+                items={workoutIds.map((id) => ({
+                  id,
+                  title: workouts.find((workout) => workout.id === id)?.title || "Untitled workout",
+                }))}
+                onMove={move}
+              />
             </div>
           )}
         </div>

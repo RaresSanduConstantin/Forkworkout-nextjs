@@ -446,12 +446,31 @@ const StartWorkoutComponent = () => {
     return { done, total, percent: total ? (done / total) * 100 : 0 };
   }, [workout]);
 
-  // The first exercise with work left is the current one. When it belongs to
-  // a superset, keep the whole group highlighted so the user sees the pair as
-  // one active block rather than two unrelated exercises.
+  // A manually focused pending exercise wins; otherwise use the first exercise
+  // with work left. Supersets stay highlighted as one active block.
   const currentExercise = useMemo(() => {
     if (!workout) return { index: -1, superset: null as string | null };
-    const index = workout.exercises.findIndex((exercise) =>
+    const exerciseKey = (index: number) =>
+      workout.exercises[index]?.id ?? `exercise-${index}`;
+    let index = workout.exercises.findIndex(
+      (exercise, exerciseIndex) =>
+        exerciseKey(exerciseIndex) === workout.currentExerciseId &&
+        exercise.sets.some((set) => set.status === "pending")
+    );
+    if (index < 0 && workout.currentExerciseId) {
+      const selectedIndex = workout.exercises.findIndex(
+        (_, exerciseIndex) => exerciseKey(exerciseIndex) === workout.currentExerciseId
+      );
+      const selectedSuperset = workout.exercises[selectedIndex]?.superset?.trim();
+      if (selectedSuperset) {
+        index = workout.exercises.findIndex(
+          (exercise) =>
+            exercise.superset?.trim() === selectedSuperset &&
+            exercise.sets.some((set) => set.status === "pending")
+        );
+      }
+    }
+    if (index < 0) index = workout.exercises.findIndex((exercise) =>
       exercise.sets.some((set) => set.status === "pending")
     );
     const superset =
@@ -581,6 +600,25 @@ const StartWorkoutComponent = () => {
   const openInfoModal = (exerciseName: string) => {
     setSelectedExercise(exerciseName);
     setShowInfoModal(true);
+  };
+
+  const makeExerciseCurrent = (exerciseIndex: number) => {
+    setWorkout((previous) => {
+      const exercise = previous?.exercises[exerciseIndex];
+      if (!previous || !exercise || !exercise.sets.some((set) => set.status === "pending")) {
+        return previous;
+      }
+      return {
+        ...previous,
+        currentExerciseId: exercise.id ?? `exercise-${exerciseIndex}`,
+      };
+    });
+    const exerciseId = workout?.exercises[exerciseIndex]?.id ?? `exercise-${exerciseIndex}`;
+    setCollapsedExerciseIds((current) => {
+      const next = new Set(current);
+      next.delete(exerciseId);
+      return next;
+    });
   };
 
   // --- Immutable session mutators ---
@@ -1308,16 +1346,36 @@ const StartWorkoutComponent = () => {
                   <AccordionTrigger
                     className="min-w-0 gap-2 overflow-hidden py-3 pl-4 pr-2 hover:no-underline"
                     action={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="mr-2 shrink-0 self-center text-muted-foreground hover:text-destructive"
-                        aria-label={`Remove ${exercise.name || `exercise ${exIdx + 1}`}`}
-                        onClick={() => requestRemoveExercise(exIdx)}
-                      >
-                        <X className="size-4" />
-                      </Button>
+                      <span className="flex shrink-0 items-center gap-1 pr-2">
+                        {isCurrentExercise ? (
+                          <Badge
+                            variant="outline"
+                            className="min-h-8 shrink-0 border-violet-700/40 bg-violet-700/10 px-2 text-violet-800 dark:border-violet-400/40 dark:text-violet-300"
+                          >
+                            Current
+                          </Badge>
+                        ) : !exerciseComplete ? (
+                          <Badge
+                            asChild
+                            variant="outline"
+                            className="min-h-8 cursor-pointer border-primary/40 bg-primary/5 px-2 text-primary hover:bg-primary/10"
+                          >
+                            <button type="button" onClick={() => makeExerciseCurrent(exIdx)}>
+                              Make current
+                            </button>
+                          </Badge>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="shrink-0 self-center text-muted-foreground hover:text-destructive"
+                          aria-label={`Remove ${exercise.name || `exercise ${exIdx + 1}`}`}
+                          onClick={() => requestRemoveExercise(exIdx)}
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </span>
                     }
                   >
                     <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -1329,14 +1387,6 @@ const StartWorkoutComponent = () => {
                           {handledSetCount}/{exercise.sets.length} sets
                         </span>
                       </span>
-                      {isCurrentExercise && (
-                        <Badge
-                          variant="outline"
-                          className="shrink-0 border-violet-700/40 bg-violet-700/10 px-1.5 text-violet-800 dark:border-violet-400/40 dark:text-violet-300 sm:px-2.5"
-                        >
-                          Current
-                        </Badge>
-                      )}
                       {exerciseComplete && (
                         <Badge className="shrink-0 bg-lime-600 px-1.5 text-white hover:bg-lime-600 sm:px-2.5">
                           Complete
@@ -1783,6 +1833,10 @@ const StartWorkoutComponent = () => {
         exerciseName={selectedExercise}
         open={showInfoModal}
         onOpenChange={setShowInfoModal}
+        allowVideoEdit
+        onVideoSaved={() => {
+          void loadExerciseLibrary().then(setLibrary);
+        }}
       />
 
       {/* Rest Timer — full dialog (minimizes to a pill instead of closing) */}

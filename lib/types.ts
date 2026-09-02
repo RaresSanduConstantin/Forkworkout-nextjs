@@ -126,6 +126,8 @@ export type ActiveSession = {
   title: string;
   exercises: SessionExercise[];
   startedAt: string;
+  // Optional manual focus. Older sessions omit it and use the first pending exercise.
+  currentExerciseId?: string;
   // Active rest countdown, if one is running. Stored as an absolute end time so
   // it survives navigation/refresh and can be shown in the global "in progress"
   // bar and resumed (still counting down) when returning to the session.

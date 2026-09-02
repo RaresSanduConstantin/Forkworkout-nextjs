@@ -127,11 +127,12 @@ const HistoryComponent = () => {
         workoutsAdded,
         historyAdded,
         bodyAdded,
+        bodyUpdated,
         exercisesAdded,
         profileRestored,
         settingsRestored,
         homeEquipmentRestored,
-      } = mergeImport(text, { restoreSettings: true });
+      } = mergeImport(text, { restoreSettings: true, restoreBodyData: true });
       const persisted = await flushStoragePersistence();
       refresh();
       const parts = [
@@ -139,6 +140,8 @@ const HistoryComponent = () => {
         `${historyAdded} history entr${historyAdded === 1 ? "y" : "ies"}`,
       ];
       if (bodyAdded) parts.push(`${bodyAdded} body ${bodyAdded === 1 ? "entry" : "entries"}`);
+      if (bodyUpdated)
+        parts.push(`${bodyUpdated} updated body ${bodyUpdated === 1 ? "entry" : "entries"}`);
       if (exercisesAdded)
         parts.push(`${exercisesAdded} exercise${exercisesAdded === 1 ? "" : "s"}`);
       if (profileRestored) parts.push("profile");

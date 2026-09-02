@@ -112,12 +112,13 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
         toast.error("No backup found in this Google account yet.");
         return;
       }
-      const r = mergeImport(result.text, { restoreSettings: true });
+      const r = mergeImport(result.text, { restoreSettings: true, restoreBodyData: true });
       const persisted = await flushStoragePersistence();
       const parts: string[] = [];
       if (r.workoutsAdded) parts.push(`${r.workoutsAdded} workouts`);
       if (r.historyAdded) parts.push(`${r.historyAdded} sessions`);
       if (r.bodyAdded) parts.push(`${r.bodyAdded} body entries`);
+      if (r.bodyUpdated) parts.push(`${r.bodyUpdated} updated body entries`);
       if (r.exercisesAdded) parts.push(`${r.exercisesAdded} exercises`);
       updateGDriveConfig({ fileId: result.fileId, lastSyncAt: new Date().toISOString() });
       setConfig(getGDriveConfig());

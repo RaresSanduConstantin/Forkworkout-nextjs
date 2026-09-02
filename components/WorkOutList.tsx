@@ -1030,7 +1030,7 @@ const WorkoutList = () => {
         open={reorderOpen}
         onOpenChange={setReorderOpen}
         title="Reorder workouts"
-        description="Drag the handles to reorder your workouts."
+        description="Press and drag any row to reorder your workouts."
         items={workouts.map((w) => ({ id: w.id, title: w.title || "Untitled workout" }))}
         onMove={moveWorkout}
       />

@@ -9,12 +9,27 @@ import {
 import { getBodyProfile, updateBodyProfile } from "@/lib/storage/profile";
 import { getSettings, updateSettings, DEFAULT_SETTINGS } from "@/lib/storage/settings";
 import { getWorkouts, saveWorkouts } from "@/lib/storage/workout-storage";
-import { getActiveSession } from "@/lib/storage/session-storage";
+import { getActiveSession, saveActiveSession } from "@/lib/storage/session-storage";
 import { STORAGE_KEYS } from "@/lib/storage/keys";
 
 beforeEach(() => localStorage.clear());
 
 describe("active session storage", () => {
+  it("keeps a manually selected current exercise across reloads", () => {
+    saveActiveSession({
+      workoutId: "workout-1",
+      title: "Workout",
+      startedAt: "2026-08-20T08:00:00.000Z",
+      currentExerciseId: "exercise-2",
+      exercises: [
+        { id: "exercise-1", name: "Squat", sets: [] },
+        { id: "exercise-2", name: "Bench press", sets: [] },
+      ],
+    });
+
+    expect(getActiveSession()?.currentExerciseId).toBe("exercise-2");
+  });
+
   it("restores legacy skipped sets as pending", () => {
     localStorage.setItem(
       STORAGE_KEYS.activeSession,
