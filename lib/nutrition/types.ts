@@ -89,6 +89,19 @@ export type NutritionDayAdjustment = {
   updatedAt: string;
 };
 
+export type NutritionSavedMealItem = Pick<
+  NutritionEntry,
+  "name" | "source" | "nutrients" | "quantity" | "foodSnapshot"
+>;
+
+export type NutritionSavedMeal = {
+  id: string;
+  name: string;
+  items: NutritionSavedMealItem[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type NutritionEntryInput = {
   dayKey: string;
   meal: NutritionMeal;
@@ -122,4 +135,9 @@ export type StoredCustomNutritionFoods = {
 export type StoredNutritionFoodPreferences = {
   version: 1;
   data: NutritionFoodPreference[];
+};
+
+export type StoredNutritionSavedMeals = {
+  version: 1;
+  data: NutritionSavedMeal[];
 };

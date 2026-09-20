@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "nutrition:catalog": "node scripts/build-nutrition-catalog.mjs"
   },
   "dependencies": {
     "@abdofallah/musclemap-js": "github:abdofallah/MuscleMapJS",

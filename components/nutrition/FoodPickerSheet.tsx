@@ -323,6 +323,7 @@ export function FoodPickerSheet({
         <SheetContent
           side="bottom"
           className="mx-auto h-[92dvh] max-w-xl overflow-hidden rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+          onOpenAutoFocus={(event) => event.preventDefault()}
         >
           {view === "browse" && (
             <>
@@ -338,7 +339,6 @@ export function FoodPickerSheet({
                     onChange={(event) => setQuery(event.target.value)}
                     className="pl-9"
                     placeholder="Chicken, rice, ouă, cartofi…"
-                    autoFocus
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">

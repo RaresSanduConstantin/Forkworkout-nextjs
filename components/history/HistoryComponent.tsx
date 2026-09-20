@@ -138,6 +138,7 @@ const HistoryComponent = () => {
         nutritionDayAdjustmentsRestored,
         customNutritionFoodsAdded,
         nutritionFoodPreferencesRestored,
+        nutritionSavedMealsAdded,
       } = mergeImport(text, {
         restoreSettings: true,
         restoreBodyData: true,
@@ -176,6 +177,10 @@ const HistoryComponent = () => {
         );
       if (nutritionFoodPreferencesRestored)
         parts.push("nutrition favourites and recents");
+      if (nutritionSavedMealsAdded)
+        parts.push(
+          `${nutritionSavedMealsAdded} saved nutrition ${nutritionSavedMealsAdded === 1 ? "meal" : "meals"}`
+        );
       if (!persisted) {
         toast.warning(
           `Imported ${parts.join(", ")}, but the device database could not be verified. Export a backup before closing the app.`

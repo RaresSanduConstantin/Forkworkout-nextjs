@@ -13,9 +13,12 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
-- Added an offline USDA-based starter food catalog with English and Romanian
-  search, raw/cooked variants, gram and millilitre quantity calculation,
-  custom foods, favourites, recents, and local backup/restore support.
+- Added reusable nutrition meals with 0.5×–2× portions, recent and yesterday
+  meal copying, and confirmed whole-day copying with duplicate protection.
+- Added a reproducible 1,000-record offline USDA food catalog with English and
+  Romanian search, raw/cooked variants, gram and millilitre quantity
+  calculation, custom foods, favourites, recents, and local backup/restore
+  support.
 - Added the first local-first Nutrition dashboard with manual calorie and macro
   targets, optional body-profile calorie suggestions, informational workout
   calories, meal grouping, Quick Add editing, and backup/restore support.
@@ -39,6 +42,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Prevented the mobile keyboard from opening automatically with the Add Food
+  sheet and obscuring its initial search and action controls.
 - Kept exercise-history progress charts inside their dialog on narrow or short
   screens, with contained chart sizing and scrollable metric controls.
 - Preserved the workout preview's scroll position when its content remounts
@@ -57,6 +62,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Renamed the Nutrition dashboard's secondary logging action to Add Meal so
+  reusable and previous meals are clearly available beside Add Food.
+- Exposed a labeled Save as meal action directly beneath each populated meal
+  instead of hiding saving behind a repeat icon.
 - Made empty Nutrition meal cards compact and full-width, and added a filled
   apple with a reduced-motion-aware animated calorie card when the daily target
   is reached or exceeded.

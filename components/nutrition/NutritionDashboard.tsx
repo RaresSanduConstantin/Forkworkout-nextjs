@@ -4,6 +4,7 @@ import * as React from "react";
 import { format, isToday } from "date-fns";
 import {
   Apple,
+  BookmarkPlus,
   ChevronLeft,
   ChevronRight,
   Cookie,
@@ -26,6 +27,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { QuickAddSheet } from "./QuickAddSheet";
 import { FoodPickerSheet } from "./FoodPickerSheet";
+import { MealActionsSheet } from "./MealActionsSheet";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
 import { dayKeyToDate, toDayKey } from "@/lib/date/day-key";
 import {
@@ -107,6 +109,8 @@ export function NutritionDashboard() {
   const [workoutAdjustmentDays, setWorkoutAdjustmentDays] = React.useState<string[]>([]);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
   const [foodPickerOpen, setFoodPickerOpen] = React.useState(false);
+  const [mealActionsOpen, setMealActionsOpen] = React.useState(false);
+  const [mealActionStartSaving, setMealActionStartSaving] = React.useState(false);
   const [targetsOpen, setTargetsOpen] = React.useState(false);
   const [workoutAdjustmentOpen, setWorkoutAdjustmentOpen] = React.useState(false);
   const [quickMeal, setQuickMeal] = React.useState<NutritionMeal>(defaultMeal);
@@ -161,6 +165,12 @@ export function NutritionDashboard() {
     } else {
       openQuickAdd(entry.meal, entry);
     }
+  };
+
+  const openMealActions = (meal: NutritionMeal, startSaving = false) => {
+    setQuickMeal(meal);
+    setMealActionStartSaving(startSaving);
+    setMealActionsOpen(true);
   };
 
   const confirmDelete = () => {
@@ -344,15 +354,27 @@ export function NutritionDashboard() {
         )}
       </button>
 
-      <Button
-        type="button"
-        size="lg"
-        className="mt-5 w-full gap-2"
-        onClick={() => openFoodPicker(defaultMeal())}
-      >
-        <Plus className="size-5" />
-        Add Food
-      </Button>
+      <div className="mt-5 grid grid-cols-[1fr_auto] gap-2">
+        <Button
+          type="button"
+          size="lg"
+          className="gap-2"
+          onClick={() => openFoodPicker(defaultMeal())}
+        >
+          <Plus className="size-5" />
+          Add Food
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          variant="outline"
+          className="gap-2"
+          onClick={() => openMealActions(defaultMeal())}
+        >
+          <Utensils className="size-4" />
+          Add Meal
+        </Button>
+      </div>
 
       <div className="mt-5 space-y-3">
         {NUTRITION_MEALS.map((meal) => {
@@ -417,6 +439,18 @@ export function NutritionDashboard() {
                       </li>
                     ))}
                   </ul>
+                  <div className="mt-3 border-t pt-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => openMealActions(meal, true)}
+                    >
+                      <BookmarkPlus className="size-4" />
+                      Save as meal
+                    </Button>
+                  </div>
                   </CardContent>
                 </>
               )}
@@ -450,6 +484,18 @@ export function NutritionDashboard() {
           setFoodPickerOpen(false);
           window.setTimeout(() => openQuickAdd(meal), 150);
         }}
+      />
+      <MealActionsSheet
+        open={mealActionsOpen}
+        onOpenChange={(open) => {
+          setMealActionsOpen(open);
+          if (!open) setMealActionStartSaving(false);
+        }}
+        dayKey={dayKey}
+        initialMeal={quickMeal}
+        startSaving={mealActionStartSaving}
+        entries={entries}
+        onSaved={refresh}
       />
       <NutritionTargetsDialog
         open={targetsOpen}

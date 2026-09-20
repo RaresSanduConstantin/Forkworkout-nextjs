@@ -49,3 +49,8 @@ public/workbox-*.js
 public/workbox-*.js.map
 public/swe-worker-*.js
 public/fallback-*.js
+
+# Raw USDA downloads are transformed into public/json/foods.json. Do not ship
+# or commit the much larger relational archives/tables.
+/public/json/FoodData_Central_*
+/data/usda/

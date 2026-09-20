@@ -83,11 +83,12 @@ Status: Implemented; device QA and user review pending
 
 ## Phase 2 — Generic foods, custom foods, recents and favourites
 
-Status: Phase 2A implemented; catalog expansion and device QA pending
+Status: Phase 2B implemented; installed-device QA pending
 
-- [x] Create a curated `public/json/foods.json` starter catalog sourced from USDA
+- [x] Create a generated `public/json/foods.json` catalog sourced from USDA
       FoodData Central, with stable IDs and source references.
-- [ ] Start with approximately 150–250 common foods rather than a full dataset.
+- [x] Ship 1,000 generic food/preparation records without bundling the raw USDA
+      relational download.
 - [x] Store raw/cooked/preparation variants as independent records in the
       starter catalog.
 - [x] Include English names and useful Romanian search aliases, including
@@ -103,9 +104,12 @@ Status: Phase 2A implemented; catalog expansion and device QA pending
 - [x] Verify the production service worker precaches the bundled food catalog.
 - [ ] Perform offline search and logging QA on an installed phone PWA.
 
-### Phase 2A implementation checkpoint
+### Phase 2 implementation checkpoint
 
-- Catalog: `public/json/foods.json` with 36 common food/preparation records.
+- Catalog: `public/json/foods.json` with 1,000 food/preparation records; 36
+  retain hand-curated names and Romanian aliases.
+- Reproducible import: `scripts/build-nutrition-catalog.mjs` and
+  `docs/NUTRITION_CATALOG.md`.
 - Search and ranking: `lib/nutrition/foods.ts`.
 - Custom foods and preferences: `lib/storage/nutrition-food-storage.ts`.
 - UI: `components/nutrition/FoodPickerSheet.tsx`.
@@ -113,23 +117,42 @@ Status: Phase 2A implemented; catalog expansion and device QA pending
   passed and `/json/foods.json` appears in the generated service-worker
   precache manifest.
 
-### Phase 2B remaining catalog work
+### Optional catalog follow-ups
 
-- Expand from 36 starter records to approximately 150–250 USDA-sourced foods.
-- Add more Romanian staples, dairy choices, meat cuts, fish, fruit, vegetables,
-  grains, legumes, oils, and common preparation variants.
-- Review source links and rounded nutrient values as the catalog expands.
+- Add more manually reviewed Romanian aliases to generated foods based on real
+  search misses.
+- Tune category selection and ranking from user feedback rather than increasing
+  the catalog size by default.
+- Review source links and rounded nutrient values whenever the generator or
+  source release changes.
 
 ## Phase 3 — Saved and repeated meals
 
-Status: Planned
+Status: Implemented; device QA and user review pending
 
-- [ ] Save a meal's foods and quantities under a reusable name.
-- [ ] Apply 0.5x, 1x, 1.5x, and 2x multipliers.
-- [ ] Copy a previous meal into a selected day and meal slot.
-- [ ] Add shortcuts for yesterday's corresponding meal.
-- [ ] Copy an entire previous day with duplicate protection and confirmation.
-- [ ] Assign fresh entry IDs to every copied item.
+- [x] Save a meal's foods and quantities under a reusable name.
+- [x] Apply 0.5x, 1x, 1.5x, and 2x multipliers.
+- [x] Copy a previous meal into a selected day and meal slot.
+- [x] Add shortcuts for yesterday's corresponding meal.
+- [x] Copy an entire previous day with duplicate protection and confirmation.
+- [x] Assign fresh entry IDs to every copied item.
+- [x] Provide a dedicated Add Meal action beside Add Food on the dashboard.
+- [x] Provide an explicit Save as meal action inside populated meal cards that
+      opens the naming step directly.
+- [x] Preserve intentional duplicate foods while skipping only matching entries
+      that are already present at the destination.
+- [x] Include saved meals in backup, restore, reset, migration recovery, and
+      IndexedDB reconciliation.
+
+### Phase 3 implementation checkpoint
+
+- UI: `components/nutrition/MealActionsSheet.tsx` and the Nutrition dashboard's
+  Add Meal and Save as meal actions.
+- Persistence/copying: `lib/storage/nutrition-meal-storage.ts`.
+- Validation result: 43 test files and 258 tests passed; production build
+  passed with `/nutrition` generated as a static route.
+- [ ] Perform installed-phone QA for the saved-meal and whole-day confirmation
+      flows.
 
 ## Phase 4 — Barcode scanner
 

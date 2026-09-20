@@ -62,6 +62,8 @@ export function migrationSafetyBackupHasData(b: MigrationSafetyBackup | null): b
       b.bundle.customNutritionFoods.length > 0) ||
     (Array.isArray(b.bundle.nutritionFoodPreferences) &&
       b.bundle.nutritionFoodPreferences.length > 0) ||
+    (Array.isArray(b.bundle.nutritionSavedMeals) &&
+      b.bundle.nutritionSavedMeals.length > 0) ||
     Boolean(b.bundle.nutritionTargets) ||
     Boolean(b.bundle.bodyProfile) ||
     Boolean(b.bundle.settings) ||
@@ -186,6 +188,12 @@ export function restoreMigrationSafetyBackup(): boolean {
     writeJson(STORAGE_KEYS.nutritionFoodPreferences, {
       version: 1,
       data: b.bundle.nutritionFoodPreferences,
+    });
+  }
+  if (Array.isArray(b.bundle.nutritionSavedMeals)) {
+    writeJson(STORAGE_KEYS.nutritionSavedMeals, {
+      version: 1,
+      data: b.bundle.nutritionSavedMeals,
     });
   }
   return true;

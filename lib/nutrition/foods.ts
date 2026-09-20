@@ -88,6 +88,9 @@ export function filterAndRankNutritionFoods(
       if (recency !== 0) return recency;
       const frequency = (rightPreference?.useCount ?? 0) - (leftPreference?.useCount ?? 0);
       if (frequency !== 0) return frequency;
+      if (left.aliases.length !== right.aliases.length) {
+        return right.aliases.length - left.aliases.length;
+      }
       return `${left.name} ${left.variant ?? ""}`.localeCompare(
         `${right.name} ${right.variant ?? ""}`
       );

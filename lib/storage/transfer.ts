@@ -38,6 +38,7 @@ import type {
   NutritionEntry,
   NutritionFood,
   NutritionFoodPreference,
+  NutritionSavedMeal,
   NutritionTargets,
 } from "@/lib/nutrition/types";
 import {
@@ -58,6 +59,11 @@ import {
   saveCustomNutritionFoods,
   saveNutritionFoodPreferences,
 } from "./nutrition-food-storage";
+import {
+  getNutritionSavedMeals,
+  normalizeNutritionSavedMeal,
+  saveNutritionSavedMeals,
+} from "./nutrition-meal-storage";
 
 export type ExportBundle = {
   version: number;
@@ -80,6 +86,7 @@ export type ExportBundle = {
   nutritionDayAdjustments?: NutritionDayAdjustment[];
   customNutritionFoods?: NutritionFood[];
   nutritionFoodPreferences?: NutritionFoodPreference[];
+  nutritionSavedMeals?: NutritionSavedMeal[];
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -106,6 +113,7 @@ export function buildExport(): ExportBundle {
     nutritionDayAdjustments: getNutritionDayAdjustments(),
     customNutritionFoods: getCustomNutritionFoods(),
     nutritionFoodPreferences: getNutritionFoodPreferences(),
+    nutritionSavedMeals: getNutritionSavedMeals(),
   };
 }
 
@@ -152,6 +160,7 @@ export function mergeImport(
   nutritionDayAdjustmentsRestored: number;
   customNutritionFoodsAdded: number;
   nutritionFoodPreferencesRestored: number;
+  nutritionSavedMealsAdded: number;
 } {
   let parsed: unknown;
   try {
@@ -378,6 +387,25 @@ export function mergeImport(
     saveNutritionFoodPreferences(Array.from(foodPreferences.values()));
   }
 
+  const savedMeals = getNutritionSavedMeals();
+  const savedMealIndexes = new Map(savedMeals.map((meal, index) => [meal.id, index]));
+  let nutritionSavedMealsAdded = 0;
+  if (Array.isArray(bundle.nutritionSavedMeals)) {
+    for (const rawMeal of bundle.nutritionSavedMeals) {
+      const meal = normalizeNutritionSavedMeal(rawMeal);
+      if (!meal) continue;
+      const existingIndex = savedMealIndexes.get(meal.id);
+      if (existingIndex === undefined) {
+        savedMeals.push(meal);
+        savedMealIndexes.set(meal.id, savedMeals.length - 1);
+        nutritionSavedMealsAdded += 1;
+      } else if (options.restoreNutritionData) {
+        savedMeals[existingIndex] = meal;
+      }
+    }
+    saveNutritionSavedMeals(savedMeals);
+  }
+
   // Restore body profile: only fill fields that aren't already set locally, so
   // an import never clobbers the current device's profile.
   let profileRestored = false;
@@ -446,5 +474,6 @@ export function mergeImport(
     nutritionDayAdjustmentsRestored,
     customNutritionFoodsAdded,
     nutritionFoodPreferencesRestored,
+    nutritionSavedMealsAdded,
   };
 }

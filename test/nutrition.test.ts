@@ -35,6 +35,13 @@ import {
   setNutritionFoodFavourite,
   upsertCustomNutritionFood,
 } from "@/lib/storage/nutrition-food-storage";
+import {
+  copyNutritionEntriesToDay,
+  copyNutritionItemsToDay,
+  deleteNutritionSavedMeal,
+  getNutritionSavedMeals,
+  saveMealFromEntries,
+} from "@/lib/storage/nutrition-meal-storage";
 
 beforeEach(() => localStorage.clear());
 
@@ -172,6 +179,7 @@ describe("nutrition storage", () => {
       nutrients: { caloriesKcal: 123, proteinG: 4, carbsG: 5, fatG: 6 },
     })!;
     setNutritionFoodFavourite(nutritionFoodKey(customFood), true);
+    saveMealFromEntries("Backup breakfast", [created!]);
     const bundle = buildExport();
 
     localStorage.clear();
@@ -185,10 +193,12 @@ describe("nutrition storage", () => {
     expect(result.nutritionDayAdjustmentsRestored).toBe(1);
     expect(result.customNutritionFoodsAdded).toBe(1);
     expect(result.nutritionFoodPreferencesRestored).toBe(1);
+    expect(result.nutritionSavedMealsAdded).toBe(1);
     expect(getNutritionEntries()[0].id).toBe(created?.id);
     expect(getNutritionTargets()?.caloriesKcal).toBe(2200);
     expect(getNutritionDayAdjustments()[0]?.dayKey).toBe("2026-09-20");
     expect(getCustomNutritionFoods()[0]?.name).toBe("Backup food");
+    expect(getNutritionSavedMeals()[0]?.name).toBe("Backup breakfast");
   });
 
   it("restores an edited nutrition entry when recovering a backup", () => {
@@ -206,6 +216,69 @@ describe("nutrition storage", () => {
     expect(getNutritionEntries()[0].name).toBe("Morning coffee");
     expect(getNutritionEntries()[0].nutrients.caloriesKcal).toBe(80);
   });
+
+  it("saves and reuses a meal with portion multipliers and fresh entry ids", () => {
+    const source = addNutritionEntry({
+      ...quickAdd,
+      quantity: { amount: 100, unit: "g" as const },
+    })!;
+    const meal = saveMealFromEntries("Usual breakfast", [source]);
+    expect(meal?.items).toHaveLength(1);
+
+    const result = copyNutritionItemsToDay(meal!.items, "2026-09-21", "lunch", 1.5);
+    expect(result).toEqual({ added: 1, skipped: 0, saved: true });
+    const copied = getNutritionEntriesForDay("2026-09-21")[0];
+    expect(copied.id).not.toBe(source.id);
+    expect(copied.meal).toBe("lunch");
+    expect(copied.quantity?.amount).toBe(150);
+    expect(copied.nutrients.caloriesKcal).toBe(120);
+
+    expect(copyNutritionItemsToDay(meal!.items, "2026-09-21", "lunch", 1.5)).toEqual({
+      added: 0,
+      skipped: 1,
+      saved: true,
+    });
+    expect(deleteNutritionSavedMeal(meal!.id)).toBe(true);
+    expect(getNutritionSavedMeals()).toEqual([]);
+  });
+
+  it("copies a complete previous day while preserving meals and skipping duplicates", () => {
+    const breakfast = addNutritionEntry(quickAdd)!;
+    const dinner = addNutritionEntry({
+      ...quickAdd,
+      meal: "dinner",
+      name: "Dinner meal",
+      nutrients: { caloriesKcal: 500, proteinG: 30, carbsG: 50, fatG: 20 },
+    })!;
+
+    expect(
+      copyNutritionEntriesToDay([breakfast, dinner], "2026-09-21")
+    ).toEqual({ added: 2, skipped: 0, saved: true });
+    expect(getNutritionEntriesForDay("2026-09-21").map((entry) => entry.meal)).toEqual([
+      "breakfast",
+      "dinner",
+    ]);
+    expect(
+      copyNutritionEntriesToDay([breakfast, dinner], "2026-09-21")
+    ).toEqual({ added: 0, skipped: 2, saved: true });
+  });
+
+  it("preserves intentional duplicate foods while preventing a repeated copy", () => {
+    const source = addNutritionEntry(quickAdd)!;
+    const duplicate = { ...source, id: "second-source-entry" };
+
+    expect(copyNutritionEntriesToDay([source, duplicate], "2026-09-21")).toEqual({
+      added: 2,
+      skipped: 0,
+      saved: true,
+    });
+    expect(getNutritionEntriesForDay("2026-09-21")).toHaveLength(2);
+    expect(copyNutritionEntriesToDay([source, duplicate], "2026-09-21")).toEqual({
+      added: 0,
+      skipped: 2,
+      saved: true,
+    });
+  });
 });
 
 describe("nutrition food catalog", () => {
@@ -215,7 +288,7 @@ describe("nutrition food catalog", () => {
       .filter((food) => food !== null);
 
     expect(foods).toHaveLength(foodCatalog.foods.length);
-    expect(foods.length).toBeGreaterThanOrEqual(30);
+    expect(foods).toHaveLength(1000);
     expect(
       foods.filter((food) => food?.name === "White rice").map((food) => food?.variant)
     ).toEqual(expect.arrayContaining(["Dry, uncooked", "Cooked"]));
