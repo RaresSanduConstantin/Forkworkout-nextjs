@@ -26,6 +26,13 @@ import {
   normalizeFoodSearchText,
 } from "@/lib/nutrition/foods";
 import {
+  barcodeDraftToFood,
+  barcodeLookupCandidates,
+  isValidGtin,
+  normalizeBarcode,
+  normalizeOpenFoodFactsProduct,
+} from "@/lib/nutrition/barcodes";
+import {
   deleteCustomNutritionFood,
   getCustomNutritionFoods,
   getNutritionFoodPreferences,
@@ -42,6 +49,11 @@ import {
   getNutritionSavedMeals,
   saveMealFromEntries,
 } from "@/lib/storage/nutrition-meal-storage";
+import {
+  MAX_CACHED_BARCODE_PRODUCTS,
+  cacheNutritionBarcodeProduct,
+  getCachedNutritionBarcodeProducts,
+} from "@/lib/storage/nutrition-barcode-storage";
 
 beforeEach(() => localStorage.clear());
 
@@ -180,6 +192,18 @@ describe("nutrition storage", () => {
     })!;
     setNutritionFoodFavourite(nutritionFoodKey(customFood), true);
     saveMealFromEntries("Backup breakfast", [created!]);
+    cacheNutritionBarcodeProduct(
+      barcodeDraftToFood(
+        {
+          barcode: "3017620422003",
+          name: "Hazelnut spread",
+          brand: "Example brand",
+          basisUnit: "g",
+          sourceReference: "https://world.openfoodfacts.org/product/3017620422003",
+        },
+        { caloriesKcal: 539, proteinG: 6.3, carbsG: 57.5, fatG: 30.9 }
+      )
+    );
     const bundle = buildExport();
 
     localStorage.clear();
@@ -194,11 +218,13 @@ describe("nutrition storage", () => {
     expect(result.customNutritionFoodsAdded).toBe(1);
     expect(result.nutritionFoodPreferencesRestored).toBe(1);
     expect(result.nutritionSavedMealsAdded).toBe(1);
+    expect(result.nutritionBarcodeProductsRestored).toBe(1);
     expect(getNutritionEntries()[0].id).toBe(created?.id);
     expect(getNutritionTargets()?.caloriesKcal).toBe(2200);
     expect(getNutritionDayAdjustments()[0]?.dayKey).toBe("2026-09-20");
     expect(getCustomNutritionFoods()[0]?.name).toBe("Backup food");
     expect(getNutritionSavedMeals()[0]?.name).toBe("Backup breakfast");
+    expect(getCachedNutritionBarcodeProducts()[0]?.id).toBe("3017620422003");
   });
 
   it("restores an edited nutrition entry when recovering a backup", () => {
@@ -336,5 +362,104 @@ describe("nutrition food catalog", () => {
     expect(deleteCustomNutritionFood(food!.id)).toBe(true);
     expect(getCustomNutritionFoods()).toEqual([]);
     expect(getNutritionFoodPreferences()).toEqual([]);
+  });
+});
+
+describe("nutrition barcodes", () => {
+  const gtin13 = (body: string) => {
+    const digits = body.split("").map(Number).reverse();
+    const sum = digits.reduce(
+      (total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1),
+      0
+    );
+    return `${body}${(10 - (sum % 10)) % 10}`;
+  };
+
+  it("normalizes and validates EAN and UPC check digits", () => {
+    expect(normalizeBarcode("3017 6204-22003")).toBe("3017620422003");
+    expect(isValidGtin("3017620422003")).toBe(true);
+    expect(isValidGtin("04210007")).toBe(true);
+    expect(barcodeLookupCandidates("04210007")).toEqual([
+      "04210007",
+      "042000001007",
+    ]);
+    expect(isValidGtin("3017620422004")).toBe(false);
+    expect(isValidGtin("1234")).toBe(false);
+  });
+
+  it("normalizes Open Food Facts macros and converts sodium to milligrams", () => {
+    expect(
+      normalizeOpenFoodFactsProduct(
+        {
+          product: {
+            code: "3017620422003",
+            product_name: "Chocolate spread",
+            brands: "Example",
+            nutrition_data_per: "100ml",
+            nutriments: {
+              "energy-kcal_100g": 120,
+              proteins_100g: 3.2,
+              carbohydrates_100g: 18,
+              fat_100g: 4.5,
+              fiber_100g: 1.1,
+              sugars_100g: 12,
+              sodium_100g: 0.08,
+            },
+          },
+        },
+        "3017620422003"
+      )
+    ).toEqual(
+      expect.objectContaining({
+        barcode: "3017620422003",
+        name: "Chocolate spread",
+        brand: "Example",
+        basisUnit: "ml",
+        caloriesKcal: 120,
+        proteinG: 3.2,
+        carbsG: 18,
+        fatG: 4.5,
+        sodiumMg: 80,
+      })
+    );
+  });
+
+  it("keeps a confirmed barcode product available offline", () => {
+    const cached = cacheNutritionBarcodeProduct(
+      barcodeDraftToFood(
+        {
+          barcode: "3017620422003",
+          name: "Chocolate spread",
+          brand: "Example",
+          basisUnit: "g",
+        },
+        { caloriesKcal: 539, proteinG: 6.3, carbsG: 57.5, fatG: 30.9 }
+      )
+    );
+
+    expect(cached).not.toBeNull();
+    expect(getCachedNutritionBarcodeProducts()).toEqual([
+      expect.objectContaining({
+        id: "3017620422003",
+        source: "barcode",
+        brand: "Example",
+      }),
+    ]);
+  });
+
+  it("evicts old barcode products when the local cache reaches its bound", () => {
+    for (let index = 0; index <= MAX_CACHED_BARCODE_PRODUCTS; index += 1) {
+      const barcode = gtin13(String(index + 1).padStart(12, "0"));
+      cacheNutritionBarcodeProduct(
+        barcodeDraftToFood(
+          { barcode, name: `Product ${index}`, brand: "", basisUnit: "g" },
+          { caloriesKcal: index, proteinG: 1, carbsG: 2, fatG: 3 }
+        )
+      );
+    }
+
+    const products = getCachedNutritionBarcodeProducts();
+    expect(products).toHaveLength(MAX_CACHED_BARCODE_PRODUCTS);
+    expect(products.some((product) => product.name === "Product 100")).toBe(true);
   });
 });

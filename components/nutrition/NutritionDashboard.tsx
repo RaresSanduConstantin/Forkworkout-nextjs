@@ -484,6 +484,10 @@ export function NutritionDashboard() {
           setFoodPickerOpen(false);
           window.setTimeout(() => openQuickAdd(meal), 150);
         }}
+        onSavedMeals={(meal) => {
+          setFoodPickerOpen(false);
+          window.setTimeout(() => openMealActions(meal), 150);
+        }}
       />
       <MealActionsSheet
         open={mealActionsOpen}

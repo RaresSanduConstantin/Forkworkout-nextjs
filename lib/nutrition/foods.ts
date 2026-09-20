@@ -4,6 +4,7 @@ import {
   normalizeNutritionFood,
   nutritionFoodKey,
 } from "@/lib/storage/nutrition-food-storage";
+import { getCachedNutritionBarcodeProducts } from "@/lib/storage/nutrition-barcode-storage";
 
 type BundledFoodCatalog = {
   version: number;
@@ -13,8 +14,12 @@ type BundledFoodCatalog = {
 let bundledCache: NutritionFood[] | null = null;
 let inflight: Promise<NutritionFood[]> | null = null;
 
-function withCustomFoods(bundled: NutritionFood[]): NutritionFood[] {
-  return [...getCustomNutritionFoods(), ...bundled];
+function withLocalFoods(bundled: NutritionFood[]): NutritionFood[] {
+  return [
+    ...getCustomNutritionFoods(),
+    ...getCachedNutritionBarcodeProducts(),
+    ...bundled,
+  ];
 }
 
 export function normalizeFoodSearchText(value: string): string {
@@ -27,7 +32,7 @@ export function normalizeFoodSearchText(value: string): string {
 }
 
 export function loadNutritionFoods(): Promise<NutritionFood[]> {
-  if (bundledCache) return Promise.resolve(withCustomFoods(bundledCache));
+  if (bundledCache) return Promise.resolve(withLocalFoods(bundledCache));
   if (!inflight) {
     inflight = fetch("/json/foods.json")
       .then((response) => {
@@ -40,11 +45,11 @@ export function loadNutritionFoods(): Promise<NutritionFood[]> {
               .map((food) => normalizeNutritionFood(food, "builtin"))
               .filter((food): food is NutritionFood => food !== null)
           : [];
-        return withCustomFoods(bundledCache);
+        return withLocalFoods(bundledCache);
       })
       .catch(() => {
         bundledCache = [];
-        return withCustomFoods(bundledCache);
+        return withLocalFoods(bundledCache);
       })
       .finally(() => {
         inflight = null;
@@ -54,7 +59,7 @@ export function loadNutritionFoods(): Promise<NutritionFood[]> {
 }
 
 export function refreshNutritionFoods(): Promise<NutritionFood[]> {
-  if (bundledCache) return Promise.resolve(withCustomFoods(bundledCache));
+  if (bundledCache) return Promise.resolve(withLocalFoods(bundledCache));
   return loadNutritionFoods();
 }
 

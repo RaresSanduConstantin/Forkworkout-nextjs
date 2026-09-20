@@ -139,6 +139,7 @@ const HistoryComponent = () => {
         customNutritionFoodsAdded,
         nutritionFoodPreferencesRestored,
         nutritionSavedMealsAdded,
+        nutritionBarcodeProductsRestored,
       } = mergeImport(text, {
         restoreSettings: true,
         restoreBodyData: true,
@@ -180,6 +181,10 @@ const HistoryComponent = () => {
       if (nutritionSavedMealsAdded)
         parts.push(
           `${nutritionSavedMealsAdded} saved nutrition ${nutritionSavedMealsAdded === 1 ? "meal" : "meals"}`
+        );
+      if (nutritionBarcodeProductsRestored)
+        parts.push(
+          `${nutritionBarcodeProductsRestored} cached barcode ${nutritionBarcodeProductsRestored === 1 ? "product" : "products"}`
         );
       if (!persisted) {
         toast.warning(

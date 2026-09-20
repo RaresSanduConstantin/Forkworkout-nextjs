@@ -137,6 +137,8 @@ Status: Implemented; device QA and user review pending
 - [x] Copy an entire previous day with duplicate protection and confirmation.
 - [x] Assign fresh entry IDs to every copied item.
 - [x] Provide a dedicated Add Meal action beside Add Food on the dashboard.
+- [x] Surface saved meals inside each category-specific Add Food flow while
+      preserving Breakfast, Lunch, Dinner, or Snacks as the destination.
 - [x] Provide an explicit Save as meal action inside populated meal cards that
       opens the naming step directly.
 - [x] Preserve intentional duplicate foods while skipping only matching entries
@@ -156,16 +158,35 @@ Status: Implemented; device QA and user review pending
 
 ## Phase 4 — Barcode scanner
 
-Status: Planned
+Status: Implemented; installed-device camera QA pending
 
-- [ ] Add a dynamically loaded multi-format EAN/UPC scanner with rear-camera,
+- [x] Add a dynamically loaded multi-format EAN/UPC scanner with rear-camera,
       torch, image-upload, manual-code, error, and cleanup behavior.
-- [ ] Look up actual scans through Open Food Facts without using its API for
+- [x] Look up actual scans through Open Food Facts without using its API for
       search-as-you-type.
-- [ ] Normalize product names and per-100g/per-100ml macros defensively.
-- [ ] Confirm/edit incomplete values before logging.
-- [ ] Cache successful products locally with a timestamp and bounded eviction.
-- [ ] Use cached products offline and show Open Food Facts attribution.
+- [x] Normalize product names and per-100g/per-100ml macros defensively.
+- [x] Confirm/edit incomplete values before logging.
+- [x] Cache successful products locally with a timestamp and bounded eviction.
+- [x] Use cached products offline and show Open Food Facts attribution.
+- [x] Include cached barcode products in backup, restore, reset, migration
+      recovery, and IndexedDB reconciliation.
+- [ ] Perform installed-phone QA for camera permission, rear-camera selection,
+      torch support, image upload, and scan reliability on representative EAN
+      and UPC packages.
+
+### Phase 4 implementation checkpoint
+
+- Scanner UI: `components/nutrition/BarcodeScannerPanel.tsx`, opened explicitly
+  from the existing Add Food sheet.
+- Product adapter: `lib/nutrition/barcodes.ts`, using the Open Food Facts v3
+  product endpoint only after a complete barcode is detected or entered.
+- Cache: `lib/storage/nutrition-barcode-storage.ts`, capped at 100 confirmed
+  products and merged into normal offline food search.
+- Scanner dependency: dynamically loaded `@zxing/browser` and
+  `@zxing/library`, pinned to Node 20-compatible releases.
+- Validation result: 43 test files and 262 tests passed; production build
+  passed with `/nutrition` generated as a static route and the scanner loaded
+  through a separate dynamic chunk.
 
 ## Phase 5 — Experimental label OCR
 

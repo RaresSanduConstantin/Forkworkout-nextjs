@@ -50,6 +50,24 @@ const CREDITS: Credit[] = [
     href: "https://github.com/nimiq/qr-scanner",
   },
   {
+    title: "Food barcode scanning",
+    used: "ZXing for JS — reads EAN and UPC barcodes from the camera or an image.",
+    license: "MIT",
+    href: "https://github.com/zxing-js/browser",
+  },
+  {
+    title: "Packaged food data",
+    used: "Open Food Facts — supplies names and nutrition values for scanned products.",
+    license: "ODbL 1.0",
+    href: "https://world.openfoodfacts.org",
+  },
+  {
+    title: "Generic food data",
+    used: "USDA FoodData Central — supplies the bundled offline nutrition catalog.",
+    license: "CC0 / public domain",
+    href: "https://fdc.nal.usda.gov",
+  },
+  {
     title: "Display font",
     used: "Outfit, used for headings.",
     license: "SIL Open Font License",

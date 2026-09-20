@@ -7,10 +7,10 @@ import { ROUTES, SUPPORT_EMAIL } from "@/lib/routes";
 export const metadata: Metadata = {
   title: "Privacy policy · ForkWorkout",
   description:
-    "How ForkWorkout handles your data: a local-first, account-free workout tracker that keeps your data on your device.",
+    "How ForkWorkout handles your data: a local-first, account-free fitness tracker that keeps your data on your device.",
 };
 
-const UPDATED = "July 2026";
+const UPDATED = "September 2026";
 
 export default function PrivacyPage() {
   return (
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
 
       <div className="mt-6 space-y-6 text-sm leading-relaxed text-muted-foreground">
         <p>
-          ForkWorkout is a free, <strong>local-first</strong> workout tracker. It
+          ForkWorkout is a free, <strong>local-first</strong> fitness tracker. It
           has no account system and no backend server that stores your data. This
           policy explains what that means for your privacy.
         </p>
@@ -37,9 +37,10 @@ export default function PrivacyPage() {
           <h2 className="text-lg font-semibold text-foreground">What we collect</h2>
           <p className="mt-2">
             <strong>Nothing is sent to us.</strong> ForkWorkout has no servers
-            that receive your information. Everything you create — workouts,
-            exercises, sessions, history, body metrics and settings — is stored
-            only in your browser&apos;s local storage on your own device.
+            that receive your personal information. Everything you create —
+            workouts, exercises, sessions, history, body metrics, nutrition logs
+            and settings — is stored on your device. Optional third-party
+            features are described below.
           </p>
         </section>
 
@@ -49,6 +50,27 @@ export default function PrivacyPage() {
             Your data stays in your browser until you clear it. Clearing your
             browser storage, or using the in-app reset, permanently removes it.
             You can export a full JSON backup at any time from the History screen.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-foreground">Food barcode lookup</h2>
+          <p className="mt-2">
+            When you choose to scan or enter a food barcode, the barcode number is
+            sent to Open Food Facts to retrieve the product name and nutrition
+            values. ForkWorkout does not send your nutrition diary, quantity, meal,
+            body data or identity with that request. Confirmed product information
+            is cached on your device so it can be reused offline. Open Food Facts
+            handles the lookup request under its{" "}
+            <a
+              href="https://world.openfoodfacts.org/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              privacy policy
+            </a>
+            .
           </p>
         </section>
 
@@ -65,8 +87,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               A single file, <code>forkworkout-backup.json</code>, is written to
-              <strong> your own</strong> Google Drive. It contains the workout data
-              you chose to back up.
+              <strong> your own</strong> Google Drive. It contains the app data you
+              chose to back up.
             </li>
             <li>
               We request the narrow <code>drive.file</code> permission, which lets

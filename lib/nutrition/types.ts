@@ -42,11 +42,12 @@ export type NutritionFood = {
   id: string;
   name: string;
   aliases: string[];
+  brand?: string;
   variant?: string;
   basisAmount: number;
   basisUnit: "g" | "ml";
   nutrients: NutritionNutrients;
-  source: "builtin" | "custom";
+  source: "builtin" | "custom" | "barcode";
   sourceReference?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -135,6 +136,11 @@ export type StoredCustomNutritionFoods = {
 export type StoredNutritionFoodPreferences = {
   version: 1;
   data: NutritionFoodPreference[];
+};
+
+export type StoredNutritionBarcodeProducts = {
+  version: 1;
+  data: NutritionFood[];
 };
 
 export type StoredNutritionSavedMeals = {

@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added EAN/UPC food barcode scanning from the rear camera or an uploaded
+  image, manual-code fallback, Open Food Facts lookup, editable nutrition
+  confirmation, and a bounded offline product cache included in backups.
 - Added reusable nutrition meals with 0.5×–2× portions, recent and yesterday
   meal copying, and confirmed whole-day copying with duplicate protection.
 - Added a reproducible 1,000-record offline USDA food catalog with English and
@@ -62,6 +65,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Added a Saved meals shortcut inside each meal category's Add Food sheet,
+  carrying that category into the reusable-meal picker automatically.
+- Updated the privacy disclosure and credits for optional Open Food Facts
+  barcode lookups and the ZXing scanner dependency.
 - Renamed the Nutrition dashboard's secondary logging action to Add Meal so
   reusable and previous meals are clearly available beside Add Food.
 - Exposed a labeled Save as meal action directly beneath each populated meal

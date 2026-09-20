@@ -37,7 +37,7 @@ export function normalizeNutritionFood(
   if (
     !id ||
     !name ||
-    (source !== "builtin" && source !== "custom") ||
+    (source !== "builtin" && source !== "custom" && source !== "barcode") ||
     (expectedSource && source !== expectedSource) ||
     !Number.isFinite(basisAmount) ||
     basisAmount <= 0 ||
@@ -61,6 +61,10 @@ export function normalizeNutritionFood(
     id,
     name,
     aliases,
+    brand:
+      typeof value.brand === "string" && value.brand.trim()
+        ? value.brand.trim().slice(0, 120)
+        : undefined,
     variant:
       typeof value.variant === "string" && value.variant.trim()
         ? value.variant.trim().slice(0, 120)

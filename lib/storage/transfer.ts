@@ -41,6 +41,7 @@ import type {
   NutritionSavedMeal,
   NutritionTargets,
 } from "@/lib/nutrition/types";
+import { isValidGtin } from "@/lib/nutrition/barcodes";
 import {
   getNutritionDayAdjustments,
   getNutritionEntries,
@@ -64,6 +65,10 @@ import {
   normalizeNutritionSavedMeal,
   saveNutritionSavedMeals,
 } from "./nutrition-meal-storage";
+import {
+  getCachedNutritionBarcodeProducts,
+  saveCachedNutritionBarcodeProducts,
+} from "./nutrition-barcode-storage";
 
 export type ExportBundle = {
   version: number;
@@ -87,6 +92,7 @@ export type ExportBundle = {
   customNutritionFoods?: NutritionFood[];
   nutritionFoodPreferences?: NutritionFoodPreference[];
   nutritionSavedMeals?: NutritionSavedMeal[];
+  nutritionBarcodeProducts?: NutritionFood[];
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -114,6 +120,7 @@ export function buildExport(): ExportBundle {
     customNutritionFoods: getCustomNutritionFoods(),
     nutritionFoodPreferences: getNutritionFoodPreferences(),
     nutritionSavedMeals: getNutritionSavedMeals(),
+    nutritionBarcodeProducts: getCachedNutritionBarcodeProducts(),
   };
 }
 
@@ -161,6 +168,7 @@ export function mergeImport(
   customNutritionFoodsAdded: number;
   nutritionFoodPreferencesRestored: number;
   nutritionSavedMealsAdded: number;
+  nutritionBarcodeProductsRestored: number;
 } {
   let parsed: unknown;
   try {
@@ -406,6 +414,27 @@ export function mergeImport(
     saveNutritionSavedMeals(savedMeals);
   }
 
+  const barcodeProducts = new Map(
+    getCachedNutritionBarcodeProducts().map((product) => [product.id, product])
+  );
+  let nutritionBarcodeProductsRestored = 0;
+  if (Array.isArray(bundle.nutritionBarcodeProducts)) {
+    for (const rawProduct of bundle.nutritionBarcodeProducts) {
+      const product = normalizeNutritionFood(rawProduct, "barcode");
+      if (!product || !isValidGtin(product.id)) continue;
+      const existing = barcodeProducts.get(product.id);
+      if (
+        !existing ||
+        options.restoreNutritionData ||
+        (product.updatedAt ?? "") > (existing.updatedAt ?? "")
+      ) {
+        barcodeProducts.set(product.id, product);
+        nutritionBarcodeProductsRestored += 1;
+      }
+    }
+    saveCachedNutritionBarcodeProducts(Array.from(barcodeProducts.values()));
+  }
+
   // Restore body profile: only fill fields that aren't already set locally, so
   // an import never clobbers the current device's profile.
   let profileRestored = false;
@@ -475,5 +504,6 @@ export function mergeImport(
     customNutritionFoodsAdded,
     nutritionFoodPreferencesRestored,
     nutritionSavedMealsAdded,
+    nutritionBarcodeProductsRestored,
   };
 }

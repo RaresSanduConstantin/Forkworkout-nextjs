@@ -3,15 +3,18 @@
 import * as React from "react";
 import {
   ArrowLeft,
+  Barcode,
   Loader2,
   Pencil,
   Plus,
   Search,
   Star,
   Trash2,
+  Utensils,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { BarcodeScannerPanel } from "@/components/nutrition/BarcodeScannerPanel";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +37,11 @@ import {
 } from "@/components/ui/sheet";
 import { nutrientsForQuantity } from "@/lib/nutrition/calculations";
 import {
+  barcodeDraftToFood,
+  fetchOpenFoodFactsProduct,
+  type BarcodeProductDraft,
+} from "@/lib/nutrition/barcodes";
+import {
   filterAndRankNutritionFoods,
   loadNutritionFoods,
   refreshNutritionFoods,
@@ -44,6 +52,10 @@ import type {
   NutritionEntry,
   NutritionMeal,
 } from "@/lib/nutrition/types";
+import {
+  cacheNutritionBarcodeProduct,
+  getCachedNutritionBarcodeProduct,
+} from "@/lib/storage/nutrition-barcode-storage";
 import {
   deleteCustomNutritionFood,
   getNutritionFoodPreferences,
@@ -64,7 +76,7 @@ const MEAL_LABELS: Record<NutritionMeal, string> = {
 const number = (value: number) =>
   new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(value);
 
-type View = "browse" | "quantity" | "custom";
+type View = "browse" | "barcode" | "barcode_edit" | "quantity" | "custom";
 
 const EMPTY_CUSTOM_FORM = {
   name: "",
@@ -77,6 +89,40 @@ const EMPTY_CUSTOM_FORM = {
   fat: "",
 };
 
+type BarcodeForm = {
+  barcode: string;
+  name: string;
+  brand: string;
+  basisUnit: "g" | "ml";
+  calories: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fibre: string;
+  sugar: string;
+  sodium: string;
+  sourceReference?: string;
+};
+
+function draftToBarcodeForm(draft: BarcodeProductDraft): BarcodeForm {
+  const input = (value: number | undefined) =>
+    value === undefined ? "" : String(Math.round(value * 100) / 100);
+  return {
+    barcode: draft.barcode,
+    name: draft.name,
+    brand: draft.brand,
+    basisUnit: draft.basisUnit,
+    calories: input(draft.caloriesKcal),
+    protein: input(draft.proteinG),
+    carbs: input(draft.carbsG),
+    fat: input(draft.fatG),
+    fibre: input(draft.fibreG),
+    sugar: input(draft.sugarG),
+    sodium: input(draft.sodiumMg),
+    sourceReference: draft.sourceReference,
+  };
+}
+
 export function FoodPickerSheet({
   open,
   onOpenChange,
@@ -85,6 +131,7 @@ export function FoodPickerSheet({
   entry,
   onSaved,
   onQuickAdd,
+  onSavedMeals,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -93,6 +140,7 @@ export function FoodPickerSheet({
   entry?: NutritionEntry | null;
   onSaved: () => void;
   onQuickAdd: (meal: NutritionMeal) => void;
+  onSavedMeals: (meal: NutritionMeal) => void;
 }) {
   const [view, setView] = React.useState<View>("browse");
   const [meal, setMeal] = React.useState<NutritionMeal>(initialMeal);
@@ -105,6 +153,11 @@ export function FoodPickerSheet({
   const [editingCustom, setEditingCustom] = React.useState<NutritionFood | null>(null);
   const [customForm, setCustomForm] = React.useState(EMPTY_CUSTOM_FORM);
   const [pendingDelete, setPendingDelete] = React.useState<NutritionFood | null>(null);
+  const [barcodeForm, setBarcodeForm] = React.useState<BarcodeForm | null>(null);
+  const [barcodeReturnQuantity, setBarcodeReturnQuantity] = React.useState<string | null>(null);
+  const [barcodeLookupLoading, setBarcodeLookupLoading] = React.useState(false);
+  const [barcodeLookupError, setBarcodeLookupError] = React.useState<string | null>(null);
+  const barcodeLookupControllerRef = React.useRef<AbortController | null>(null);
 
   const reloadFoods = React.useCallback(async (initial = false) => {
     if (initial) setLoading(true);
@@ -121,10 +174,17 @@ export function FoodPickerSheet({
     setMeal(entry?.meal ?? initialMeal);
     setQuery("");
     setSelectedFood(null);
+    setBarcodeForm(null);
+    setBarcodeReturnQuantity(null);
+    setBarcodeLookupLoading(false);
+    setBarcodeLookupError(null);
+    barcodeLookupControllerRef.current?.abort();
     void reloadFoods(true).then((loadedFoods) => {
       if (
         !entry?.foodSnapshot ||
-        (entry.source !== "builtin" && entry.source !== "custom")
+        (entry.source !== "builtin" &&
+          entry.source !== "custom" &&
+          entry.source !== "barcode")
       ) return;
       const food =
         loadedFoods.find(
@@ -135,6 +195,7 @@ export function FoodPickerSheet({
           id: entry.foodSnapshot.foodId ?? entry.id,
           name: entry.foodSnapshot.name,
           aliases: [],
+          brand: entry.foodSnapshot.brand,
           variant: entry.foodSnapshot.variant,
           basisAmount: entry.foodSnapshot.basisAmount,
           basisUnit: entry.foodSnapshot.basisUnit,
@@ -147,6 +208,15 @@ export function FoodPickerSheet({
       setView("quantity");
     });
   }, [entry, initialMeal, open, reloadFoods]);
+
+  React.useEffect(
+    () => () => barcodeLookupControllerRef.current?.abort(),
+    []
+  );
+
+  React.useEffect(() => {
+    if (!open) barcodeLookupControllerRef.current?.abort();
+  }, [open]);
 
   const rankedFoods = React.useMemo(
     () => filterAndRankNutritionFoods(foods, preferences, query),
@@ -171,6 +241,137 @@ export function FoodPickerSheet({
   const selectFood = (food: NutritionFood) => {
     setSelectedFood(food);
     setQuantity(String(food.basisAmount));
+    setView("quantity");
+  };
+
+  const lookupBarcode = async (barcode: string) => {
+    setBarcodeLookupError(null);
+    setBarcodeReturnQuantity(null);
+    const cached = getCachedNutritionBarcodeProduct(barcode);
+    if (cached) {
+      selectFood(cached);
+      toast.success("Loaded saved barcode product");
+      return;
+    }
+
+    barcodeLookupControllerRef.current?.abort();
+    const controller = new AbortController();
+    barcodeLookupControllerRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 12_000);
+    setBarcodeLookupLoading(true);
+    try {
+      const product = await fetchOpenFoodFactsProduct(barcode, controller.signal);
+      setBarcodeForm(
+        draftToBarcodeForm(
+          product ?? {
+            barcode,
+            name: "",
+            brand: "",
+            basisUnit: "g",
+          }
+        )
+      );
+      setView("barcode_edit");
+      if (!product) {
+        toast.info("Product not found. You can enter its label values once and save it.");
+      }
+    } catch (reason) {
+      if (controller.signal.aborted) {
+        setBarcodeLookupError("The lookup took too long. Check your connection and try again.");
+      } else {
+        setBarcodeLookupError(
+          reason instanceof Error ? reason.message : "The product lookup failed."
+        );
+      }
+    } finally {
+      window.clearTimeout(timeout);
+      if (barcodeLookupControllerRef.current === controller) {
+        barcodeLookupControllerRef.current = null;
+        setBarcodeLookupLoading(false);
+      }
+    }
+  };
+
+  const editBarcodeProduct = (food: NutritionFood, returnQuantity: string | null) => {
+    setBarcodeReturnQuantity(returnQuantity);
+    setBarcodeForm(
+      draftToBarcodeForm({
+        barcode: food.id,
+        name: food.name,
+        brand: food.brand ?? "",
+        basisUnit: food.basisUnit,
+        caloriesKcal: food.nutrients.caloriesKcal,
+        proteinG: food.nutrients.proteinG,
+        carbsG: food.nutrients.carbsG,
+        fatG: food.nutrients.fatG,
+        fibreG: food.nutrients.fibreG,
+        sugarG: food.nutrients.sugarG,
+        sodiumMg: food.nutrients.sodiumMg,
+        sourceReference: food.sourceReference,
+      })
+    );
+    setView("barcode_edit");
+  };
+
+  const saveBarcodeProduct = async () => {
+    if (!barcodeForm?.name.trim()) {
+      toast.error("Enter the product name.");
+      return;
+    }
+    const required = {
+      caloriesKcal: Number.parseFloat(barcodeForm.calories),
+      proteinG: Number.parseFloat(barcodeForm.protein),
+      carbsG: Number.parseFloat(barcodeForm.carbs),
+      fatG: Number.parseFloat(barcodeForm.fat),
+    };
+    if (
+      Object.values(required).some((value) => !Number.isFinite(value) || value < 0)
+    ) {
+      toast.error("Confirm calories, protein, carbs, and fat using values of zero or more.");
+      return;
+    }
+    const optional = (value: string) => {
+      if (!value.trim()) return undefined;
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    };
+    const fibreG = optional(barcodeForm.fibre);
+    const sugarG = optional(barcodeForm.sugar);
+    const sodiumMg = optional(barcodeForm.sodium);
+    if ([fibreG, sugarG, sodiumMg].some((value) => value === null)) {
+      toast.error("Optional nutrient values must be zero or more.");
+      return;
+    }
+    const draft: BarcodeProductDraft = {
+      barcode: barcodeForm.barcode,
+      name: barcodeForm.name,
+      brand: barcodeForm.brand,
+      basisUnit: barcodeForm.basisUnit,
+      caloriesKcal: required.caloriesKcal,
+      proteinG: required.proteinG,
+      carbsG: required.carbsG,
+      fatG: required.fatG,
+      fibreG: fibreG ?? undefined,
+      sugarG: sugarG ?? undefined,
+      sodiumMg: sodiumMg ?? undefined,
+      sourceReference: barcodeForm.sourceReference,
+    };
+    const saved = cacheNutritionBarcodeProduct(
+      barcodeDraftToFood(draft, {
+        ...required,
+        fibreG: fibreG ?? undefined,
+        sugarG: sugarG ?? undefined,
+        sodiumMg: sodiumMg ?? undefined,
+      })
+    );
+    if (!saved) {
+      toast.error("Couldn't save this product on your device.");
+      return;
+    }
+    await reloadFoods();
+    setSelectedFood(saved);
+    setQuantity(barcodeReturnQuantity ?? String(saved.basisAmount));
+    setBarcodeReturnQuantity(null);
     setView("quantity");
   };
 
@@ -219,6 +420,7 @@ export function FoodPickerSheet({
       foodSnapshot: {
         foodId: selectedFood.id,
         name: selectedFood.name,
+        brand: selectedFood.brand,
         variant: selectedFood.variant,
         basisAmount: selectedFood.basisAmount,
         basisUnit: selectedFood.basisUnit,
@@ -342,6 +544,20 @@ export function FoodPickerSheet({
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setBarcodeLookupError(null);
+                      setBarcodeReturnQuantity(null);
+                      setView("barcode");
+                    }}
+                  >
+                    <Barcode className="size-4" /> Scan barcode
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => onSavedMeals(meal)}>
+                    <Utensils className="size-4" /> Saved meals
+                  </Button>
                   <Button type="button" variant="outline" onClick={() => onQuickAdd(meal)}>
                     <Plus className="size-4" /> Quick Add
                   </Button>
@@ -378,7 +594,7 @@ export function FoodPickerSheet({
                             >
                               <span className="block truncate text-sm font-medium">{food.name}</span>
                               <span className="block truncate text-xs text-muted-foreground">
-                                {food.variant ? `${food.variant} · ` : ""}{number(food.nutrients.caloriesKcal)} kcal / {food.basisAmount}{food.basisUnit}
+                                {food.brand ? `${food.brand} · ` : ""}{food.variant ? `${food.variant} · ` : ""}{number(food.nutrients.caloriesKcal)} kcal / {food.basisAmount}{food.basisUnit}
                               </span>
                             </button>
                             {food.source === "custom" && (
@@ -391,6 +607,11 @@ export function FoodPickerSheet({
                                 </Button>
                               </>
                             )}
+                            {food.source === "barcode" && (
+                              <Button type="button" variant="ghost" size="icon-sm" onClick={() => editBarcodeProduct(food, null)} aria-label={`Edit ${food.name}`}>
+                                <Pencil className="size-4" />
+                              </Button>
+                            )}
                             <Button type="button" variant="ghost" size="icon-sm" onClick={() => toggleFavourite(food)} aria-label={preference?.favourite ? `Remove ${food.name} from favourites` : `Add ${food.name} to favourites`}>
                               <Star className={`size-4 ${preference?.favourite ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`} />
                             </Button>
@@ -400,8 +621,99 @@ export function FoodPickerSheet({
                     </ul>
                   )}
                 </div>
-                <p className="text-center text-[11px] text-muted-foreground">Bundled values are sourced from USDA FoodData Central and work offline.</p>
+                <p className="text-center text-[11px] text-muted-foreground">Bundled values come from USDA FoodData Central. Saved scans come from Open Food Facts and work offline.</p>
               </div>
+            </>
+          )}
+
+          {view === "barcode" && (
+            <>
+              <SheetHeader className="text-left">
+                <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setView("browse")}>
+                  <ArrowLeft className="size-4" /> Back to search
+                </button>
+                <SheetTitle>Scan barcode</SheetTitle>
+                <SheetDescription>
+                  Scan an EAN or UPC code. Product data is saved locally after confirmation.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+                <BarcodeScannerPanel
+                  active={!barcodeLookupLoading}
+                  lookupLoading={barcodeLookupLoading}
+                  lookupError={barcodeLookupError}
+                  onDetected={(barcode) => void lookupBarcode(barcode)}
+                />
+                <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                  Product lookup by Open Food Facts requires an internet connection the first time.
+                </p>
+              </div>
+            </>
+          )}
+
+          {view === "barcode_edit" && barcodeForm && (
+            <>
+              <SheetHeader className="text-left">
+                <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setView("barcode")}>
+                  <ArrowLeft className="size-4" /> Scan another code
+                </button>
+                <SheetTitle>Confirm product</SheetTitle>
+                <SheetDescription>
+                  Check the package and correct any missing or inaccurate values before logging.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-y-auto px-4 pb-4">
+                <div className="col-span-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  Barcode <span className="font-medium tabular-nums text-foreground">{barcodeForm.barcode}</span>
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label htmlFor="barcode-product-name">Product name</Label>
+                  <Input id="barcode-product-name" value={barcodeForm.name} onChange={(event) => setBarcodeForm((form) => form ? { ...form, name: event.target.value } : form)} placeholder="e.g. Greek yoghurt" />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label htmlFor="barcode-product-brand">Brand (optional)</Label>
+                  <Input id="barcode-product-brand" value={barcodeForm.brand} onChange={(event) => setBarcodeForm((form) => form ? { ...form, brand: event.target.value } : form)} placeholder="Brand name" />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label htmlFor="barcode-product-unit">Nutrition basis</Label>
+                  <Select value={barcodeForm.basisUnit} onValueChange={(value) => setBarcodeForm((form) => form ? { ...form, basisUnit: value as "g" | "ml" } : form)}>
+                    <SelectTrigger id="barcode-product-unit" className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="g">Per 100 g</SelectItem><SelectItem value="ml">Per 100 ml</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                {([
+                  ["calories", "Calories (kcal)"],
+                  ["protein", "Protein (g)"],
+                  ["carbs", "Carbs (g)"],
+                  ["fat", "Fat (g)"],
+                ] as const).map(([field, label]) => (
+                  <div key={field} className="space-y-1.5">
+                    <Label htmlFor={`barcode-product-${field}`}>{label}</Label>
+                    <NumberInput id={`barcode-product-${field}`} decimal value={barcodeForm[field]} onChange={(event) => setBarcodeForm((form) => form ? { ...form, [field]: event.target.value } : form)} placeholder="Required" />
+                  </div>
+                ))}
+                <p className="col-span-2 mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Optional details</p>
+                {([
+                  ["fibre", "Fibre (g)"],
+                  ["sugar", "Sugar (g)"],
+                  ["sodium", "Sodium (mg)"],
+                ] as const).map(([field, label]) => (
+                  <div key={field} className="space-y-1.5">
+                    <Label htmlFor={`barcode-product-${field}`}>{label}</Label>
+                    <NumberInput id={`barcode-product-${field}`} decimal value={barcodeForm[field]} onChange={(event) => setBarcodeForm((form) => form ? { ...form, [field]: event.target.value } : form)} placeholder="Optional" />
+                  </div>
+                ))}
+                {barcodeForm.sourceReference && (
+                  <a href={barcodeForm.sourceReference} target="_blank" rel="noopener noreferrer" className="col-span-2 text-center text-xs text-primary hover:underline">
+                    View this product on Open Food Facts
+                  </a>
+                )}
+              </div>
+              <SheetFooter>
+                <Button type="button" size="lg" onClick={() => void saveBarcodeProduct()}>
+                  Confirm and set amount
+                </Button>
+              </SheetFooter>
             </>
           )}
 
@@ -412,7 +724,7 @@ export function FoodPickerSheet({
                   <ArrowLeft className="size-4" /> Back to search
                 </button>
                 <SheetTitle>{entry ? `Edit ${selectedFood.name}` : selectedFood.name}</SheetTitle>
-                <SheetDescription>{selectedFood.variant ?? "Per 100" + selectedFood.basisUnit}</SheetDescription>
+                <SheetDescription>{[selectedFood.brand, selectedFood.variant ?? `Per ${selectedFood.basisAmount}${selectedFood.basisUnit}`].filter(Boolean).join(" · ")}</SheetDescription>
               </SheetHeader>
               <div className="grid grid-cols-2 gap-3 overflow-y-auto px-4">
                 <div className="col-span-2 space-y-1.5">
@@ -442,6 +754,20 @@ export function FoodPickerSheet({
                     <p className="mt-1 font-semibold tabular-nums">{value}</p>
                   </div>
                 ))}
+                {selectedFood.source === "barcode" && (
+                  <div className="col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                    {selectedFood.sourceReference ? (
+                      <a href={selectedFood.sourceReference} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Open Food Facts product
+                      </a>
+                    ) : (
+                      <span>Saved barcode product</span>
+                    )}
+                    <Button type="button" size="sm" variant="ghost" onClick={() => editBarcodeProduct(selectedFood, quantity)}>
+                      <Pencil className="size-4" /> Edit product values
+                    </Button>
+                  </div>
+                )}
               </div>
               <SheetFooter>
                 <Button type="button" size="lg" onClick={saveSelectedFood}>{entry ? "Save changes" : `Add to ${MEAL_LABELS[meal]}`}</Button>
