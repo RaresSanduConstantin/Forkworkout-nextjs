@@ -165,3 +165,36 @@ describe("smart workout metadata storage", () => {
     );
   });
 });
+
+describe("drop-set storage", () => {
+  it("normalizes and preserves remembered drop stages", () => {
+    saveWorkouts([
+      {
+        id: "drop-workout",
+        title: "Drop workout",
+        exercises: [
+          {
+            name: "Curl",
+            sets: [
+              {
+                reps: 5,
+                value: "40",
+                unit: "kg",
+                type: "drop",
+                dropStages: [
+                  { reps: 5, value: "30", unit: "kg" },
+                  { reps: 5, value: "20kg", unit: "kg" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    expect(getWorkouts()[0].exercises[0].sets[0].dropStages).toEqual([
+      expect.objectContaining({ reps: 5, value: "30", unit: "kg" }),
+      expect.objectContaining({ reps: 5, value: "20", unit: "kg" }),
+    ]);
+  });
+});

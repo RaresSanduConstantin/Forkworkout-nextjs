@@ -4,13 +4,20 @@
 
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import { v4 as uuidv4 } from "uuid";
-import type { SetType, SetUnit, Workout } from "@/lib/types";
+import type { DropSetStage, SetType, SetUnit, Workout } from "@/lib/types";
 import { getCustomExercises, addCustomExercise } from "./custom-exercises";
 
 type AddCustomInput = Parameters<typeof addCustomExercise>[0];
 
 // Versioned, id-free payload embedded in the link.
-type ShareSet = { reps: number; value: string; unit?: SetUnit; type?: SetType };
+type ShareDropStage = Pick<DropSetStage, "reps" | "value" | "unit">;
+type ShareSet = {
+  reps: number;
+  value: string;
+  unit?: SetUnit;
+  type?: SetType;
+  dropStages?: ShareDropStage[];
+};
 type ShareExercise = { name: string; rest?: string; superset?: string; sets: ShareSet[] };
 // Definitions for any custom exercises the workout uses, so the recipient gets
 // their how-to / video / measurement unit too.
@@ -80,6 +87,7 @@ function toPayload(workout: Workout, message?: string): SharePayload {
         value: s.value,
         unit: s.unit,
         type: s.type,
+        dropStages: s.dropStages?.map(({ reps, value, unit }) => ({ reps, value, unit })),
       })),
     })),
     cx: cx.length ? cx : undefined,
@@ -137,7 +145,29 @@ export function decodeWorkout(encoded: string): DecodedShare | null {
           const value = typeof s.value === "string" ? s.value : String(s.value ?? "");
           const unit = UNITS.includes(s.unit as SetUnit) ? (s.unit as SetUnit) : "kg";
           const type = TYPES.includes(s.type as SetType) ? (s.type as SetType) : undefined;
-          return { id: uuidv4(), reps, value, unit, type };
+          const dropStages = (Array.isArray(s.dropStages) ? s.dropStages : [])
+            .map((rawStage) => {
+              const stage = (rawStage ?? {}) as Record<string, unknown>;
+              const stageReps =
+                typeof stage.reps === "number"
+                  ? stage.reps
+                  : Number.parseInt(String(stage.reps), 10) || 0;
+              const stageValue =
+                typeof stage.value === "string" ? stage.value : String(stage.value ?? "");
+              const stageUnit = UNITS.includes(stage.unit as SetUnit)
+                ? (stage.unit as SetUnit)
+                : unit;
+              return { id: uuidv4(), reps: stageReps, value: stageValue, unit: stageUnit };
+            })
+            .filter((stage) => stage.value !== "" || stage.unit === "bw");
+          return {
+            id: uuidv4(),
+            reps,
+            value,
+            unit,
+            type,
+            dropStages: type === "drop" && dropStages.length ? dropStages : undefined,
+          };
         })
         .filter((s) => s.value !== "" || s.unit === "bw");
       return {

@@ -32,6 +32,7 @@ import { useMannequinGender } from "@/lib/use-body-gender";
 import {
   effectiveRestSeconds,
   formatSetValue,
+  getSetStages,
   inferUnit,
   restDurationLabel,
   setTypeShort,
@@ -225,7 +226,6 @@ export function WorkoutPreviewDialog({
                         {exercise.sets.length ? (
                           <ol className="mt-3 divide-y rounded-lg bg-muted/50 px-3">
                             {exercise.sets.map((set, setIndex) => {
-                              const unit = inferUnit(set.value, set.unit);
                               const type = setTypeShort(set.type);
                               return (
                                 <li
@@ -236,9 +236,14 @@ export function WorkoutPreviewDialog({
                                     Set {setIndex + 1}
                                   </span>
                                   <span className="text-right font-medium">
-                                    {unit === "bw"
-                                      ? `${set.reps} ${set.reps === 1 ? "rep" : "reps"}`
-                                      : `${set.reps} × ${formatSetValue(set.value, unit)}`}
+                                    {getSetStages(set)
+                                      .map((stage) => {
+                                        const unit = inferUnit(stage.value, stage.unit);
+                                        return unit === "bw"
+                                          ? `${stage.reps} ${stage.reps === 1 ? "rep" : "reps"}`
+                                          : `${stage.reps} × ${formatSetValue(stage.value, unit)}`;
+                                      })
+                                      .join(" → ")}
                                     {type && (
                                       <span className="font-normal text-muted-foreground">
                                         {` · ${type}`}

@@ -24,7 +24,7 @@ export function ExerciseProgressDialog({
 
   return (
     <Dialog open={name !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-1rem)] overflow-hidden sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] min-w-0 max-w-lg overflow-x-hidden overflow-y-auto p-4 sm:p-6">
         <DialogHeader className="text-left">
           <DialogTitle className="break-words pr-6">{name}</DialogTitle>
           <DialogDescription>
@@ -34,7 +34,11 @@ export function ExerciseProgressDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {name && <ExerciseProgressChart name={name} range="all" />}
+        {name && (
+          <div className="min-w-0 max-w-full overflow-x-hidden">
+            <ExerciseProgressChart name={name} range="all" />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

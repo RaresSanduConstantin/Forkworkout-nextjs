@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added multi-stage drop sets to live workouts. Additional weight/reps stages
+  remain one completed set, contribute to full reps and volume, persist into
+  future sessions, and remain available in history, sharing, and Excel exports.
 - Added in-session YouTube video editing from the exercise How to dialog, with
   validated links and the existing exercise-management edit flow preserved.
 - Added a persistent Make current action in live workouts so users can switch
@@ -28,6 +31,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Kept exercise-history progress charts inside their dialog on narrow or short
+  screens, with contained chart sizing and scrollable metric controls.
 - Preserved the workout preview's scroll position when its content remounts
   after viewing and closing an exercise information dialog.
 - Made every row in workout and exercise reorder lists draggable on mouse,

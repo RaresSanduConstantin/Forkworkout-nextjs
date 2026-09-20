@@ -78,7 +78,11 @@ const CreateWorkoutComponent = () => {
     insertExercise(index + 1, {
       ...ex,
       id: uuidv4(),
-      sets: (ex.sets ?? []).map((s) => ({ ...s, id: uuidv4() })),
+      sets: (ex.sets ?? []).map((s) => ({
+        ...s,
+        id: uuidv4(),
+        dropStages: s.dropStages?.map((stage) => ({ ...stage, id: uuidv4() })),
+      })),
     });
   };
 

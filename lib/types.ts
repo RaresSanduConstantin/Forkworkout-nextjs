@@ -13,12 +13,22 @@ export type SetUnit = "kg" | "bw" | "time" | "km";
 // sets are excluded from volume, PRs, 1RM and rep totals.
 export type SetType = "warmup" | "working" | "drop" | "failure";
 
+// An additional effort performed immediately after the first effort in a drop
+// set. The parent set owns completion/rest state, so stages only need load data.
+export type DropSetStage = {
+  id?: string;
+  reps: number;
+  value: string;
+  unit?: SetUnit;
+};
+
 export type WorkoutSet = {
   id?: string;
   reps: number;
   value: string; // meaning depends on `unit` (see SetUnit)
   unit?: SetUnit;
   type?: SetType;
+  dropStages?: DropSetStage[];
 };
 
 export type Exercise = {
@@ -72,6 +82,7 @@ export type CompletedSet = {
   unit?: SetUnit;
   status: SetStatus;
   type?: SetType;
+  dropStages?: DropSetStage[];
   rpe?: number; // optional rate of perceived exertion (1–10)
   // Keeps the performed set in workout history while excluding a mistaken
   // result from PR/progression calculations. Optional for legacy data.
@@ -108,6 +119,7 @@ export type SessionSet = {
   unit?: SetUnit;
   status: SetStatus;
   type?: SetType;
+  dropStages?: DropSetStage[];
   rpe?: number;
 };
 

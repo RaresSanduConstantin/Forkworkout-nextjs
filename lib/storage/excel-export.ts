@@ -7,7 +7,7 @@ import { getWorkouts } from "./workout-storage";
 import { getCompletedWorkouts } from "./history-storage";
 import { getBodyMetrics } from "./body-storage";
 import { getCustomExercises } from "./custom-exercises";
-import { SET_UNITS } from "@/lib/workout";
+import { getSetStages, SET_UNITS } from "@/lib/workout";
 import type { SetUnit } from "@/lib/types";
 
 const unitLabel = (u?: SetUnit) => (u ? SET_UNITS.find((s) => s.value === u)?.label ?? u : "");
@@ -29,6 +29,7 @@ export async function downloadExcel(): Promise<void> {
     { header: "Superset", key: "superset", width: 10 },
     { header: "Rest (s)", key: "rest", width: 9 },
     { header: "Set", key: "set", width: 6 },
+    { header: "Stage", key: "stage", width: 10 },
     { header: "Reps", key: "reps", width: 7 },
     { header: "Value", key: "value", width: 10 },
     { header: "Unit", key: "unit", width: 8 },
@@ -37,16 +38,19 @@ export async function downloadExcel(): Promise<void> {
   for (const w of getWorkouts()) {
     for (const ex of w.exercises) {
       ex.sets.forEach((s, i) => {
-        wsW.addRow({
-          workout: w.title,
-          exercise: ex.name,
-          superset: ex.superset ?? "",
-          rest: ex.rest ?? "",
-          set: i + 1,
-          reps: s.reps,
-          value: s.value,
-          unit: unitLabel(s.unit),
-          type: s.type ?? "working",
+        getSetStages(s).forEach((stage, stageIndex) => {
+          wsW.addRow({
+            workout: w.title,
+            exercise: ex.name,
+            superset: ex.superset ?? "",
+            rest: ex.rest ?? "",
+            set: i + 1,
+            stage: stageIndex === 0 ? "Start" : `Drop ${stageIndex}`,
+            reps: stage.reps,
+            value: stage.value,
+            unit: unitLabel(stage.unit),
+            type: s.type ?? "working",
+          });
         });
       });
     }
@@ -90,6 +94,7 @@ export async function downloadExcel(): Promise<void> {
     { header: "Workout", key: "workout", width: 24 },
     { header: "Exercise", key: "exercise", width: 30 },
     { header: "Set", key: "set", width: 6 },
+    { header: "Stage", key: "stage", width: 10 },
     { header: "Reps", key: "reps", width: 7 },
     { header: "Value", key: "value", width: 10 },
     { header: "Unit", key: "unit", width: 8 },
@@ -100,16 +105,19 @@ export async function downloadExcel(): Promise<void> {
     const date = format(new Date(c.date), "yyyy-MM-dd HH:mm");
     for (const ex of c.exercises ?? []) {
       ex.sets.forEach((s, i) => {
-        wsHS.addRow({
-          date,
-          workout: c.title,
-          exercise: ex.name,
-          set: i + 1,
-          reps: s.reps,
-          value: s.value,
-          unit: unitLabel(s.unit),
-          type: s.type ?? "working",
-          status: s.status,
+        getSetStages(s).forEach((stage, stageIndex) => {
+          wsHS.addRow({
+            date,
+            workout: c.title,
+            exercise: ex.name,
+            set: i + 1,
+            stage: stageIndex === 0 ? "Start" : `Drop ${stageIndex}`,
+            reps: stage.reps,
+            value: stage.value,
+            unit: unitLabel(stage.unit),
+            type: s.type ?? "working",
+            status: s.status,
+          });
         });
       });
     }

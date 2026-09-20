@@ -55,6 +55,9 @@ function SetRow({
   const base = `exercises.${exerciseIndex}.sets.${setIndex}` as const;
   const unit = (useWatch({ control, name: `${base}.unit` }) as SetUnit) ?? "kg";
   const setType = (useWatch({ control, name: `${base}.type` }) as SetType) ?? "working";
+  const dropStages = useWatch({ control, name: `${base}.dropStages` }) as
+    | Array<{ reps: number; value: string; unit?: SetUnit }>
+    | undefined;
 
   const handleUnit = (next: string) => {
     if (!next) return; // ignore deselect from the toggle group
@@ -216,6 +219,13 @@ function SetRow({
           }}
         />
       )}
+
+      {setType === "drop" && dropStages && dropStages.length > 0 && (
+        <p className="rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-muted-foreground">
+          {dropStages.length} saved drop {dropStages.length === 1 ? "stage" : "stages"}. Adjust the
+          chain during the live workout.
+        </p>
+      )}
     </div>
   );
 }
@@ -262,7 +272,14 @@ const ExerciseBuilder = ({
   // Duplicate a set (fresh id) directly below the original.
   const duplicateSet = (setIndex: number) => {
     const s = form.getValues(`exercises.${index}.sets.${setIndex}`);
-    insertSet(setIndex + 1, { ...s, id: uuidv4() });
+    insertSet(setIndex + 1, {
+      ...s,
+      id: uuidv4(),
+      dropStages: s.dropStages?.map((stage: { id?: string }) => ({
+        ...stage,
+        id: uuidv4(),
+      })),
+    });
   };
 
   // When a custom exercise (with a default measurement unit) is picked, apply
@@ -497,6 +514,11 @@ const ExerciseBuilder = ({
                         reps: lastSet.reps,
                         value: lastSet.value,
                         unit: lastSet.unit ?? "kg",
+                        type: lastSet.type,
+                        dropStages: lastSet.dropStages?.map((stage: { id?: string }) => ({
+                          ...stage,
+                          id: uuidv4(),
+                        })),
                       }
                     : newSet()
                 );

@@ -1,4 +1,4 @@
-import type { SetType, Workout } from "@/lib/types";
+import type { DropSetStage, SetType, Workout } from "@/lib/types";
 import { v4 as uuidv4 } from "uuid";
 import { normalizeUnitValue } from "@/lib/workout";
 import { STORAGE_KEYS } from "./keys";
@@ -97,12 +97,32 @@ function normalizeWorkout(raw: unknown): Workout | null {
             set.type === "failure"
               ? (set.type as SetType)
               : undefined;
+          const dropStages = (Array.isArray(set.dropStages) ? set.dropStages : []).map(
+            (rawStage): DropSetStage => {
+              const stage = (rawStage ?? {}) as Record<string, unknown>;
+              const stageReps =
+                typeof stage.reps === "number"
+                  ? stage.reps
+                  : Number.parseInt(String(stage.reps), 10) || 0;
+              const normalized = normalizeUnitValue(
+                typeof stage.value === "string" ? stage.value : String(stage.value ?? ""),
+                typeof stage.unit === "string" ? stage.unit : unit
+              );
+              return {
+                id: typeof stage.id === "string" ? stage.id : uuidv4(),
+                reps: stageReps,
+                value: normalized.value,
+                unit: normalized.unit,
+              };
+            }
+          );
           return {
             id: typeof set.id === "string" ? set.id : uuidv4(),
             reps,
             value,
             unit,
             type: validType,
+            dropStages: validType === "drop" && dropStages.length ? dropStages : undefined,
           };
         }),
       };
@@ -180,7 +200,11 @@ export function duplicateWorkout(id: string): Workout | null {
     exercises: src.exercises.map((ex) => ({
       ...ex,
       id: uuidv4(),
-      sets: ex.sets.map((s) => ({ ...s, id: uuidv4() })),
+      sets: ex.sets.map((s) => ({
+        ...s,
+        id: uuidv4(),
+        dropStages: s.dropStages?.map((stage) => ({ ...stage, id: uuidv4() })),
+      })),
     })),
   };
   return upsertWorkout(copy) ? copy : null;

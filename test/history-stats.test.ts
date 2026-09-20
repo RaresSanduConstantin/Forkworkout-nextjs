@@ -56,6 +56,28 @@ describe("per-exercise history", () => {
     expect(pr?.kind).toBe("kg");
   });
 
+  it("counts every drop stage in volume while keeping the chain as one set", () => {
+    const dropHistory = [
+      session("2026-01-06T10:00:00.000Z", "Curl", [
+        {
+          reps: 5,
+          value: "40",
+          unit: "kg",
+          status: "done",
+          type: "drop",
+          dropStages: [
+            { reps: 5, value: "30", unit: "kg" },
+            { reps: 5, value: "20", unit: "kg" },
+          ],
+        },
+      ]),
+    ];
+
+    expect(getExerciseHistory("Curl", dropHistory)[0]).toEqual(
+      expect.objectContaining({ volumeKg: 450, doneSets: 1, topWeightKg: 40 })
+    );
+  });
+
   it("re-evaluates a live PR from corrected set values", () => {
     const pr = getExercisePR("Bench Press", history);
     expect(

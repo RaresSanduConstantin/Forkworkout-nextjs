@@ -1,4 +1,4 @@
-import type { SetType, SetUnit } from "./types";
+import type { DropSetStage, SetType, SetUnit } from "./types";
 
 export const SET_UNITS: { value: SetUnit; label: string }[] = [
   { value: "kg", label: "Kg" },
@@ -73,6 +73,47 @@ export function setVolumeKg(reps: number, value: string, unit?: SetUnit): number
   const u = unit ?? inferUnit(value);
   if (u !== "kg") return 0;
   return reps * setWeightKg(value, u);
+}
+
+type SetWithDropStages = DropSetStage & {
+  type?: SetType;
+  dropStages?: DropSetStage[];
+};
+
+/** All efforts performed inside one set. Extra stages only apply to drop sets. */
+export function getSetStages(set: SetWithDropStages): DropSetStage[] {
+  const first = { reps: set.reps, value: set.value, unit: set.unit };
+  if (set.type !== "drop" || !Array.isArray(set.dropStages)) return [first];
+  const validDropStages = set.dropStages.filter(
+    (stage) =>
+      stage &&
+      typeof stage === "object" &&
+      typeof stage.reps === "number" &&
+      Number.isFinite(stage.reps) &&
+      typeof stage.value === "string"
+  );
+  return [first, ...validDropStages];
+}
+
+/** Total reps performed inside one set, including every drop-set stage. */
+export function setTotalReps(set: SetWithDropStages): number {
+  return getSetStages(set).reduce((total, stage) => total + Math.max(0, stage.reps), 0);
+}
+
+/** Total kg volume inside one set, including every drop-set stage. */
+export function setTotalVolumeKg(set: SetWithDropStages): number {
+  return getSetStages(set).reduce(
+    (total, stage) => total + setVolumeKg(stage.reps, stage.value, stage.unit),
+    0
+  );
+}
+
+/** Heaviest kg load used in any stage of one set. */
+export function setTopWeightKg(set: SetWithDropStages): number {
+  return getSetStages(set).reduce(
+    (top, stage) => Math.max(top, setWeightKg(stage.value, stage.unit)),
+    0
+  );
 }
 
 /** Human-readable load label for a set (e.g. "60 kg", "BW", "45s", "5 km"). */

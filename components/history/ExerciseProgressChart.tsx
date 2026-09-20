@@ -74,7 +74,7 @@ export function ExerciseProgressChart({
   } satisfies ChartConfig;
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 max-w-full space-y-3 overflow-x-hidden">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {stats.length} {stats.length === 1 ? "session" : "sessions"} shown
@@ -86,6 +86,7 @@ export function ExerciseProgressChart({
             onValueChange={(value) => value && setMetricIdx(parseInt(value, 10))}
             variant="outline"
             size="sm"
+            className="max-w-full justify-start overflow-x-auto"
           >
             {metrics.map((candidate, index) => (
               <ToggleGroupItem
@@ -101,7 +102,11 @@ export function ExerciseProgressChart({
       </div>
 
       {hasData ? (
-        <ChartContainer config={chartConfig} className="h-[240px] w-full min-w-0">
+        <ChartContainer
+          config={chartConfig}
+          initialDimension={{ width: 1, height: 240 }}
+          className="h-[240px] w-full min-w-0 max-w-full overflow-hidden"
+        >
           <LineChart accessibilityLayer data={data} margin={{ left: 4, right: 8, top: 8 }}>
             <CartesianGrid vertical={false} />
             <XAxis

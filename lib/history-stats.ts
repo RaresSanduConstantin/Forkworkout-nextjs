@@ -5,7 +5,13 @@
 
 import type { CompletedSet, CompletedWorkout, SetUnit } from "./types";
 import { getCompletedWorkouts } from "./storage/history-storage";
-import { inferUnit, setWeightKg, setVolumeKg, parseDuration, formatSetValue } from "./workout";
+import {
+  inferUnit,
+  setWeightKg,
+  setTotalVolumeKg,
+  parseDuration,
+  formatSetValue,
+} from "./workout";
 
 /** Normalized key for matching an exercise across sessions. */
 export function normalizeExName(name: string): string {
@@ -53,7 +59,7 @@ function summarizeExercise(sets: CompletedSet[], date: string, dayKey?: string):
     counts[u] += 1;
     if (u === "kg") {
       const w = setWeightKg(s.value, u);
-      volumeKg += setVolumeKg(s.reps, s.value, u);
+      volumeKg += setTotalVolumeKg(s);
       if (s.excludeFromPR) continue;
       if (w > topWeightKg) {
         topWeightKg = w;

@@ -39,11 +39,12 @@ import type {
   CompletedExercise,
   CompletedSet,
   CompletedWorkout,
+  DropSetStage,
   SetStatus,
   SetType,
   SetUnit,
 } from "@/lib/types";
-import { inferUnit, setVolumeKg, SET_TYPES, SET_UNITS } from "@/lib/workout";
+import { getSetStages, inferUnit, setTotalReps, setTotalVolumeKg, SET_TYPES, SET_UNITS } from "@/lib/workout";
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -89,7 +90,10 @@ function splitDuration(seconds?: number) {
 function cloneExercises(exercises?: CompletedExercise[]): CompletedExercise[] {
   return (exercises ?? []).map((exercise) => ({
     ...exercise,
-    sets: exercise.sets.map((set) => ({ ...set })),
+    sets: exercise.sets.map((set) => ({
+      ...set,
+      dropStages: set.dropStages?.map((stage) => ({ ...stage })),
+    })),
   }));
 }
 
@@ -105,8 +109,8 @@ function derivedTotals(exercises: CompletedExercise[]) {
   for (const exercise of exercises) {
     for (const set of exercise.sets) {
       if (set.status !== "done" || set.type === "warmup") continue;
-      totalReps += set.reps;
-      volume += setVolumeKg(set.reps, set.value, set.unit);
+      totalReps += setTotalReps(set);
+      volume += setTotalVolumeKg(set);
     }
   }
   return {
@@ -222,6 +226,42 @@ export function EditHistoryEntryDialog({
     }));
   };
 
+  const updateDropStage = (
+    exerciseIndex: number,
+    setIndex: number,
+    stageIndex: number,
+    updater: (stage: DropSetStage) => DropSetStage
+  ) =>
+    updateSet(exerciseIndex, setIndex, (set) => ({
+      ...set,
+      dropStages: set.dropStages?.map((stage, index) =>
+        index === stageIndex ? updater(stage) : stage
+      ),
+    }));
+
+  const addDropStage = (exerciseIndex: number, setIndex: number) =>
+    updateSet(exerciseIndex, setIndex, (set) => {
+      const previous = set.dropStages?.at(-1) ?? set;
+      return {
+        ...set,
+        type: "drop",
+        dropStages: [
+          ...(set.dropStages ?? []),
+          {
+            reps: previous.reps,
+            value: previous.value,
+            unit: previous.unit ?? set.unit ?? inferUnit(previous.value),
+          },
+        ],
+      };
+    });
+
+  const removeDropStage = (exerciseIndex: number, setIndex: number, stageIndex: number) =>
+    updateSet(exerciseIndex, setIndex, (set) => ({
+      ...set,
+      dropStages: set.dropStages?.filter((_stage, index) => index !== stageIndex),
+    }));
+
   const addSet = (exerciseIndex: number) => {
     updateExercise(exerciseIndex, (exercise) => {
       const previous = exercise.sets.at(-1);
@@ -318,6 +358,16 @@ export function EditHistoryEntryDialog({
         }
         if (set.rpe !== undefined && (set.rpe < 1 || set.rpe > 10)) {
           toast.error(`${exercise.name}: set RPE must be between 1 and 10.`);
+          return;
+        }
+        const invalidDropStage = getSetStages(set).slice(1).find(
+          (stage) =>
+            !Number.isFinite(stage.reps) ||
+            stage.reps < 1 ||
+            ((stage.unit ?? inferUnit(stage.value)) !== "bw" && !stage.value.trim())
+        );
+        if (invalidDropStage) {
+          toast.error(`${exercise.name}: complete every stage in drop set ${setIndex + 1}.`);
           return;
         }
       }
@@ -588,6 +638,16 @@ export function EditHistoryEntryDialog({
                                   : current.value === "BW"
                                   ? ""
                                   : current.value,
+                              dropStages: current.dropStages?.map((stage) => ({
+                                ...stage,
+                                unit: value,
+                                value:
+                                  value === "bw"
+                                    ? "BW"
+                                    : stage.value === "BW"
+                                    ? ""
+                                    : stage.value,
+                              })),
                             }))
                           }
                         >
@@ -626,6 +686,76 @@ export function EditHistoryEntryDialog({
                           aria-label={`${exercise.name || "Exercise"} set RPE`}
                         />
                       </div>
+                      {set.type === "drop" && (
+                        <div className="space-y-2 rounded-md border border-dashed bg-background/70 p-2.5">
+                          <p className="text-xs font-semibold">Drop stages</p>
+                          {set.dropStages?.map((stage, stageIndex) => {
+                            const stageUnit = stage.unit ?? unit;
+                            return (
+                              <div
+                                key={stage.id ?? stageIndex}
+                                className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2"
+                              >
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  {stageIndex + 1}
+                                </span>
+                                <NumberInput
+                                  value={String(stage.reps)}
+                                  onChange={(event) =>
+                                    updateDropStage(
+                                      exerciseIndex,
+                                      setIndex,
+                                      stageIndex,
+                                      (current) => ({
+                                        ...current,
+                                        reps: Number.parseInt(event.target.value, 10) || 0,
+                                      })
+                                    )
+                                  }
+                                  placeholder="Reps"
+                                  aria-label={`${exercise.name || "Exercise"} set ${setIndex + 1} drop ${stageIndex + 1} reps`}
+                                />
+                                <Input
+                                  value={stageUnit === "bw" ? "BW" : stage.value}
+                                  disabled={stageUnit === "bw"}
+                                  onChange={(event) =>
+                                    updateDropStage(
+                                      exerciseIndex,
+                                      setIndex,
+                                      stageIndex,
+                                      (current) => ({ ...current, value: event.target.value })
+                                    )
+                                  }
+                                  placeholder={stageUnit === "time" ? "e.g. 45s" : "Value"}
+                                  aria-label={`${exercise.name || "Exercise"} set ${setIndex + 1} drop ${stageIndex + 1} value`}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  className="text-muted-foreground hover:text-destructive"
+                                  onClick={() =>
+                                    removeDropStage(exerciseIndex, setIndex, stageIndex)
+                                  }
+                                  aria-label={`Remove drop ${stageIndex + 1}`}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full border-dashed"
+                            onClick={() => addDropStage(exerciseIndex, setIndex)}
+                          >
+                            <Plus className="size-4" />
+                            Add drop
+                          </Button>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-2">
                         <Select
                           value={set.status}
@@ -653,6 +783,7 @@ export function EditHistoryEntryDialog({
                             updateSet(exerciseIndex, setIndex, (current) => ({
                               ...current,
                               type: value,
+                              dropStages: value === "drop" ? current.dropStages : undefined,
                             }))
                           }
                         >

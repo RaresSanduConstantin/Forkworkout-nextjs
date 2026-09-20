@@ -48,7 +48,7 @@ import {
 import { getSettings, updateSettings } from "@/lib/storage/settings";
 import { SOUNDS } from "@/lib/sound";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { inferUnit, setVolumeKg, setWeightKg, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, SET_TYPES, EXERCISE_REST_OPTIONS } from "@/lib/workout";
+import { inferUnit, getSetStages, setTopWeightKg, setTotalReps, setTotalVolumeKg, formatSetValue, unitPlaceholder, formatClock, formatEstimate, effectiveRestSeconds, estimateWorkoutSeconds, restDurationLabel, setTypeShort, SET_TYPES, EXERCISE_REST_OPTIONS } from "@/lib/workout";
 import { loadExerciseLibrary, getExerciseDefaultUnit, getCachedLibrary, getExerciseStableIdByName, type LibraryExercise } from "@/lib/exercises";
 import { ExerciseStatsLine } from "@/components/session/ExerciseStatsLine";
 import { getLastSessionSets, getExercisePR, getSetPersonalRecord, normalizeExName, getTypicalDurationSec, type ExercisePR, type SetPersonalRecord } from "@/lib/history-stats";
@@ -74,7 +74,7 @@ import {
 } from "@/lib/storage/performance-feedback";
 import { setExercisePreference } from "@/lib/storage/exercise-preferences";
 import { ROUTES } from "@/lib/routes";
-import type { ActiveSession, CompletedSet, CompletedWorkout, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
+import type { ActiveSession, CompletedSet, CompletedWorkout, DropSetStage, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
 type LivePersonalRecord = SetPersonalRecord & { exerciseName: string };
@@ -356,6 +356,11 @@ const StartWorkoutComponent = () => {
             value: s.value,
             unit: s.unit ?? inferUnit(s.value),
             type: s.type,
+            dropStages: s.dropStages?.map((stage) => ({
+              ...stage,
+              id: stage.id ?? uuidv4(),
+              unit: stage.unit ?? s.unit ?? inferUnit(stage.value),
+            })),
             status: "pending" as SetStatus,
           })),
         })),
@@ -662,7 +667,72 @@ const StartWorkoutComponent = () => {
   };
 
   const updateSetType = (exIdx: number, setIdx: number, type: SetType) =>
-    updateSet(exIdx, setIdx, (s) => ({ ...s, type }));
+    updateSet(exIdx, setIdx, (s) => ({
+      ...s,
+      type,
+      dropStages: type === "drop" ? s.dropStages : undefined,
+    }));
+
+  const updateDropStage = (
+    exIdx: number,
+    setIdx: number,
+    stageIdx: number,
+    updater: (stage: DropSetStage) => DropSetStage
+  ) =>
+    updateSet(exIdx, setIdx, (set) => ({
+      ...set,
+      dropStages: set.dropStages?.map((stage, index) =>
+        index === stageIdx ? updater(stage) : stage
+      ),
+    }));
+
+  const addDropStage = (exIdx: number, setIdx: number) =>
+    updateSet(exIdx, setIdx, (set) => {
+      const previous = set.dropStages?.at(-1) ?? set;
+      return {
+        ...set,
+        type: "drop",
+        status: "pending",
+        dropStages: [
+          ...(set.dropStages ?? []),
+          {
+            id: uuidv4(),
+            reps: previous.reps,
+            value: previous.value,
+            unit: previous.unit ?? set.unit ?? inferUnit(previous.value),
+          },
+        ],
+      };
+    });
+
+  const removeDropStage = (exIdx: number, setIdx: number, stageIdx: number) =>
+    updateSet(exIdx, setIdx, (set) => ({
+      ...set,
+      dropStages: set.dropStages?.filter((_, index) => index !== stageIdx),
+    }));
+
+  const stepDropStageReps = (
+    exIdx: number,
+    setIdx: number,
+    stageIdx: number,
+    delta: number
+  ) =>
+    updateDropStage(exIdx, setIdx, stageIdx, (stage) => ({
+      ...stage,
+      reps: Math.max(1, stage.reps + delta),
+    }));
+
+  const stepDropStageValue = (
+    exIdx: number,
+    setIdx: number,
+    stageIdx: number,
+    delta: number
+  ) =>
+    updateDropStage(exIdx, setIdx, stageIdx, (stage) => {
+      const current = Number.parseFloat(stage.value) || 0;
+      const next = Math.max(0, Math.round((current + delta) * 100) / 100);
+      return { ...stage, value: String(next) };
+    });
 
   // Progressive overload: fill every non-warm-up kg set of an exercise with the
   // suggested next weight (one tap from the "Try X kg" hint).
@@ -745,7 +815,27 @@ const StartWorkoutComponent = () => {
               mem[cur] = s.value;
               const value =
                 next === "bw" ? "BW" : mem[next] !== undefined ? mem[next]! : "";
-              return { ...s, unit: next, value };
+              return {
+                ...s,
+                unit: next,
+                value,
+                dropStages: s.dropStages?.map((stage, stageIndex) => {
+                  const stageUnit = stage.unit ?? cur;
+                  const stageKey = stage.id ?? `${key}:drop:${stageIndex}`;
+                  const stageMemory = (unitValueMemory.current[stageKey] ??= {});
+                  stageMemory[stageUnit] = stage.value;
+                  return {
+                    ...stage,
+                    unit: next,
+                    value:
+                      next === "bw"
+                        ? "BW"
+                        : stageMemory[next] !== undefined
+                        ? stageMemory[next]!
+                        : "",
+                  };
+                }),
+              };
             }),
           };
         }),
@@ -875,6 +965,10 @@ const StartWorkoutComponent = () => {
                       value: last.value,
                       unit: last.unit ?? "kg",
                       type: last.type,
+                      dropStages: last.dropStages?.map((stage) => ({
+                        ...stage,
+                        id: uuidv4(),
+                      })),
                       status: "pending" as SetStatus,
                     }
                   : {
@@ -922,6 +1016,12 @@ const StartWorkoutComponent = () => {
                           ...s,
                           unit,
                           value: unit === "bw" ? "BW" : s.value === "BW" ? "" : s.value,
+                          dropStages: s.dropStages?.map((stage) => ({
+                            ...stage,
+                            unit,
+                            value:
+                              unit === "bw" ? "BW" : stage.value === "BW" ? "" : stage.value,
+                          })),
                         }))
                       : ex.sets,
                   }
@@ -962,6 +1062,12 @@ const StartWorkoutComponent = () => {
                       id: uuidv4(),
                       unit: nextUnit,
                       value: nextUnit === "bw" ? "BW" : "",
+                      dropStages: set.dropStages?.map((stage) => ({
+                        ...stage,
+                        id: uuidv4(),
+                        unit: nextUnit,
+                        value: nextUnit === "bw" ? "BW" : "",
+                      })),
                       status: "pending" as const,
                       rpe: undefined,
                     })),
@@ -999,10 +1105,15 @@ const StartWorkoutComponent = () => {
       markSet(exIdx, setIdx, "pending");
       return;
     }
-    // Require a value before completing (bodyweight sets are exempt).
-    const unit = set?.unit ?? inferUnit(set?.value ?? "");
-    if (unit !== "bw" && !(set?.value ?? "").trim()) {
-      toast.error("Enter a value first before marking this set done.");
+    if (!set) return;
+    const invalidStage = getSetStages(set).find(
+      (stage) =>
+        !Number.isFinite(stage.reps) ||
+        stage.reps < 1 ||
+        ((stage.unit ?? inferUnit(stage.value)) !== "bw" && !stage.value.trim())
+    );
+    if (invalidStage) {
+      toast.error("Enter reps and a value for every stage before marking this set done.");
       return;
     }
     markSet(exIdx, setIdx, "done");
@@ -1049,7 +1160,7 @@ const StartWorkoutComponent = () => {
           (s, set) =>
             s +
             (set.status === "done" && set.type !== "warmup"
-              ? setVolumeKg(set.reps, set.value, set.unit)
+              ? setTotalVolumeKg(set)
               : 0),
           0
         ),
@@ -1061,7 +1172,8 @@ const StartWorkoutComponent = () => {
       (sum, ex) =>
         sum +
         ex.sets.reduce(
-          (s, set) => s + (set.status === "done" && set.type !== "warmup" ? set.reps : 0),
+          (s, set) =>
+            s + (set.status === "done" && set.type !== "warmup" ? setTotalReps(set) : 0),
           0
         ),
       0
@@ -1082,6 +1194,7 @@ const StartWorkoutComponent = () => {
         unit: set.unit,
         status: set.status,
         type: set.type,
+        dropStages: set.dropStages?.map(({ reps, value, unit }) => ({ reps, value, unit })),
         rpe: set.rpe,
       })),
     }));
@@ -1110,7 +1223,7 @@ const StartWorkoutComponent = () => {
       const workingSets = exercise.sets.filter((set) => set.type !== "warmup");
       const completedSets = workingSets.filter((set) => set.status === "done");
       const topWeightKg = completedSets.reduce(
-        (top, set) => Math.max(top, setWeightKg(set.value, set.unit)),
+        (top, set) => Math.max(top, setTopWeightKg(set)),
         0
       );
       addPerformanceFeedback({
@@ -1122,7 +1235,7 @@ const StartWorkoutComponent = () => {
         completedWorkingSets: completedSets.length,
         plannedWorkingSets: workingSets.length,
         topWeightKg: topWeightKg > 0 ? topWeightKg : undefined,
-        completedReps: completedSets.map((set) => set.reps),
+        completedReps: completedSets.map(setTotalReps),
       });
       if (difficulty === "painful") {
         painfulFeedbackCount += 1;
@@ -1159,6 +1272,7 @@ const StartWorkoutComponent = () => {
             value: set.value,
             unit: set.unit,
             type: set.type,
+            dropStages: set.dropStages?.map((stage) => ({ ...stage })),
           })),
         })),
         updatedAt: new Date().toISOString(),
@@ -1197,7 +1311,14 @@ const StartWorkoutComponent = () => {
     // Block finishing while an exercise is incomplete (no name, or a set with no value).
     const incomplete = workout?.exercises.some((ex) => {
       if (!ex.name.trim()) return true;
-      return ex.sets.some((s) => s.unit !== "bw" && !String(s.value ?? "").trim());
+      return ex.sets.some((set) =>
+        getSetStages(set).some(
+          (stage) =>
+            !Number.isFinite(stage.reps) ||
+            stage.reps < 1 ||
+            ((stage.unit ?? inferUnit(stage.value)) !== "bw" && !stage.value.trim())
+        )
+      );
     });
     if (incomplete) {
       toast.error("Finish incomplete exercise", {
@@ -1709,6 +1830,168 @@ const StartWorkoutComponent = () => {
                               </Button>
                             </div>
                           </div>
+
+                          {curType === "drop" && (
+                            <div className="mt-3 space-y-2 border-t border-dashed pt-3">
+                              <div>
+                                <p className="text-xs font-semibold">Drop stages</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  Continue immediately at a lower load. The full chain counts as one
+                                  set.
+                                </p>
+                              </div>
+
+                              {set.dropStages?.map((stage, stageIdx) => {
+                                const stageUnit = stage.unit ?? exUnit;
+                                return (
+                                  <div
+                                    key={stage.id ?? stageIdx}
+                                    className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <span className="mb-1 block text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                        Reps
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            stepDropStageReps(exIdx, setIdx, stageIdx, -1)
+                                          }
+                                          className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                          aria-label={`Decrease reps for drop stage ${stageIdx + 2}`}
+                                        >
+                                          <Minus className="size-4" />
+                                        </button>
+                                        <NumberInput
+                                          value={String(stage.reps)}
+                                          onChange={(event) =>
+                                            updateDropStage(exIdx, setIdx, stageIdx, (current) => ({
+                                              ...current,
+                                              reps: Number.parseInt(event.target.value, 10) || 0,
+                                            }))
+                                          }
+                                          className="h-9 w-full min-w-0 px-0.5 text-center"
+                                          aria-label={`Reps for set ${setIdx + 1}, drop stage ${stageIdx + 2}`}
+                                          onFocus={(event) => event.currentTarget.select()}
+                                          onClick={(event) => event.currentTarget.select()}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            stepDropStageReps(exIdx, setIdx, stageIdx, 1)
+                                          }
+                                          className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                          aria-label={`Increase reps for drop stage ${stageIdx + 2}`}
+                                        >
+                                          <Plus className="size-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="mb-1 block text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                        {unitLabel(stageUnit)}
+                                      </span>
+                                      {stageUnit === "bw" ? (
+                                        <span className="flex h-9 items-center justify-center font-medium text-muted-foreground">
+                                          BW
+                                        </span>
+                                      ) : stageUnit === "time" ? (
+                                        <Input
+                                          value={stage.value}
+                                          onChange={(event) =>
+                                            updateDropStage(exIdx, setIdx, stageIdx, (current) => ({
+                                              ...current,
+                                              value: event.target.value,
+                                            }))
+                                          }
+                                          className="h-9 min-w-0 text-center"
+                                          placeholder={unitPlaceholder(stageUnit)}
+                                          aria-label={`Value for set ${setIdx + 1}, drop stage ${stageIdx + 2}`}
+                                          onFocus={(event) => event.currentTarget.select()}
+                                          onClick={(event) => event.currentTarget.select()}
+                                        />
+                                      ) : (
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              stepDropStageValue(
+                                                exIdx,
+                                                setIdx,
+                                                stageIdx,
+                                                stageUnit === "km" ? -0.5 : -2.5
+                                              )
+                                            }
+                                            className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                            aria-label={`Decrease value for drop stage ${stageIdx + 2}`}
+                                          >
+                                            <Minus className="size-4" />
+                                          </button>
+                                          <NumberInput
+                                            decimal
+                                            value={stage.value}
+                                            onChange={(event) =>
+                                              updateDropStage(exIdx, setIdx, stageIdx, (current) => ({
+                                                ...current,
+                                                value: event.target.value,
+                                              }))
+                                            }
+                                            className="h-9 w-full min-w-0 px-0.5 text-center"
+                                            placeholder={unitPlaceholder(stageUnit)}
+                                            aria-label={`Value for set ${setIdx + 1}, drop stage ${stageIdx + 2}`}
+                                            onFocus={(event) => event.currentTarget.select()}
+                                            onClick={(event) => event.currentTarget.select()}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              stepDropStageValue(
+                                                exIdx,
+                                                setIdx,
+                                                stageIdx,
+                                                stageUnit === "km" ? 0.5 : 2.5
+                                              )
+                                            }
+                                            className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground hover:bg-accent active:scale-95"
+                                            aria-label={`Increase value for drop stage ${stageIdx + 2}`}
+                                          >
+                                            <Plus className="size-4" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="shrink-0">
+                                      <span className="mb-1 block text-[10px] leading-none" aria-hidden>
+                                        &nbsp;
+                                      </span>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-9 text-muted-foreground hover:text-destructive"
+                                        onClick={() => removeDropStage(exIdx, setIdx, stageIdx)}
+                                        aria-label={`Remove drop stage ${stageIdx + 2} from set ${setIdx + 1}`}
+                                      >
+                                        <X className="size-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="w-full gap-1 border-dashed"
+                                onClick={() => addDropStage(exIdx, setIdx)}
+                              >
+                                <Plus className="size-4" />
+                                Add drop
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
