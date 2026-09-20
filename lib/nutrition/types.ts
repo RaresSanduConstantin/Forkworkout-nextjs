@@ -38,6 +38,28 @@ export type NutritionFoodSnapshot = {
   sourceReference?: string;
 };
 
+export type NutritionFood = {
+  id: string;
+  name: string;
+  aliases: string[];
+  variant?: string;
+  basisAmount: number;
+  basisUnit: "g" | "ml";
+  nutrients: NutritionNutrients;
+  source: "builtin" | "custom";
+  sourceReference?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type NutritionFoodPreference = {
+  foodKey: string;
+  favourite: boolean;
+  useCount: number;
+  lastUsedAt?: string;
+  updatedAt: string;
+};
+
 export type NutritionEntry = {
   id: string;
   dayKey: string;
@@ -90,4 +112,14 @@ export type StoredNutritionTargets = {
 export type StoredNutritionDayAdjustments = {
   version: 1;
   data: NutritionDayAdjustment[];
+};
+
+export type StoredCustomNutritionFoods = {
+  version: 1;
+  data: NutritionFood[];
+};
+
+export type StoredNutritionFoodPreferences = {
+  version: 1;
+  data: NutritionFoodPreference[];
 };

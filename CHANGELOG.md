@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added an offline USDA-based starter food catalog with English and Romanian
+  search, raw/cooked variants, gram and millilitre quantity calculation,
+  custom foods, favourites, recents, and local backup/restore support.
 - Added the first local-first Nutrition dashboard with manual calorie and macro
   targets, optional body-profile calorie suggestions, informational workout
   calories, meal grouping, Quick Add editing, and backup/restore support.

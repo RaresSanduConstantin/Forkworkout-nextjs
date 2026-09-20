@@ -25,6 +25,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { QuickAddSheet } from "./QuickAddSheet";
+import { FoodPickerSheet } from "./FoodPickerSheet";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
 import { dayKeyToDate, toDayKey } from "@/lib/date/day-key";
 import {
@@ -105,10 +106,12 @@ export function NutritionDashboard() {
   const [targets, setTargets] = React.useState<NutritionTargets | null>(null);
   const [workoutAdjustmentDays, setWorkoutAdjustmentDays] = React.useState<string[]>([]);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
+  const [foodPickerOpen, setFoodPickerOpen] = React.useState(false);
   const [targetsOpen, setTargetsOpen] = React.useState(false);
   const [workoutAdjustmentOpen, setWorkoutAdjustmentOpen] = React.useState(false);
   const [quickMeal, setQuickMeal] = React.useState<NutritionMeal>(defaultMeal);
   const [editingEntry, setEditingEntry] = React.useState<NutritionEntry | null>(null);
+  const [editingFoodEntry, setEditingFoodEntry] = React.useState<NutritionEntry | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<NutritionEntry | null>(null);
 
   const refresh = React.useCallback(() => {
@@ -144,6 +147,20 @@ export function NutritionDashboard() {
     setQuickMeal(meal);
     setEditingEntry(entry);
     setQuickAddOpen(true);
+  };
+
+  const openFoodPicker = (meal: NutritionMeal, entry: NutritionEntry | null = null) => {
+    setQuickMeal(meal);
+    setEditingFoodEntry(entry);
+    setFoodPickerOpen(true);
+  };
+
+  const openEntryEditor = (entry: NutritionEntry) => {
+    if (entry.foodSnapshot && (entry.source === "builtin" || entry.source === "custom")) {
+      openFoodPicker(entry.meal, entry);
+    } else {
+      openQuickAdd(entry.meal, entry);
+    }
   };
 
   const confirmDelete = () => {
@@ -331,7 +348,7 @@ export function NutritionDashboard() {
         type="button"
         size="lg"
         className="mt-5 w-full gap-2"
-        onClick={() => openQuickAdd(defaultMeal())}
+        onClick={() => openFoodPicker(defaultMeal())}
       >
         <Plus className="size-5" />
         Add Food
@@ -349,7 +366,7 @@ export function NutritionDashboard() {
                 <button
                   type="button"
                   className="group flex w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-muted/50 active:bg-muted"
-                  onClick={() => openQuickAdd(meal)}
+                  onClick={() => openFoodPicker(meal)}
                   aria-label={`Add food to ${meta.label}`}
                 >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-active:scale-95">
@@ -376,7 +393,7 @@ export function NutritionDashboard() {
                       <CardTitle className="text-base">{meta.label}</CardTitle>
                       <p className="text-xs text-muted-foreground">{number(mealTotals.caloriesKcal)} kcal</p>
                     </div>
-                    <Button type="button" variant="outline" size="icon" className="size-10 shrink-0" onClick={() => openQuickAdd(meal)} aria-label={`Add food to ${meta.label}`}>
+                    <Button type="button" variant="outline" size="icon" className="size-10 shrink-0" onClick={() => openFoodPicker(meal)} aria-label={`Add food to ${meta.label}`}>
                       <Plus className="size-4" />
                     </Button>
                   </div>
@@ -384,14 +401,14 @@ export function NutritionDashboard() {
                   <ul className="divide-y">
                     {mealEntries.map((entry) => (
                       <li key={entry.id} className="flex items-center gap-2 py-3 first:pt-0 last:pb-0">
-                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openQuickAdd(meal, entry)}>
+                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openEntryEditor(entry)}>
                           <p className="truncate text-sm font-medium">{entry.name}</p>
                           <p className="truncate text-xs text-muted-foreground">
                             P {number(entry.nutrients.proteinG)}g · C {number(entry.nutrients.carbsG)}g · F {number(entry.nutrients.fatG)}g
                           </p>
                         </button>
                         <span className="shrink-0 text-sm font-semibold tabular-nums">{number(entry.nutrients.caloriesKcal)} kcal</span>
-                        <Button type="button" variant="ghost" size="icon-sm" onClick={() => openQuickAdd(meal, entry)} aria-label={`Edit ${entry.name}`}>
+                        <Button type="button" variant="ghost" size="icon-sm" onClick={() => openEntryEditor(entry)} aria-label={`Edit ${entry.name}`}>
                           <Pencil className="size-4" />
                         </Button>
                         <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingDelete(entry)} aria-label={`Delete ${entry.name}`}>
@@ -418,6 +435,21 @@ export function NutritionDashboard() {
         initialMeal={quickMeal}
         entry={editingEntry}
         onSaved={refresh}
+      />
+      <FoodPickerSheet
+        open={foodPickerOpen}
+        onOpenChange={(open) => {
+          setFoodPickerOpen(open);
+          if (!open) setEditingFoodEntry(null);
+        }}
+        dayKey={dayKey}
+        initialMeal={quickMeal}
+        entry={editingFoodEntry}
+        onSaved={refresh}
+        onQuickAdd={(meal) => {
+          setFoodPickerOpen(false);
+          window.setTimeout(() => openQuickAdd(meal), 150);
+        }}
       />
       <NutritionTargetsDialog
         open={targetsOpen}

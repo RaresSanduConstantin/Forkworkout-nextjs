@@ -42,6 +42,8 @@ export async function clearAllData(options?: { keepCustomExercises?: boolean }):
     STORAGE_KEYS.nutritionEntries,
     STORAGE_KEYS.nutritionTargets,
     STORAGE_KEYS.nutritionDayAdjustments,
+    STORAGE_KEYS.customNutritionFoods,
+    STORAGE_KEYS.nutritionFoodPreferences,
   ];
   for (const key of userDataKeys) removeJson(key);
   if (!options?.keepCustomExercises) {

@@ -36,6 +36,8 @@ import type { ProgramProgress } from "./program-storage";
 import type {
   NutritionDayAdjustment,
   NutritionEntry,
+  NutritionFood,
+  NutritionFoodPreference,
   NutritionTargets,
 } from "@/lib/nutrition/types";
 import {
@@ -48,6 +50,14 @@ import {
   saveNutritionEntries,
   saveNutritionTargets,
 } from "./nutrition-storage";
+import {
+  getCustomNutritionFoods,
+  getNutritionFoodPreferences,
+  normalizeNutritionFood,
+  normalizeNutritionFoodPreference,
+  saveCustomNutritionFoods,
+  saveNutritionFoodPreferences,
+} from "./nutrition-food-storage";
 
 export type ExportBundle = {
   version: number;
@@ -68,6 +78,8 @@ export type ExportBundle = {
   nutritionEntries?: NutritionEntry[];
   nutritionTargets?: NutritionTargets;
   nutritionDayAdjustments?: NutritionDayAdjustment[];
+  customNutritionFoods?: NutritionFood[];
+  nutritionFoodPreferences?: NutritionFoodPreference[];
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -92,6 +104,8 @@ export function buildExport(): ExportBundle {
     nutritionEntries: getNutritionEntries(),
     nutritionTargets: getNutritionTargets() ?? undefined,
     nutritionDayAdjustments: getNutritionDayAdjustments(),
+    customNutritionFoods: getCustomNutritionFoods(),
+    nutritionFoodPreferences: getNutritionFoodPreferences(),
   };
 }
 
@@ -136,6 +150,8 @@ export function mergeImport(
   nutritionEntriesUpdated: number;
   nutritionTargetsRestored: boolean;
   nutritionDayAdjustmentsRestored: number;
+  customNutritionFoodsAdded: number;
+  nutritionFoodPreferencesRestored: number;
 } {
   let parsed: unknown;
   try {
@@ -320,6 +336,48 @@ export function mergeImport(
     saveNutritionDayAdjustments(Array.from(adjustmentsByDay.values()));
   }
 
+  const customNutritionFoods = getCustomNutritionFoods();
+  const customFoodIndexes = new Map(
+    customNutritionFoods.map((food, index) => [food.id, index])
+  );
+  let customNutritionFoodsAdded = 0;
+  if (Array.isArray(bundle.customNutritionFoods)) {
+    for (const rawFood of bundle.customNutritionFoods) {
+      const food = normalizeNutritionFood(rawFood, "custom");
+      if (!food) continue;
+      const existingIndex = customFoodIndexes.get(food.id);
+      if (existingIndex === undefined) {
+        customNutritionFoods.push(food);
+        customFoodIndexes.set(food.id, customNutritionFoods.length - 1);
+        customNutritionFoodsAdded += 1;
+      } else if (options.restoreNutritionData) {
+        customNutritionFoods[existingIndex] = food;
+      }
+    }
+    saveCustomNutritionFoods(customNutritionFoods);
+  }
+
+  const foodPreferences = new Map(
+    getNutritionFoodPreferences().map((preference) => [preference.foodKey, preference])
+  );
+  let nutritionFoodPreferencesRestored = 0;
+  if (Array.isArray(bundle.nutritionFoodPreferences)) {
+    for (const rawPreference of bundle.nutritionFoodPreferences) {
+      const preference = normalizeNutritionFoodPreference(rawPreference);
+      if (!preference) continue;
+      const existing = foodPreferences.get(preference.foodKey);
+      if (
+        !existing ||
+        options.restoreNutritionData ||
+        preference.updatedAt > existing.updatedAt
+      ) {
+        foodPreferences.set(preference.foodKey, preference);
+        nutritionFoodPreferencesRestored += 1;
+      }
+    }
+    saveNutritionFoodPreferences(Array.from(foodPreferences.values()));
+  }
+
   // Restore body profile: only fill fields that aren't already set locally, so
   // an import never clobbers the current device's profile.
   let profileRestored = false;
@@ -386,5 +444,7 @@ export function mergeImport(
     nutritionEntriesUpdated,
     nutritionTargetsRestored,
     nutritionDayAdjustmentsRestored,
+    customNutritionFoodsAdded,
+    nutritionFoodPreferencesRestored,
   };
 }

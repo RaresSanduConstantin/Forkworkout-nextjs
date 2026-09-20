@@ -83,20 +83,42 @@ Status: Implemented; device QA and user review pending
 
 ## Phase 2 — Generic foods, custom foods, recents and favourites
 
-Status: Planned
+Status: Phase 2A implemented; catalog expansion and device QA pending
 
-- [ ] Create a curated `public/json/foods.json` catalog sourced from USDA
+- [x] Create a curated `public/json/foods.json` starter catalog sourced from USDA
       FoodData Central, with stable IDs and source references.
 - [ ] Start with approximately 150–250 common foods rather than a full dataset.
-- [ ] Store raw/cooked/preparation variants as independent records.
-- [ ] Include English names and useful Romanian search aliases.
-- [ ] Support per-100g and per-100ml nutrition.
-- [ ] Merge bundled, custom, cached, recent, and favourite foods into one local
-      search experience.
-- [ ] Add quantity calculation and editable confirmation before logging.
-- [ ] Add custom-food create/edit/delete flows.
-- [ ] Rank favourites, frequency, and recency without duplicating history.
-- [ ] Verify the bundled catalog is available offline in the installed PWA.
+- [x] Store raw/cooked/preparation variants as independent records in the
+      starter catalog.
+- [x] Include English names and useful Romanian search aliases, including
+      diacritic-insensitive matching.
+- [x] Support per-100g and per-100ml nutrition.
+- [x] Merge bundled, custom, recent, and favourite foods into one local search
+      experience. Cached barcode foods remain part of Phase 4.
+- [x] Add quantity calculation and editable confirmation before logging.
+- [x] Add custom-food create/edit/delete flows.
+- [x] Rank favourites, frequency, and recency without duplicating history.
+- [x] Include custom foods, favourites, and recents in backup, restore, reset,
+      IndexedDB reconciliation, and migration recovery.
+- [x] Verify the production service worker precaches the bundled food catalog.
+- [ ] Perform offline search and logging QA on an installed phone PWA.
+
+### Phase 2A implementation checkpoint
+
+- Catalog: `public/json/foods.json` with 36 common food/preparation records.
+- Search and ranking: `lib/nutrition/foods.ts`.
+- Custom foods and preferences: `lib/storage/nutrition-food-storage.ts`.
+- UI: `components/nutrition/FoodPickerSheet.tsx`.
+- Validation result: 43 test files and 255 tests passed; production build
+  passed and `/json/foods.json` appears in the generated service-worker
+  precache manifest.
+
+### Phase 2B remaining catalog work
+
+- Expand from 36 starter records to approximately 150–250 USDA-sourced foods.
+- Add more Romanian staples, dairy choices, meat cuts, fish, fruit, vegetables,
+  grains, legumes, oils, and common preparation variants.
+- Review source links and rounded nutrient values as the catalog expands.
 
 ## Phase 3 — Saved and repeated meals
 

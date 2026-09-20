@@ -131,6 +131,10 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
       if (r.nutritionTargetsRestored) parts.push("nutrition targets");
       if (r.nutritionDayAdjustmentsRestored)
         parts.push(`${r.nutritionDayAdjustmentsRestored} nutrition day adjustments`);
+      if (r.customNutritionFoodsAdded)
+        parts.push(`${r.customNutritionFoodsAdded} custom foods`);
+      if (r.nutritionFoodPreferencesRestored)
+        parts.push("nutrition favourites and recents");
       updateGDriveConfig({ fileId: result.fileId, lastSyncAt: new Date().toISOString() });
       setConfig(getGDriveConfig());
       if (!persisted) {

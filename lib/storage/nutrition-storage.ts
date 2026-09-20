@@ -40,7 +40,7 @@ function optionalBoundedNumber(value: unknown, max: number): number | undefined 
   return boundedNumber(value, max) ?? undefined;
 }
 
-function normalizeNutrients(raw: unknown): NutritionNutrients | null {
+export function normalizeNutritionNutrients(raw: unknown): NutritionNutrients | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
   const caloriesKcal = boundedNumber(value.caloriesKcal, MAX_CALORIES);
@@ -95,7 +95,7 @@ function normalizeFoodSnapshot(raw: unknown): NutritionFoodSnapshot | undefined 
   const name = typeof value.name === "string" ? value.name.trim().slice(0, 160) : "";
   const basisAmount = boundedNumber(value.basisAmount, 10_000);
   const basisUnit = value.basisUnit;
-  const nutrients = normalizeNutrients(value.nutrients);
+  const nutrients = normalizeNutritionNutrients(value.nutrients);
   const source = value.source;
   if (
     !name ||
@@ -145,7 +145,7 @@ export function normalizeNutritionEntry(raw: unknown): NutritionEntry | null {
   const source = SOURCES.includes(value.source as NutritionSource)
     ? (value.source as NutritionSource)
     : "quick_add";
-  const nutrients = normalizeNutrients(value.nutrients);
+  const nutrients = normalizeNutritionNutrients(value.nutrients);
   const createdAt = normalizeDate(value.createdAt);
   const updatedAt = normalizeDate(value.updatedAt) ?? createdAt;
   if (

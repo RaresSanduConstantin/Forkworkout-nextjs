@@ -20,6 +20,21 @@ import {
   updateNutritionEntry,
 } from "@/lib/storage/nutrition-storage";
 import { STORAGE_KEYS } from "@/lib/storage/keys";
+import foodCatalog from "@/public/json/foods.json";
+import {
+  filterAndRankNutritionFoods,
+  normalizeFoodSearchText,
+} from "@/lib/nutrition/foods";
+import {
+  deleteCustomNutritionFood,
+  getCustomNutritionFoods,
+  getNutritionFoodPreferences,
+  normalizeNutritionFood,
+  nutritionFoodKey,
+  recordNutritionFoodUse,
+  setNutritionFoodFavourite,
+  upsertCustomNutritionFood,
+} from "@/lib/storage/nutrition-food-storage";
 
 beforeEach(() => localStorage.clear());
 
@@ -149,6 +164,14 @@ describe("nutrition storage", () => {
     const created = addNutritionEntry(quickAdd);
     saveNutritionTargets({ caloriesKcal: 2200, proteinG: 150, carbsG: 240, fatG: 65 });
     setNutritionWorkoutCaloriesIncluded("2026-09-20", true);
+    const customFood = upsertCustomNutritionFood({
+      name: "Backup food",
+      aliases: [],
+      basisAmount: 100,
+      basisUnit: "g",
+      nutrients: { caloriesKcal: 123, proteinG: 4, carbsG: 5, fatG: 6 },
+    })!;
+    setNutritionFoodFavourite(nutritionFoodKey(customFood), true);
     const bundle = buildExport();
 
     localStorage.clear();
@@ -160,9 +183,12 @@ describe("nutrition storage", () => {
     expect(result.nutritionEntriesAdded).toBe(1);
     expect(result.nutritionTargetsRestored).toBe(true);
     expect(result.nutritionDayAdjustmentsRestored).toBe(1);
+    expect(result.customNutritionFoodsAdded).toBe(1);
+    expect(result.nutritionFoodPreferencesRestored).toBe(1);
     expect(getNutritionEntries()[0].id).toBe(created?.id);
     expect(getNutritionTargets()?.caloriesKcal).toBe(2200);
     expect(getNutritionDayAdjustments()[0]?.dayKey).toBe("2026-09-20");
+    expect(getCustomNutritionFoods()[0]?.name).toBe("Backup food");
   });
 
   it("restores an edited nutrition entry when recovering a backup", () => {
@@ -179,5 +205,63 @@ describe("nutrition storage", () => {
     expect(result.nutritionEntriesUpdated).toBe(1);
     expect(getNutritionEntries()[0].name).toBe("Morning coffee");
     expect(getNutritionEntries()[0].nutrients.caloriesKcal).toBe(80);
+  });
+});
+
+describe("nutrition food catalog", () => {
+  it("ships a valid offline starter catalog with raw and cooked variants", () => {
+    const foods = foodCatalog.foods
+      .map((food) => normalizeNutritionFood(food, "builtin"))
+      .filter((food) => food !== null);
+
+    expect(foods).toHaveLength(foodCatalog.foods.length);
+    expect(foods.length).toBeGreaterThanOrEqual(30);
+    expect(
+      foods.filter((food) => food?.name === "White rice").map((food) => food?.variant)
+    ).toEqual(expect.arrayContaining(["Dry, uncooked", "Cooked"]));
+  });
+
+  it("matches Romanian aliases without requiring diacritics", () => {
+    const foods = foodCatalog.foods
+      .map((food) => normalizeNutritionFood(food, "builtin"))
+      .filter((food): food is NonNullable<typeof food> => food !== null);
+
+    expect(normalizeFoodSearchText("PÂINE integrală")).toBe("paine integrala");
+    expect(filterAndRankNutritionFoods(foods, [], "cartofi copti")[0]?.name).toBe(
+      "Potato"
+    );
+  });
+
+  it("creates, updates, favourites, remembers, and deletes a custom food", () => {
+    const food = upsertCustomNutritionFood({
+      name: "Protein pancakes",
+      aliases: ["clatite proteice"],
+      basisAmount: 100,
+      basisUnit: "g",
+      nutrients: { caloriesKcal: 210, proteinG: 18, carbsG: 22, fatG: 6 },
+    });
+    expect(food).not.toBeNull();
+    const key = nutritionFoodKey(food!);
+    expect(setNutritionFoodFavourite(key, true)).toBe(true);
+    expect(recordNutritionFoodUse(key)).toBe(true);
+    expect(getNutritionFoodPreferences()).toEqual([
+      expect.objectContaining({ foodKey: key, favourite: true, useCount: 1 }),
+    ]);
+
+    const validUpdate = upsertCustomNutritionFood(
+      {
+        name: "Protein oat pancakes",
+        aliases: food!.aliases,
+        basisAmount: 100,
+        basisUnit: "g",
+        nutrients: { ...food!.nutrients, caloriesKcal: 220 },
+      },
+      food!.id
+    );
+    expect(validUpdate?.nutrients.caloriesKcal).toBe(220);
+    expect(getCustomNutritionFoods()[0]?.name).toBe("Protein oat pancakes");
+    expect(deleteCustomNutritionFood(food!.id)).toBe(true);
+    expect(getCustomNutritionFoods()).toEqual([]);
+    expect(getNutritionFoodPreferences()).toEqual([]);
   });
 });
