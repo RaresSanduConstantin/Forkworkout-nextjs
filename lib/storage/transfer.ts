@@ -33,6 +33,21 @@ import {
 } from "./daily-training-state";
 import { getProgramState, saveProgramState } from "./program-storage";
 import type { ProgramProgress } from "./program-storage";
+import type {
+  NutritionDayAdjustment,
+  NutritionEntry,
+  NutritionTargets,
+} from "@/lib/nutrition/types";
+import {
+  getNutritionDayAdjustments,
+  getNutritionEntries,
+  getNutritionTargets,
+  normalizeNutritionDayAdjustment,
+  normalizeNutritionEntry,
+  saveNutritionDayAdjustments,
+  saveNutritionEntries,
+  saveNutritionTargets,
+} from "./nutrition-storage";
 
 export type ExportBundle = {
   version: number;
@@ -50,6 +65,9 @@ export type ExportBundle = {
   bodyProfile?: BodyProfile;
   settings?: AppSettings;
   homeEquipment?: HomeEquipment;
+  nutritionEntries?: NutritionEntry[];
+  nutritionTargets?: NutritionTargets;
+  nutritionDayAdjustments?: NutritionDayAdjustment[];
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -71,6 +89,9 @@ export function buildExport(): ExportBundle {
     bodyProfile: getBodyProfile(),
     settings: getSettings(),
     homeEquipment: getHomeEquipment(),
+    nutritionEntries: getNutritionEntries(),
+    nutritionTargets: getNutritionTargets() ?? undefined,
+    nutritionDayAdjustments: getNutritionDayAdjustments(),
   };
 }
 
@@ -96,7 +117,11 @@ export function downloadExport(): void {
  */
 export function mergeImport(
   text: string,
-  options: { restoreSettings?: boolean; restoreBodyData?: boolean } = {}
+  options: {
+    restoreSettings?: boolean;
+    restoreBodyData?: boolean;
+    restoreNutritionData?: boolean;
+  } = {}
 ): {
   workoutsAdded: number;
   historyAdded: number;
@@ -107,6 +132,10 @@ export function mergeImport(
   profileRestored: boolean;
   settingsRestored: boolean;
   homeEquipmentRestored: boolean;
+  nutritionEntriesAdded: number;
+  nutritionEntriesUpdated: number;
+  nutritionTargetsRestored: boolean;
+  nutritionDayAdjustmentsRestored: number;
 } {
   let parsed: unknown;
   try {
@@ -244,6 +273,53 @@ export function mergeImport(
     for (const dailyState of bundle.dailyTrainingStates) saveDailyTrainingState(dailyState);
   }
 
+  const nutritionEntries = getNutritionEntries();
+  const nutritionEntryIndexes = new Map(
+    nutritionEntries.map((entry, index) => [entry.id, index])
+  );
+  let nutritionEntriesAdded = 0;
+  let nutritionEntriesUpdated = 0;
+  if (Array.isArray(bundle.nutritionEntries)) {
+    for (const rawEntry of bundle.nutritionEntries) {
+      const entry = normalizeNutritionEntry(rawEntry);
+      if (!entry) continue;
+      const existingIndex = nutritionEntryIndexes.get(entry.id);
+      if (existingIndex === undefined) {
+        nutritionEntries.push(entry);
+        nutritionEntryIndexes.set(entry.id, nutritionEntries.length - 1);
+        nutritionEntriesAdded += 1;
+      } else if (
+        options.restoreNutritionData &&
+        JSON.stringify(nutritionEntries[existingIndex]) !== JSON.stringify(entry)
+      ) {
+        nutritionEntries[existingIndex] = entry;
+        nutritionEntriesUpdated += 1;
+      }
+    }
+    saveNutritionEntries(nutritionEntries);
+  }
+
+  let nutritionDayAdjustmentsRestored = 0;
+  if (Array.isArray(bundle.nutritionDayAdjustments)) {
+    const adjustmentsByDay = new Map(
+      getNutritionDayAdjustments().map((adjustment) => [adjustment.dayKey, adjustment])
+    );
+    for (const rawAdjustment of bundle.nutritionDayAdjustments) {
+      const adjustment = normalizeNutritionDayAdjustment(rawAdjustment);
+      if (!adjustment) continue;
+      const existing = adjustmentsByDay.get(adjustment.dayKey);
+      if (
+        !existing ||
+        (options.restoreNutritionData &&
+          JSON.stringify(existing) !== JSON.stringify(adjustment))
+      ) {
+        adjustmentsByDay.set(adjustment.dayKey, adjustment);
+        nutritionDayAdjustmentsRestored += 1;
+      }
+    }
+    saveNutritionDayAdjustments(Array.from(adjustmentsByDay.values()));
+  }
+
   // Restore body profile: only fill fields that aren't already set locally, so
   // an import never clobbers the current device's profile.
   let profileRestored = false;
@@ -269,6 +345,15 @@ export function mergeImport(
   if (options.restoreSettings && bundle.settings && typeof bundle.settings === "object") {
     saveSettings(bundle.settings);
     settingsRestored = true;
+  }
+
+  let nutritionTargetsRestored = false;
+  if (
+    bundle.nutritionTargets &&
+    typeof bundle.nutritionTargets === "object" &&
+    (options.restoreSettings || getNutritionTargets() === null)
+  ) {
+    nutritionTargetsRestored = saveNutritionTargets(bundle.nutritionTargets) !== null;
   }
 
   // Restore home equipment only when this device has none set yet, so an import
@@ -297,5 +382,9 @@ export function mergeImport(
     profileRestored,
     settingsRestored,
     homeEquipmentRestored,
+    nutritionEntriesAdded,
+    nutritionEntriesUpdated,
+    nutritionTargetsRestored,
+    nutritionDayAdjustmentsRestored,
   };
 }

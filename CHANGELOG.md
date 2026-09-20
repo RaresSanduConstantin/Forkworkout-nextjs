@@ -13,6 +13,11 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added the first local-first Nutrition dashboard with manual calorie and macro
+  targets, optional body-profile calorie suggestions, informational workout
+  calories, meal grouping, Quick Add editing, and backup/restore support.
+- Added a reversible per-day option to include recorded workout calories in the
+  Nutrition calorie allowance without changing the permanent daily target.
 - Added multi-stage drop sets to live workouts. Additional weight/reps stages
   remain one completed set, contribute to full reps and volume, persist into
   future sessions, and remain available in history, sharing, and Excel exports.
@@ -49,6 +54,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Made empty Nutrition meal cards compact and full-width, and added a filled
+  apple with a reduced-motion-aware animated calorie card when the daily target
+  is reached or exceeded.
 - Updated persistence documentation to describe IndexedDB primary storage,
   LocalStorage crash recovery, startup hydration, reset protection, and durable
   backup restoration.

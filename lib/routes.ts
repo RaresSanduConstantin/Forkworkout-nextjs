@@ -5,6 +5,7 @@ export const ROUTES = {
   dashboard: "/app",
   history: "/history",
   body: "/body",
+  nutrition: "/nutrition",
   exercises: "/exercises",
   newWorkout: "/create-workout",
   editWorkout: (id: string) => `/create-workout/${id}`,
@@ -16,7 +17,7 @@ export const ROUTES = {
 } as const;
 
 // The four sections that show the bottom tab bar.
-export const MAIN_TAB_ROUTES = ["/app", "/history", "/body", "/exercises"] as const;
+export const MAIN_TAB_ROUTES = ["/app", "/nutrition", "/history", "/body", "/exercises"] as const;
 
 /** Support inbox for user feedback. */
 export const SUPPORT_EMAIL = "forkworkout@gmail.com";

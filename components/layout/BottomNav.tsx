@@ -3,20 +3,21 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, CalendarDays, Scale, ListChecks } from "lucide-react";
+import { Apple, Dumbbell, CalendarDays, Scale, ListChecks } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ROUTES, isMainTabRoute } from "@/lib/routes";
 
 const TABS = [
   { href: ROUTES.dashboard, label: "Workouts", icon: Dumbbell },
+  { href: ROUTES.nutrition, label: "Nutrition", icon: Apple },
   { href: ROUTES.history, label: "History", icon: CalendarDays },
   { href: ROUTES.body, label: "Body", icon: Scale },
   { href: ROUTES.exercises, label: "Exercises", icon: ListChecks },
 ];
 
 /**
- * Fixed mobile-first bottom tab bar for the four main sections. Renders only on
+ * Fixed mobile-first bottom tab bar for the five main sections. Renders only on
  * those routes (hidden on the landing page, builder, live session and offline).
  */
 export function BottomNav() {
@@ -37,7 +38,7 @@ export function BottomNav() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors",
+                "flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors sm:text-[11px]",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >

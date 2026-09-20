@@ -164,6 +164,65 @@
   .animate-popbeat {
     animation: popbeat 1.5s ease-in-out infinite;
   }
+
+  @keyframes nutrition-goal-aurora {
+    0%, 100% {
+      transform: translate3d(-8%, -5%, 0) scale(1);
+      opacity: 0.55;
+    }
+    50% {
+      transform: translate3d(14%, 10%, 0) scale(1.18);
+      opacity: 0.9;
+    }
+  }
+
+  @keyframes nutrition-goal-sheen {
+    0%, 18% {
+      transform: translateX(-180%) rotate(12deg);
+      opacity: 0;
+    }
+    32% {
+      opacity: 0.65;
+    }
+    48%, 100% {
+      transform: translateX(700%) rotate(12deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes nutrition-goal-icon {
+    0%, 100% {
+      transform: scale(1);
+    }
+    12% {
+      transform: scale(1.12);
+    }
+    22% {
+      transform: scale(0.97);
+    }
+    32% {
+      transform: scale(1.04);
+    }
+    42% {
+      transform: scale(1);
+    }
+  }
+
+  .nutrition-goal-aurora {
+    animation: nutrition-goal-aurora 7s ease-in-out infinite;
+  }
+
+  .nutrition-goal-aurora-delayed {
+    animation-delay: -3.5s;
+  }
+
+  .nutrition-goal-sheen {
+    animation: nutrition-goal-sheen 6s ease-in-out infinite;
+  }
+
+  .nutrition-goal-icon {
+    animation: nutrition-goal-icon 3.5s ease-in-out infinite;
+  }
 }
 
 @layer utilities {

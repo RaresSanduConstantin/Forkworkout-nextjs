@@ -39,6 +39,9 @@ export async function clearAllData(options?: { keepCustomExercises?: boolean }):
     STORAGE_KEYS.homeEquipment,
     STORAGE_KEYS.gdrive,
     STORAGE_KEYS.autoBackup,
+    STORAGE_KEYS.nutritionEntries,
+    STORAGE_KEYS.nutritionTargets,
+    STORAGE_KEYS.nutritionDayAdjustments,
   ];
   for (const key of userDataKeys) removeJson(key);
   if (!options?.keepCustomExercises) {

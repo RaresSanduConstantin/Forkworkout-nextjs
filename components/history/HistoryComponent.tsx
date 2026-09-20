@@ -132,7 +132,15 @@ const HistoryComponent = () => {
         profileRestored,
         settingsRestored,
         homeEquipmentRestored,
-      } = mergeImport(text, { restoreSettings: true, restoreBodyData: true });
+        nutritionEntriesAdded,
+        nutritionTargetsRestored,
+        nutritionEntriesUpdated,
+        nutritionDayAdjustmentsRestored,
+      } = mergeImport(text, {
+        restoreSettings: true,
+        restoreBodyData: true,
+        restoreNutritionData: true,
+      });
       const persisted = await flushStoragePersistence();
       refresh();
       const parts = [
@@ -147,6 +155,19 @@ const HistoryComponent = () => {
       if (profileRestored) parts.push("profile");
       if (settingsRestored) parts.push("settings");
       if (homeEquipmentRestored) parts.push("home equipment");
+      if (nutritionEntriesAdded)
+        parts.push(
+          `${nutritionEntriesAdded} nutrition ${nutritionEntriesAdded === 1 ? "entry" : "entries"}`
+        );
+      if (nutritionEntriesUpdated)
+        parts.push(
+          `${nutritionEntriesUpdated} updated nutrition ${nutritionEntriesUpdated === 1 ? "entry" : "entries"}`
+        );
+      if (nutritionTargetsRestored) parts.push("nutrition targets");
+      if (nutritionDayAdjustmentsRestored)
+        parts.push(
+          `${nutritionDayAdjustmentsRestored} nutrition day ${nutritionDayAdjustmentsRestored === 1 ? "adjustment" : "adjustments"}`
+        );
       if (!persisted) {
         toast.warning(
           `Imported ${parts.join(", ")}, but the device database could not be verified. Export a backup before closing the app.`

@@ -55,6 +55,10 @@ export function migrationSafetyBackupHasData(b: MigrationSafetyBackup | null): b
     (Array.isArray(b.bundle.exercisePreferences) && b.bundle.exercisePreferences.length > 0) ||
     (Array.isArray(b.bundle.performanceFeedback) && b.bundle.performanceFeedback.length > 0) ||
     (Array.isArray(b.bundle.dailyTrainingStates) && b.bundle.dailyTrainingStates.length > 0) ||
+    (Array.isArray(b.bundle.nutritionEntries) && b.bundle.nutritionEntries.length > 0) ||
+    (Array.isArray(b.bundle.nutritionDayAdjustments) &&
+      b.bundle.nutritionDayAdjustments.length > 0) ||
+    Boolean(b.bundle.nutritionTargets) ||
     Boolean(b.bundle.bodyProfile) ||
     Boolean(b.bundle.settings) ||
     Boolean(b.bundle.homeEquipment)
@@ -149,6 +153,24 @@ export function restoreMigrationSafetyBackup(): boolean {
   }
   if (b.bundle.homeEquipment && typeof b.bundle.homeEquipment === "object") {
     writeJson(STORAGE_KEYS.homeEquipment, b.bundle.homeEquipment);
+  }
+  if (Array.isArray(b.bundle.nutritionEntries)) {
+    writeJson(STORAGE_KEYS.nutritionEntries, {
+      version: 1,
+      data: b.bundle.nutritionEntries,
+    });
+  }
+  if (b.bundle.nutritionTargets && typeof b.bundle.nutritionTargets === "object") {
+    writeJson(STORAGE_KEYS.nutritionTargets, {
+      version: 1,
+      data: b.bundle.nutritionTargets,
+    });
+  }
+  if (Array.isArray(b.bundle.nutritionDayAdjustments)) {
+    writeJson(STORAGE_KEYS.nutritionDayAdjustments, {
+      version: 1,
+      data: b.bundle.nutritionDayAdjustments,
+    });
   }
   return true;
 }

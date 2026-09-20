@@ -16,6 +16,9 @@ export const STORAGE_KEYS = {
   bodyProfile: "forkworkout:body-profile",
   homeEquipment: "forkworkout:home-equipment",
   gdrive: "forkworkout:gdrive",
+  nutritionEntries: "forkworkout:nutrition-entries",
+  nutritionTargets: "forkworkout:nutrition-targets",
+  nutritionDayAdjustments: "forkworkout:nutrition-day-adjustments",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

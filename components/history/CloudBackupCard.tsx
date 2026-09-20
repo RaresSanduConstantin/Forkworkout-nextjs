@@ -112,7 +112,11 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
         toast.error("No backup found in this Google account yet.");
         return;
       }
-      const r = mergeImport(result.text, { restoreSettings: true, restoreBodyData: true });
+      const r = mergeImport(result.text, {
+        restoreSettings: true,
+        restoreBodyData: true,
+        restoreNutritionData: true,
+      });
       const persisted = await flushStoragePersistence();
       const parts: string[] = [];
       if (r.workoutsAdded) parts.push(`${r.workoutsAdded} workouts`);
@@ -120,6 +124,13 @@ export function CloudBackupCard({ onRestored }: { onRestored?: () => void }) {
       if (r.bodyAdded) parts.push(`${r.bodyAdded} body entries`);
       if (r.bodyUpdated) parts.push(`${r.bodyUpdated} updated body entries`);
       if (r.exercisesAdded) parts.push(`${r.exercisesAdded} exercises`);
+      if (r.nutritionEntriesAdded)
+        parts.push(`${r.nutritionEntriesAdded} nutrition entries`);
+      if (r.nutritionEntriesUpdated)
+        parts.push(`${r.nutritionEntriesUpdated} updated nutrition entries`);
+      if (r.nutritionTargetsRestored) parts.push("nutrition targets");
+      if (r.nutritionDayAdjustmentsRestored)
+        parts.push(`${r.nutritionDayAdjustmentsRestored} nutrition day adjustments`);
       updateGDriveConfig({ fileId: result.fileId, lastSyncAt: new Date().toISOString() });
       setConfig(getGDriveConfig());
       if (!persisted) {
