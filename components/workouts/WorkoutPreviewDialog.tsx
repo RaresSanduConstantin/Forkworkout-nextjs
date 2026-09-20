@@ -50,6 +50,9 @@ export function WorkoutPreviewDialog({
 }) {
   const [infoExercise, setInfoExercise] = React.useState<string | null>(null);
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
+  const previewScrollAreaRef = React.useRef<HTMLDivElement>(null);
+  const previewScrollTopRef = React.useRef(0);
+  const shouldRestorePreviewScrollRef = React.useRef(false);
   const gender = useMannequinGender();
 
   React.useEffect(() => {
@@ -62,6 +65,14 @@ export function WorkoutPreviewDialog({
       active = false;
     };
   }, [workout]);
+
+  const setPreviewScrollAreaRef = React.useCallback((scrollArea: HTMLDivElement | null) => {
+    previewScrollAreaRef.current = scrollArea;
+    if (!scrollArea || !shouldRestorePreviewScrollRef.current) return;
+
+    scrollArea.scrollTop = previewScrollTopRef.current;
+    shouldRestorePreviewScrollRef.current = false;
+  }, []);
 
   const setCount =
     workout?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
@@ -78,8 +89,18 @@ export function WorkoutPreviewDialog({
   }, [workout, library]);
 
   const handleOpenChange = (open: boolean) => {
-    if (!open) setInfoExercise(null);
+    if (!open) {
+      setInfoExercise(null);
+      previewScrollTopRef.current = 0;
+      shouldRestorePreviewScrollRef.current = false;
+    }
     onOpenChange(open);
+  };
+
+  const handleInfoOpen = (exerciseName: string) => {
+    previewScrollTopRef.current = previewScrollAreaRef.current?.scrollTop ?? 0;
+    shouldRestorePreviewScrollRef.current = true;
+    setInfoExercise(exerciseName);
   };
 
   const handleStart = () => {
@@ -117,7 +138,10 @@ export function WorkoutPreviewDialog({
             )}
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          <div
+            ref={setPreviewScrollAreaRef}
+            className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"
+          >
             {workout?.exercises.length ? (
               <div className="space-y-4">
                 <Accordion
@@ -190,7 +214,7 @@ export function WorkoutPreviewDialog({
                             variant="outline"
                             size="sm"
                             className="shrink-0 gap-1.5"
-                            onClick={() => setInfoExercise(exercise.name)}
+                            onClick={() => handleInfoOpen(exercise.name)}
                             aria-label={`View information for ${exercise.name || "exercise"}`}
                           >
                             <Info className="size-4" />

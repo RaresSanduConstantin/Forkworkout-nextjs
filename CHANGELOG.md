@@ -28,6 +28,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Preserved the workout preview's scroll position when its content remounts
+  after viewing and closing an exercise information dialog.
 - Made every row in workout and exercise reorder lists draggable on mouse,
   touch, and keyboard instead of limiting dragging to the grip icon.
 - Ensured backup recovery replaces edited body entries that share an existing
