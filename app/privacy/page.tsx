@@ -29,8 +29,9 @@ export default function PrivacyPage() {
       <div className="mt-6 space-y-6 text-sm leading-relaxed text-muted-foreground">
         <p>
           ForkWorkout is a free, <strong>local-first</strong> fitness tracker. It
-          has no account system and no backend server that stores your data. This
-          policy explains what that means for your privacy.
+          has no account system or central personal-data database. This policy
+          explains what that means for your privacy, including optional sharing
+          and backup features that you choose to use.
         </p>
 
         <section>
@@ -45,6 +46,20 @@ export default function PrivacyPage() {
         </section>
 
         <section>
+          <h2 className="text-lg font-semibold text-foreground">Optional sharing</h2>
+          <p className="mt-2">
+            When you share a workout, program or meal, ForkWorkout creates a
+            portable copy containing only the information shown in the share
+            flow. Self-contained links keep that copy in the URL fragment. If you
+            create a short link or QR code, your browser encrypts the copy first;
+            the optional share service stores only encrypted text for a limited
+            time, while the decryption key stays in the link fragment. A recipient
+            must review and import the shared item before it is stored on their
+            device.
+          </p>
+        </section>
+
+        <section>
           <h2 className="text-lg font-semibold text-foreground">Data on your device</h2>
           <p className="mt-2">
             Your data stays in your browser until you clear it. Clearing your
@@ -54,16 +69,29 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-foreground">Food barcode lookup</h2>
+          <h2 className="text-lg font-semibold text-foreground">Online food lookup</h2>
           <p className="mt-2">
-            When you choose to scan or enter a food barcode, the barcode number is
-            sent to Open Food Facts to retrieve the product name and nutrition
-            values. ForkWorkout does not send your nutrition diary, quantity, meal,
-            body data or identity with that request. Confirmed product information
-            is cached on your device so it can be reused offline. Open Food Facts
-            handles the lookup request under its{" "}
+            When you choose to scan or enter a barcode, that barcode is sent to
+            Open Food Facts. When you explicitly tap Search online after entering
+            a food name, the search phrase is sent through ForkWorkout&apos;s server
+            to both USDA FoodData Central and Open Food Facts. The private USDA API
+            key stays on the server. ForkWorkout does not send your nutrition
+            diary, quantity, meal, body
+            data or identity with that request. Product information is shown for
+            confirmation and is cached on your device only after you save it, so it
+            can be reused offline. Open Food Facts handles barcode and name-search
+            requests under its{" "}
             <a
               href="https://world.openfoodfacts.org/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              privacy policy
+            </a>
+            , and USDA handles food-name searches under its{" "}
+            <a
+              href="https://www.usda.gov/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"

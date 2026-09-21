@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ArrowLeft,
   Barcode,
+  Globe2,
   Loader2,
   Pencil,
   Plus,
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 
 import { BarcodeScannerPanel } from "@/components/nutrition/BarcodeScannerPanel";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +44,10 @@ import {
   type BarcodeProductDraft,
 } from "@/lib/nutrition/barcodes";
 import {
+  searchOnlineFoods,
+  type OnlineFoodSearchSources,
+} from "@/lib/nutrition/usda";
+import {
   filterAndRankNutritionFoods,
   loadNutritionFoods,
   refreshNutritionFoods,
@@ -56,6 +62,7 @@ import {
   cacheNutritionBarcodeProduct,
   getCachedNutritionBarcodeProduct,
 } from "@/lib/storage/nutrition-barcode-storage";
+import { cacheNutritionUsdaFood } from "@/lib/storage/nutrition-usda-storage";
 import {
   deleteCustomNutritionFood,
   getNutritionFoodPreferences,
@@ -76,12 +83,13 @@ const MEAL_LABELS: Record<NutritionMeal, string> = {
 const number = (value: number) =>
   new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(value);
 
-type View = "browse" | "barcode" | "barcode_edit" | "quantity" | "custom";
+type View = "browse" | "barcode" | "online" | "barcode_edit" | "quantity" | "custom";
 
 const EMPTY_CUSTOM_FORM = {
   name: "",
   aliases: "",
   variant: "",
+  basisAmount: "100",
   basisUnit: "g" as "g" | "ml",
   calories: "",
   protein: "",
@@ -158,6 +166,16 @@ export function FoodPickerSheet({
   const [barcodeLookupLoading, setBarcodeLookupLoading] = React.useState(false);
   const [barcodeLookupError, setBarcodeLookupError] = React.useState<string | null>(null);
   const barcodeLookupControllerRef = React.useRef<AbortController | null>(null);
+  const [barcodeEditReturnView, setBarcodeEditReturnView] = React.useState<
+    "browse" | "barcode"
+  >("barcode");
+  const [onlineResults, setOnlineResults] = React.useState<NutritionFood[]>([]);
+  const [onlineSearchQuery, setOnlineSearchQuery] = React.useState("");
+  const [onlineSearchLoading, setOnlineSearchLoading] = React.useState(false);
+  const [onlineSearchError, setOnlineSearchError] = React.useState<string | null>(null);
+  const [onlineSources, setOnlineSources] =
+    React.useState<OnlineFoodSearchSources | null>(null);
+  const onlineSearchControllerRef = React.useRef<AbortController | null>(null);
 
   const reloadFoods = React.useCallback(async (initial = false) => {
     if (initial) setLoading(true);
@@ -178,11 +196,19 @@ export function FoodPickerSheet({
     setBarcodeReturnQuantity(null);
     setBarcodeLookupLoading(false);
     setBarcodeLookupError(null);
+    setBarcodeEditReturnView("barcode");
+    setOnlineResults([]);
+    setOnlineSearchQuery("");
+    setOnlineSearchLoading(false);
+    setOnlineSearchError(null);
+    setOnlineSources(null);
     barcodeLookupControllerRef.current?.abort();
+    onlineSearchControllerRef.current?.abort();
     void reloadFoods(true).then((loadedFoods) => {
       if (
         !entry?.foodSnapshot ||
         (entry.source !== "builtin" &&
+          entry.source !== "usda" &&
           entry.source !== "custom" &&
           entry.source !== "barcode")
       ) return;
@@ -210,12 +236,18 @@ export function FoodPickerSheet({
   }, [entry, initialMeal, open, reloadFoods]);
 
   React.useEffect(
-    () => () => barcodeLookupControllerRef.current?.abort(),
+    () => () => {
+      barcodeLookupControllerRef.current?.abort();
+      onlineSearchControllerRef.current?.abort();
+    },
     []
   );
 
   React.useEffect(() => {
-    if (!open) barcodeLookupControllerRef.current?.abort();
+    if (!open) {
+      barcodeLookupControllerRef.current?.abort();
+      onlineSearchControllerRef.current?.abort();
+    }
   }, [open]);
 
   const rankedFoods = React.useMemo(
@@ -271,6 +303,7 @@ export function FoodPickerSheet({
           }
         )
       );
+      setBarcodeEditReturnView("barcode");
       setView("barcode_edit");
       if (!product) {
         toast.info("Product not found. You can enter its label values once and save it.");
@@ -292,6 +325,63 @@ export function FoodPickerSheet({
     }
   };
 
+  const searchOnline = async () => {
+    const term = query.trim();
+    if (term.length < 2) {
+      toast.error("Enter at least two characters to search online.");
+      return;
+    }
+    onlineSearchControllerRef.current?.abort();
+    const controller = new AbortController();
+    onlineSearchControllerRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 12_000);
+    setOnlineSearchQuery(term);
+    setOnlineResults([]);
+    setOnlineSearchError(null);
+    setOnlineSources(null);
+    setOnlineSearchLoading(true);
+    setView("online");
+    try {
+      const result = await searchOnlineFoods(term, controller.signal);
+      setOnlineResults(result.foods);
+      setOnlineSources(result.sources);
+    } catch (reason) {
+      setOnlineSearchError(
+        controller.signal.aborted
+          ? "The online search took too long. Check your connection and try again."
+          : reason instanceof Error
+            ? reason.message
+            : "The online food search failed."
+      );
+    } finally {
+      window.clearTimeout(timeout);
+      if (onlineSearchControllerRef.current === controller) {
+        onlineSearchControllerRef.current = null;
+        setOnlineSearchLoading(false);
+      }
+    }
+  };
+
+  const chooseOnlineFood = async (food: NutritionFood) => {
+    const saved =
+      food.source === "usda"
+        ? cacheNutritionUsdaFood(food)
+        : food.source === "barcode"
+          ? cacheNutritionBarcodeProduct(food)
+          : null;
+    if (!saved) {
+      toast.error("Couldn't save this food on your device.");
+      return;
+    }
+    await reloadFoods();
+    setSelectedFood(saved);
+    setQuantity(String(saved.basisAmount));
+    setView("quantity");
+    toast.success(
+      `${food.source === "usda" ? "USDA food" : "Open Food Facts product"} saved for offline use`
+    );
+  };
+
   const editBarcodeProduct = (food: NutritionFood, returnQuantity: string | null) => {
     setBarcodeReturnQuantity(returnQuantity);
     setBarcodeForm(
@@ -310,6 +400,7 @@ export function FoodPickerSheet({
         sourceReference: food.sourceReference,
       })
     );
+    setBarcodeEditReturnView("browse");
     setView("barcode_edit");
   };
 
@@ -450,6 +541,7 @@ export function FoodPickerSheet({
             name: food.name,
             aliases: food.aliases.join(", "),
             variant: food.variant ?? "",
+            basisAmount: String(food.basisAmount),
             basisUnit: food.basisUnit,
             calories: String(food.nutrients.caloriesKcal),
             protein: String(food.nutrients.proteinG),
@@ -462,6 +554,7 @@ export function FoodPickerSheet({
   };
 
   const saveCustomFood = async () => {
+    const basisAmount = Number.parseFloat(customForm.basisAmount);
     const nutrients = {
       caloriesKcal: Number.parseFloat(customForm.calories),
       proteinG: Number.parseFloat(customForm.protein),
@@ -470,6 +563,10 @@ export function FoodPickerSheet({
     };
     if (!customForm.name.trim()) {
       toast.error("Enter a food name.");
+      return;
+    }
+    if (!Number.isFinite(basisAmount) || basisAmount <= 0 || basisAmount > 10_000) {
+      toast.error("Enter the amount those nutrition values are based on.");
       return;
     }
     if (
@@ -490,7 +587,7 @@ export function FoodPickerSheet({
           .map((alias) => alias.trim())
           .filter(Boolean),
         variant: customForm.variant.trim() || undefined,
-        basisAmount: 100,
+        basisAmount,
         basisUnit: customForm.basisUnit,
         nutrients,
         sourceReference: undefined,
@@ -503,7 +600,7 @@ export function FoodPickerSheet({
     }
     await reloadFoods();
     setSelectedFood(saved);
-    setQuantity("100");
+    setQuantity(String(saved.basisAmount));
     setView("quantity");
     toast.success(editingCustom ? "Custom food updated" : "Custom food created");
   };
@@ -621,7 +718,12 @@ export function FoodPickerSheet({
                     </ul>
                   )}
                 </div>
-                <p className="text-center text-[11px] text-muted-foreground">Bundled values come from USDA FoodData Central. Saved scans come from Open Food Facts and work offline.</p>
+                {query.trim().length >= 2 && !loading && (
+                  <Button type="button" variant="outline" className="w-full" onClick={() => void searchOnline()}>
+                    <Globe2 className="size-4" /> Search online for “{query.trim().slice(0, 28)}{query.trim().length > 28 ? "…" : ""}”
+                  </Button>
+                )}
+                <p className="text-center text-[11px] text-muted-foreground">Online search checks USDA FoodData Central and Open Food Facts. Saved results work offline.</p>
               </div>
             </>
           )}
@@ -651,11 +753,58 @@ export function FoodPickerSheet({
             </>
           )}
 
+          {view === "online" && (
+            <>
+              <SheetHeader className="text-left">
+                <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setView("browse")}>
+                  <ArrowLeft className="size-4" /> Back to offline search
+                </button>
+                <SheetTitle>Online results</SheetTitle>
+                <SheetDescription>Foods matching “{onlineSearchQuery}” from USDA FoodData Central and Open Food Facts.</SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+                {onlineSearchLoading ? (
+                  <div className="flex h-36 items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Searching USDA and Open Food Facts…</div>
+                ) : onlineSearchError ? (
+                  <div className="space-y-3 rounded-xl border border-dashed p-6 text-center"><p className="text-sm text-muted-foreground">{onlineSearchError}</p><Button type="button" variant="outline" onClick={() => void searchOnline()}>Try again</Button></div>
+                ) : onlineResults.length === 0 ? (
+                  <div className="space-y-3 rounded-xl border border-dashed p-6 text-center"><p className="text-sm text-muted-foreground">No foods found from either source. You can add this as a custom food instead.</p><Button type="button" variant="outline" onClick={() => openCustomForm()}>Create custom food</Button></div>
+                ) : (
+                  <ul className="divide-y rounded-xl border">
+                    {onlineResults.map((food) => (
+                      <li key={`${food.source}:${food.id}`}>
+                        <button type="button" className="w-full px-3 py-3 text-left transition hover:bg-muted/50" onClick={() => void chooseOnlineFood(food)}>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">{food.name}</span>
+                            <Badge variant="secondary" className="shrink-0 text-[10px]">
+                              {food.source === "usda" ? "USDA" : "Open Food Facts"}
+                            </Badge>
+                          </span>
+                          {food.brand ? <span className="block truncate text-xs text-muted-foreground">{food.brand}</span> : null}
+                          <span className="block truncate text-xs text-muted-foreground">{number(food.nutrients.caloriesKcal)} kcal · P {number(food.nutrients.proteinG)} g · C {number(food.nutrients.carbsG)} g · F {number(food.nutrients.fatG)} g / 100 g</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                  {onlineSources?.usda === "not_configured"
+                    ? "USDA is not configured, so these results are from Open Food Facts. Selecting one saves it for offline use."
+                    : onlineSources &&
+                        (onlineSources.usda === "unavailable" ||
+                          onlineSources.openFoodFacts === "unavailable")
+                      ? "One source was unavailable. Results from the other source can still be saved for offline use."
+                      : "Selecting a result saves it on this device for later offline use."}
+                </p>
+              </div>
+            </>
+          )}
+
           {view === "barcode_edit" && barcodeForm && (
             <>
               <SheetHeader className="text-left">
-                <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setView("barcode")}>
-                  <ArrowLeft className="size-4" /> Scan another code
+                <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setView(barcodeEditReturnView)}>
+                  <ArrowLeft className="size-4" /> {barcodeEditReturnView === "barcode" ? "Scan another code" : "Back to search"}
                 </button>
                 <SheetTitle>Confirm product</SheetTitle>
                 <SheetDescription>
@@ -768,6 +917,13 @@ export function FoodPickerSheet({
                     </Button>
                   </div>
                 )}
+                {selectedFood.source === "usda" && selectedFood.sourceReference && (
+                  <div className="col-span-2 rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                    <a href={selectedFood.sourceReference} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      View on USDA FoodData Central
+                    </a>
+                  </div>
+                )}
               </div>
               <SheetFooter>
                 <Button type="button" size="lg" onClick={saveSelectedFood}>{entry ? "Save changes" : `Add to ${MEAL_LABELS[meal]}`}</Button>
@@ -782,13 +938,23 @@ export function FoodPickerSheet({
                   <ArrowLeft className="size-4" /> Back to search
                 </button>
                 <SheetTitle>{editingCustom ? "Edit custom food" : "Create custom food"}</SheetTitle>
-                <SheetDescription>Enter nutrition per 100 g or 100 ml.</SheetDescription>
+                <SheetDescription>Enter nutrition for the serving size you have available.</SheetDescription>
               </SheetHeader>
               <div className="grid grid-cols-2 gap-3 overflow-y-auto px-4">
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-name">Name</Label><Input id="custom-food-name" value={customForm.name} onChange={(event) => setCustomForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Homemade granola" autoFocus /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-variant">Variant (optional)</Label><Input id="custom-food-variant" value={customForm.variant} onChange={(event) => setCustomForm((form) => ({ ...form, variant: event.target.value }))} placeholder="e.g. Baked" /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-aliases">Search aliases (optional)</Label><Input id="custom-food-aliases" value={customForm.aliases} onChange={(event) => setCustomForm((form) => ({ ...form, aliases: event.target.value }))} placeholder="Romanian name, another name" /><p className="text-xs text-muted-foreground">Separate aliases with commas.</p></div>
-                <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-unit">Nutrition basis</Label><Select value={customForm.basisUnit} onValueChange={(value) => setCustomForm((form) => ({ ...form, basisUnit: value as "g" | "ml" }))}><SelectTrigger id="custom-food-unit" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="g">Per 100 g</SelectItem><SelectItem value="ml">Per 100 ml</SelectItem></SelectContent></Select></div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label htmlFor="custom-food-basis">These nutrition values are for</Label>
+                  <div className="grid grid-cols-[1fr_7rem] gap-2">
+                    <NumberInput id="custom-food-basis" decimal value={customForm.basisAmount} onChange={(event) => setCustomForm((form) => ({ ...form, basisAmount: event.target.value }))} placeholder="e.g. 40" />
+                    <Select value={customForm.basisUnit} onValueChange={(value) => setCustomForm((form) => ({ ...form, basisUnit: value as "g" | "ml" }))}>
+                      <SelectTrigger id="custom-food-unit" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="g">grams</SelectItem><SelectItem value="ml">ml</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Enter the serving shown on your label, such as 40 g. ForkWorkout scales it automatically.</p>
+                </div>
                 {([
                   ["calories", "Calories (kcal)"],
                   ["protein", "Protein (g)"],
@@ -797,6 +963,27 @@ export function FoodPickerSheet({
                 ] as const).map(([field, label]) => (
                   <div key={field} className="space-y-1.5"><Label htmlFor={`custom-food-${field}`}>{label}</Label><NumberInput id={`custom-food-${field}`} decimal value={customForm[field]} onChange={(event) => setCustomForm((form) => ({ ...form, [field]: event.target.value }))} placeholder="0" /></div>
                 ))}
+                {(() => {
+                  const basis = Number.parseFloat(customForm.basisAmount);
+                  const values = {
+                    caloriesKcal: Number.parseFloat(customForm.calories),
+                    proteinG: Number.parseFloat(customForm.protein),
+                    carbsG: Number.parseFloat(customForm.carbs),
+                    fatG: Number.parseFloat(customForm.fat),
+                  };
+                  if (
+                    !Number.isFinite(basis) ||
+                    basis <= 0 ||
+                    Object.values(values).some((value) => !Number.isFinite(value) || value < 0)
+                  ) return null;
+                  const per100 = nutrientsForQuantity(values, 100, basis);
+                  return (
+                    <div className="col-span-2 rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground">Equivalent per 100{customForm.basisUnit}</p>
+                      <p className="mt-1 tabular-nums">{number(per100.caloriesKcal)} kcal · P {number(per100.proteinG)} g · C {number(per100.carbsG)} g · F {number(per100.fatG)} g</p>
+                    </div>
+                  );
+                })()}
               </div>
               <SheetFooter><Button type="button" size="lg" onClick={() => void saveCustomFood()}>{editingCustom ? "Save and continue" : "Create and continue"}</Button></SheetFooter>
             </>

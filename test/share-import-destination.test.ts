@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getShareImportDestination } from "@/lib/sharing/import-destination";
 import { buildShortShareUrl } from "@/lib/sharing/link";
 import { buildShareUrl } from "@/lib/storage/share";
+import { buildNutritionMealShareUrl } from "@/lib/nutrition/meal-share";
 import type { Workout } from "@/lib/types";
 
 const workout: Workout = {
@@ -34,6 +35,23 @@ describe("share import destinations", () => {
     expect(legacy).not.toBeNull();
     expect(getShareImportDestination(legacy!, "https://receiver.example")).toContain(
       "https://receiver.example/app#import="
+    );
+  });
+
+  it("routes a valid meal payload to Nutrition", () => {
+    const mealUrl = buildNutritionMealShareUrl(
+      "Lunch",
+      [
+        {
+          name: "Rice",
+          source: "builtin",
+          nutrients: { caloriesKcal: 130, proteinG: 2.7, carbsG: 28, fatG: 0.3 },
+        },
+      ],
+      "https://sender.example"
+    );
+    expect(getShareImportDestination(mealUrl!, "https://receiver.example")).toContain(
+      "https://receiver.example/nutrition#importMeal="
     );
   });
 

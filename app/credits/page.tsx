@@ -39,7 +39,7 @@ const CREDITS: Credit[] = [
   },
   {
     title: "QR code generation",
-    used: "qrcode.react — renders workout and program share codes.",
+    used: "qrcode.react — renders workout, program and meal share codes.",
     license: "ISC",
     href: "https://github.com/zpao/qrcode.react",
   },
@@ -57,13 +57,13 @@ const CREDITS: Credit[] = [
   },
   {
     title: "Packaged food data",
-    used: "Open Food Facts — supplies names and nutrition values for scanned products.",
+    used: "Open Food Facts — supplies names and nutrition values for scanned or explicitly searched packaged foods.",
     license: "ODbL 1.0",
     href: "https://world.openfoodfacts.org",
   },
   {
     title: "Generic food data",
-    used: "USDA FoodData Central — supplies the bundled offline nutrition catalog.",
+    used: "USDA FoodData Central — supplies the bundled offline catalog and optional online generic-food search.",
     license: "CC0 / public domain",
     href: "https://fdc.nal.usda.gov",
   },
@@ -143,7 +143,8 @@ export default function CreditsPage() {
       </div>
 
       <p className="mt-8 text-sm text-muted-foreground">
-        Everything you log stays on your device — no account, no servers, no tracking.
+        Everything you log stays on your device unless you explicitly share it or
+        use an optional backup — no account and no tracking.
       </p>
     </main>
   );

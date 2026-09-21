@@ -133,6 +133,33 @@ export function deleteNutritionSavedMeal(id: string): boolean {
   return next.length !== meals.length && saveNutritionSavedMeals(next);
 }
 
+/** Imports a shared meal with a fresh id and a non-conflicting local name. */
+export function importNutritionSavedMeal(
+  candidate: NutritionSavedMeal
+): NutritionSavedMeal | null {
+  const normalized = normalizeNutritionSavedMeal(candidate);
+  if (!normalized) return null;
+  const meals = getNutritionSavedMeals();
+  const existingNames = new Set(meals.map((meal) => meal.name.toLocaleLowerCase()));
+  const baseName = normalized.name;
+  let name = baseName;
+  let suffix = 2;
+  while (existingNames.has(name.toLocaleLowerCase())) {
+    name = `${baseName} (${suffix})`.slice(0, 120);
+    suffix += 1;
+  }
+  const now = new Date().toISOString();
+  const imported = normalizeNutritionSavedMeal({
+    ...normalized,
+    id: uuidv4(),
+    name,
+    createdAt: now,
+    updatedAt: now,
+  });
+  if (!imported) return null;
+  return saveNutritionSavedMeals([imported, ...meals]) ? imported : null;
+}
+
 function entrySignature(
   entry: Pick<NutritionEntry, "meal" | "name" | "source" | "nutrients" | "quantity" | "foodSnapshot">
 ): string {

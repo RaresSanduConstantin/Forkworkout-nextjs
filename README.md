@@ -91,9 +91,25 @@ There are two ways it can work:
 > and safe. Never put an OAuth *client secret* in the app; this flow doesn't use
 > one. Costs: the Drive API and OAuth are free for this usage.
 
-## Encrypted short workout links (optional)
+## Online food search
 
-Large programs can be shared through short, expiring links without adding user
+The bundled food catalog always works offline. The explicit Search online
+action checks Open Food Facts and, when configured, USDA FoodData Central. To
+include USDA generic-food results, create a FoodData Central API key and add it
+to `.env.local` and your deployment environment:
+
+```bash
+USDA_FDC_API_KEY=your_server_side_key
+```
+
+Keep this variable server-only. Do not use a `NEXT_PUBLIC_` prefix and do not
+commit the key. ForkWorkout sends explicit online food searches through
+`/api/nutrition/search` to both providers, then caches only the food selected by
+the user locally. Open Food Facts remains available when no USDA key is set.
+
+## Encrypted short share links (optional)
+
+Workouts, programs, and reusable meals can be shared through short, expiring links without adding user
 accounts. The browser encrypts the existing compressed share payload, a Next.js
 Route Handler stores only the ciphertext in Upstash Redis, and the decryption
 key remains in the URL fragment.

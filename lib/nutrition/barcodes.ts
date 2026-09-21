@@ -1,6 +1,6 @@
 import type { NutritionFood, NutritionNutrients } from "./types";
 
-const OPEN_FOOD_FACTS_PRODUCT_FIELDS = [
+export const OPEN_FOOD_FACTS_PRODUCT_FIELDS = [
   "code",
   "product_name",
   "product_name_en",
@@ -95,7 +95,15 @@ export function normalizeOpenFoodFactsProduct(
   if (!raw || typeof raw !== "object") return null;
   const response = raw as Record<string, unknown>;
   if (!response.product || typeof response.product !== "object") return null;
-  const product = response.product as Record<string, unknown>;
+  return normalizeOpenFoodFactsProductRecord(response.product, requestedBarcode);
+}
+
+function normalizeOpenFoodFactsProductRecord(
+  raw: unknown,
+  requestedBarcode: string
+): BarcodeProductDraft | null {
+  if (!raw || typeof raw !== "object") return null;
+  const product = raw as Record<string, unknown>;
   const nutriments =
     product.nutriments && typeof product.nutriments === "object"
       ? (product.nutriments as Record<string, unknown>)
@@ -130,6 +138,31 @@ export function normalizeOpenFoodFactsProduct(
     sodiumMg: sodiumG === undefined ? undefined : sodiumG * 1000,
     sourceReference: `https://world.openfoodfacts.org/product/${barcode}`,
   };
+}
+
+/** Normalizes a complete Open Food Facts text-search result for local caching. */
+export function normalizeOpenFoodFactsSearchProduct(raw: unknown): NutritionFood | null {
+  const value = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const barcode = value ? text(value.code) : "";
+  const draft = normalizeOpenFoodFactsProductRecord(raw, barcode);
+  if (
+    !draft?.name ||
+    draft.caloriesKcal === undefined ||
+    draft.proteinG === undefined ||
+    draft.carbsG === undefined ||
+    draft.fatG === undefined
+  ) {
+    return null;
+  }
+  return barcodeDraftToFood(draft, {
+    caloriesKcal: draft.caloriesKcal,
+    proteinG: draft.proteinG,
+    carbsG: draft.carbsG,
+    fatG: draft.fatG,
+    fibreG: draft.fibreG,
+    sugarG: draft.sugarG,
+    sodiumMg: draft.sodiumMg,
+  });
 }
 
 export async function fetchOpenFoodFactsProduct(

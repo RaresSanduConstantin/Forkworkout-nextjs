@@ -39,6 +39,7 @@ import { downloadExport, mergeImport } from "@/lib/storage/transfer";
 import { downloadExcel } from "@/lib/storage/excel-export";
 import { decodeWorkout } from "@/lib/storage/share";
 import { decodeProgram } from "@/lib/storage/program-share";
+import { decodeNutritionMeal } from "@/lib/nutrition/meal-share";
 import { buildSharedImportUrl } from "@/lib/storage/share-link";
 import { parseShareFile } from "@/lib/sharing/file";
 import { storeShareHandoff } from "@/lib/sharing/handoff";
@@ -112,13 +113,17 @@ const HistoryComponent = () => {
         const valid =
           sharedReference.kind === "program"
             ? decodeProgram(sharedReference.encoded) !== null
-            : decodeWorkout(sharedReference.encoded) !== null;
+            : sharedReference.kind === "nutrition-meal"
+              ? decodeNutritionMeal(sharedReference.encoded) !== null
+              : decodeWorkout(sharedReference.encoded) !== null;
         if (!valid) throw new Error("That ForkWorkout share file is invalid.");
 
         const handoffId = storeShareHandoff({ reference: sharedReference });
+        const destination =
+          sharedReference.kind === "nutrition-meal" ? ROUTES.nutrition : ROUTES.dashboard;
         window.location.assign(
           handoffId
-            ? `${ROUTES.dashboard}?shareHandoff=${handoffId}`
+            ? `${destination}?shareHandoff=${handoffId}`
             : buildSharedImportUrl(sharedReference, window.location.origin)
         );
         return;
@@ -140,6 +145,7 @@ const HistoryComponent = () => {
         nutritionFoodPreferencesRestored,
         nutritionSavedMealsAdded,
         nutritionBarcodeProductsRestored,
+        nutritionUsdaFoodsRestored,
       } = mergeImport(text, {
         restoreSettings: true,
         restoreBodyData: true,
@@ -185,6 +191,10 @@ const HistoryComponent = () => {
       if (nutritionBarcodeProductsRestored)
         parts.push(
           `${nutritionBarcodeProductsRestored} cached barcode ${nutritionBarcodeProductsRestored === 1 ? "product" : "products"}`
+        );
+      if (nutritionUsdaFoodsRestored)
+        parts.push(
+          `${nutritionUsdaFoodsRestored} cached USDA ${nutritionUsdaFoodsRestored === 1 ? "food" : "foods"}`
         );
       if (!persisted) {
         toast.warning(

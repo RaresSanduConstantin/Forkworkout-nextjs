@@ -70,7 +70,7 @@ export function QrScannerPanel({
               setScanError(null);
               scanner?.stop();
             } else {
-              setScanError("That QR code is not a ForkWorkout workout or program.");
+              setScanError("That QR code is not a ForkWorkout workout, program, or meal.");
             }
           },
           {

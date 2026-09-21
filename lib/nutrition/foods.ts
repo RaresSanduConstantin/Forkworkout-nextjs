@@ -5,6 +5,7 @@ import {
   nutritionFoodKey,
 } from "@/lib/storage/nutrition-food-storage";
 import { getCachedNutritionBarcodeProducts } from "@/lib/storage/nutrition-barcode-storage";
+import { getCachedNutritionUsdaFoods } from "@/lib/storage/nutrition-usda-storage";
 
 type BundledFoodCatalog = {
   version: number;
@@ -17,6 +18,7 @@ let inflight: Promise<NutritionFood[]> | null = null;
 function withLocalFoods(bundled: NutritionFood[]): NutritionFood[] {
   return [
     ...getCustomNutritionFoods(),
+    ...getCachedNutritionUsdaFoods(),
     ...getCachedNutritionBarcodeProducts(),
     ...bundled,
   ];

@@ -1,6 +1,6 @@
 # Nutrition Feature Roadmap
 
-Last updated: 2026-09-20
+Last updated: 2026-09-21
 
 This document is the durable implementation checkpoint for ForkWorkout's
 local-first Nutrition section. Update it whenever a phase or meaningful task is
@@ -21,6 +21,12 @@ completed so work can resume without relying on chat history.
 - A curated, bundled generic-food catalog will support offline search, with raw
   and cooked variants stored as distinct foods.
 - Barcode products come from Open Food Facts and are cached locally.
+- Explicit online name search checks both USDA FoodData Central and Open Food
+  Facts, never search-as-you-type. The USDA API key stays server-only, partial
+  provider failures are tolerated, and selected results join the matching
+  bounded local cache.
+- Shared meal imports are reviewed and saved as reusable templates; they never
+  silently change a recipient's daily log.
 - Nutrition-label OCR is deferred until the core flows and barcode scanner are
   stable. Its first languages will be English and Romanian.
 - Label photographs remain on-device and temporary; they are not persisted.
@@ -98,6 +104,13 @@ Status: Phase 2B implemented; installed-device QA pending
       experience. Cached barcode foods remain part of Phase 4.
 - [x] Add quantity calculation and editable confirmation before logging.
 - [x] Add custom-food create/edit/delete flows.
+- [x] Accept nutrition values for an arbitrary known amount such as 40 g or
+      250 ml, show the per-100 equivalent, and scale logged quantities from the
+      original basis without rewriting existing foods.
+- [x] Offer an explicit combined USDA FoodData Central and Open Food Facts
+      search when local results are insufficient, with server-only USDA
+      credentials, source labels, partial-failure handling, and local caching
+      after selection.
 - [x] Rank favourites, frequency, and recency without duplicating history.
 - [x] Include custom foods, favourites, and recents in backup, restore, reset,
       IndexedDB reconciliation, and migration recovery.
@@ -145,13 +158,23 @@ Status: Implemented; device QA and user review pending
       that are already present at the destination.
 - [x] Include saved meals in backup, restore, reset, migration recovery, and
       IndexedDB reconciliation.
+- [x] Let users choose any subset of a logged Breakfast, Lunch, Dinner, or
+      Snacks group when creating a saved meal.
+- [x] Share any selected subset as a reusable meal through self-contained or
+      encrypted short links, QR codes, and portable share files.
+- [x] Surface link and QR meal importing directly below the Nutrition page's
+      Add Food and Add Meal controls.
+- [x] Review shared foods before importing, create fresh IDs, and preserve
+      existing meals by giving duplicate names a suffix.
 
 ### Phase 3 implementation checkpoint
 
-- UI: `components/nutrition/MealActionsSheet.tsx` and the Nutrition dashboard's
-  Add Meal and Save as meal actions.
-- Persistence/copying: `lib/storage/nutrition-meal-storage.ts`.
-- Validation result: 43 test files and 258 tests passed; production build
+- UI: `components/nutrition/MealActionsSheet.tsx`,
+  `components/nutrition/MealShareDialog.tsx`, and the Nutrition dashboard's Add
+  Meal, Save as meal, and Share actions.
+- Persistence/copying: `lib/storage/nutrition-meal-storage.ts`; portable meal
+  payloads: `lib/nutrition/meal-share.ts`.
+- Validation result: 46 test files and 274 tests passed; production build
   passed with `/nutrition` generated as a static route.
 - [ ] Perform installed-phone QA for the saved-meal and whole-day confirmation
       flows.
@@ -178,13 +201,15 @@ Status: Implemented; installed-device camera QA pending
 
 - Scanner UI: `components/nutrition/BarcodeScannerPanel.tsx`, opened explicitly
   from the existing Add Food sheet.
-- Product adapter: `lib/nutrition/barcodes.ts`, using the Open Food Facts v3
-  product endpoint only after a complete barcode is detected or entered.
+- Product adapters: `lib/nutrition/barcodes.ts` uses the Open Food Facts v3
+  product endpoint after a complete barcode is detected or entered;
+  `lib/nutrition/usda.ts` and `/api/nutrition/search` combine explicit USDA and
+  Open Food Facts name search without exposing the USDA API key.
 - Cache: `lib/storage/nutrition-barcode-storage.ts`, capped at 100 confirmed
   products and merged into normal offline food search.
 - Scanner dependency: dynamically loaded `@zxing/browser` and
   `@zxing/library`, pinned to Node 20-compatible releases.
-- Validation result: 43 test files and 262 tests passed; production build
+- Validation result: 46 test files and 274 tests passed; production build
   passed with `/nutrition` generated as a static route and the scanner loaded
   through a separate dynamic chunk.
 

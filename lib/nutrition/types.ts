@@ -5,6 +5,7 @@ export type NutritionMeal = (typeof NUTRITION_MEALS)[number];
 export type NutritionSource =
   | "quick_add"
   | "builtin"
+  | "usda"
   | "custom"
   | "barcode"
   | "label_ocr"
@@ -47,7 +48,7 @@ export type NutritionFood = {
   basisAmount: number;
   basisUnit: "g" | "ml";
   nutrients: NutritionNutrients;
-  source: "builtin" | "custom" | "barcode";
+  source: "builtin" | "usda" | "custom" | "barcode";
   sourceReference?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -139,6 +140,11 @@ export type StoredNutritionFoodPreferences = {
 };
 
 export type StoredNutritionBarcodeProducts = {
+  version: 1;
+  data: NutritionFood[];
+};
+
+export type StoredNutritionUsdaFoods = {
   version: 1;
   data: NutritionFood[];
 };

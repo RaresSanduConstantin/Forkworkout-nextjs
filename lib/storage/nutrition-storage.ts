@@ -22,6 +22,7 @@ import { readJson, writeJson } from "./safe-storage";
 const SOURCES: NutritionSource[] = [
   "quick_add",
   "builtin",
+  "usda",
   "custom",
   "barcode",
   "label_ocr",
@@ -104,6 +105,7 @@ function normalizeFoodSnapshot(raw: unknown): NutritionFoodSnapshot | undefined 
     (basisUnit !== "g" && basisUnit !== "ml") ||
     !nutrients ||
     (source !== "builtin" &&
+      source !== "usda" &&
       source !== "custom" &&
       source !== "barcode" &&
       source !== "label_ocr")

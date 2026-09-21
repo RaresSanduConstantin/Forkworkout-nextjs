@@ -66,6 +66,8 @@ export function migrationSafetyBackupHasData(b: MigrationSafetyBackup | null): b
       b.bundle.nutritionSavedMeals.length > 0) ||
     (Array.isArray(b.bundle.nutritionBarcodeProducts) &&
       b.bundle.nutritionBarcodeProducts.length > 0) ||
+    (Array.isArray(b.bundle.nutritionUsdaFoods) &&
+      b.bundle.nutritionUsdaFoods.length > 0) ||
     Boolean(b.bundle.nutritionTargets) ||
     Boolean(b.bundle.bodyProfile) ||
     Boolean(b.bundle.settings) ||
@@ -202,6 +204,12 @@ export function restoreMigrationSafetyBackup(): boolean {
     writeJson(STORAGE_KEYS.nutritionBarcodeProducts, {
       version: 1,
       data: b.bundle.nutritionBarcodeProducts,
+    });
+  }
+  if (Array.isArray(b.bundle.nutritionUsdaFoods)) {
+    writeJson(STORAGE_KEYS.nutritionUsdaFoods, {
+      version: 1,
+      data: b.bundle.nutritionUsdaFoods,
     });
   }
   return true;

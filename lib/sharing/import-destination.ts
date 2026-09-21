@@ -1,4 +1,5 @@
 import { buildShortShareUrl, extractShortShare } from "@/lib/sharing/link";
+import { decodeNutritionMeal } from "@/lib/nutrition/meal-share";
 import { decodeProgram } from "@/lib/storage/program-share";
 import { decodeWorkout } from "@/lib/storage/share";
 import {
@@ -19,6 +20,8 @@ export function getShareImportDestination(
   const valid =
     reference.kind === "program"
       ? decodeProgram(reference.encoded) !== null
-      : decodeWorkout(reference.encoded) !== null;
+      : reference.kind === "nutrition-meal"
+        ? decodeNutritionMeal(reference.encoded) !== null
+        : decodeWorkout(reference.encoded) !== null;
   return valid ? buildSharedImportUrl(reference, origin) : null;
 }

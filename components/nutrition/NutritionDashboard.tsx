@@ -12,7 +12,9 @@ import {
   Moon,
   Pencil,
   Plus,
+  ScanLine,
   Settings2,
+  Share2,
   Sun,
   Trash2,
   Utensils,
@@ -24,10 +26,20 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ImportShareDialog } from "@/components/sharing/ImportShareDialog";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { QuickAddSheet } from "./QuickAddSheet";
 import { FoodPickerSheet } from "./FoodPickerSheet";
 import { MealActionsSheet } from "./MealActionsSheet";
+import { MealShareDialog } from "./MealShareDialog";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
 import { dayKeyToDate, toDayKey } from "@/lib/date/day-key";
 import {
@@ -41,6 +53,12 @@ import {
   type NutritionMeal,
   type NutritionTargets,
 } from "@/lib/nutrition/types";
+import {
+  decodeNutritionMeal,
+  type DecodedNutritionMealShare,
+} from "@/lib/nutrition/meal-share";
+import { consumeShareHandoff } from "@/lib/sharing/handoff";
+import { extractSharedImport } from "@/lib/storage/share-link";
 import { getCompletedWorkouts } from "@/lib/storage/history-storage";
 import {
   deleteNutritionEntry,
@@ -49,6 +67,7 @@ import {
   getNutritionTargets,
   setNutritionWorkoutCaloriesIncluded,
 } from "@/lib/storage/nutrition-storage";
+import { importNutritionSavedMeal } from "@/lib/storage/nutrition-meal-storage";
 
 const MEAL_META: Record<
   NutritionMeal,
@@ -112,11 +131,18 @@ export function NutritionDashboard() {
   const [mealActionsOpen, setMealActionsOpen] = React.useState(false);
   const [mealActionStartSaving, setMealActionStartSaving] = React.useState(false);
   const [targetsOpen, setTargetsOpen] = React.useState(false);
+  const [importShareOpen, setImportShareOpen] = React.useState(false);
   const [workoutAdjustmentOpen, setWorkoutAdjustmentOpen] = React.useState(false);
   const [quickMeal, setQuickMeal] = React.useState<NutritionMeal>(defaultMeal);
   const [editingEntry, setEditingEntry] = React.useState<NutritionEntry | null>(null);
   const [editingFoodEntry, setEditingFoodEntry] = React.useState<NutritionEntry | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<NutritionEntry | null>(null);
+  const [mealShareTarget, setMealShareTarget] = React.useState<{
+    name: string;
+    entries: NutritionEntry[];
+  } | null>(null);
+  const [pendingMealImport, setPendingMealImport] =
+    React.useState<DecodedNutritionMealShare | null>(null);
 
   const refresh = React.useCallback(() => {
     setEntries(getNutritionEntries());
@@ -127,6 +153,29 @@ export function NutritionDashboard() {
   }, []);
 
   React.useEffect(() => refresh(), [refresh]);
+
+  React.useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    const handoff = consumeShareHandoff(search.get("shareHandoff"));
+    const reference = handoff?.reference ?? extractSharedImport(window.location.href);
+    if (!reference && !search.has("shareHandoff")) return;
+
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.hash = "";
+    cleanUrl.searchParams.delete("shareHandoff");
+    window.history.replaceState(null, "", `${cleanUrl.pathname}${cleanUrl.search}`);
+
+    if (!reference || reference.kind !== "nutrition-meal") {
+      toast.error("That link does not contain a shared nutrition meal.");
+      return;
+    }
+    const decoded = decodeNutritionMeal(reference.encoded);
+    if (!decoded) {
+      toast.error("That shared meal link looks invalid.");
+      return;
+    }
+    setPendingMealImport(decoded);
+  }, []);
 
   const selectedDate = dayKeyToDate(dayKey);
   const dayEntries = React.useMemo(
@@ -160,7 +209,13 @@ export function NutritionDashboard() {
   };
 
   const openEntryEditor = (entry: NutritionEntry) => {
-    if (entry.foodSnapshot && (entry.source === "builtin" || entry.source === "custom")) {
+    if (
+      entry.foodSnapshot &&
+      (entry.source === "builtin" ||
+        entry.source === "usda" ||
+        entry.source === "custom" ||
+        entry.source === "barcode")
+    ) {
       openFoodPicker(entry.meal, entry);
     } else {
       openQuickAdd(entry.meal, entry);
@@ -182,6 +237,19 @@ export function NutritionDashboard() {
     setPendingDelete(null);
     refresh();
     toast.success("Nutrition entry removed");
+  };
+
+  const confirmMealImport = () => {
+    if (!pendingMealImport) return;
+    const imported = importNutritionSavedMeal(pendingMealImport.meal);
+    if (!imported) {
+      toast.error("Couldn't save that shared meal on this device.");
+      return;
+    }
+    setPendingMealImport(null);
+    toast.success(`Saved “${imported.name}”`, {
+      description: "Open Add Meal to log it on any day.",
+    });
   };
 
   const calorieTarget = targets?.caloriesKcal;
@@ -354,25 +422,36 @@ export function NutritionDashboard() {
         )}
       </button>
 
-      <div className="mt-5 grid grid-cols-[1fr_auto] gap-2">
+      <div className="mt-5 space-y-2">
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <Button
+            type="button"
+            size="lg"
+            className="gap-2"
+            onClick={() => openFoodPicker(defaultMeal())}
+          >
+            <Plus className="size-5" />
+            Add Food
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="gap-2"
+            onClick={() => openMealActions(defaultMeal())}
+          >
+            <Utensils className="size-4" />
+            Add Meal
+          </Button>
+        </div>
         <Button
           type="button"
-          size="lg"
-          className="gap-2"
-          onClick={() => openFoodPicker(defaultMeal())}
-        >
-          <Plus className="size-5" />
-          Add Food
-        </Button>
-        <Button
-          type="button"
-          size="lg"
           variant="outline"
-          className="gap-2"
-          onClick={() => openMealActions(defaultMeal())}
+          className="w-full gap-2"
+          onClick={() => setImportShareOpen(true)}
         >
-          <Utensils className="size-4" />
-          Add Meal
+          <ScanLine className="size-4" />
+          Import Meal
         </Button>
       </div>
 
@@ -439,16 +518,29 @@ export function NutritionDashboard() {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-3 border-t pt-3">
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full"
                       onClick={() => openMealActions(meal, true)}
                     >
                       <BookmarkPlus className="size-4" />
                       Save as meal
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setMealShareTarget({
+                          name: `${meta.label} · ${format(selectedDate, "MMM d")}`,
+                          entries: mealEntries,
+                        })
+                      }
+                    >
+                      <Share2 className="size-4" />
+                      Share
                     </Button>
                   </div>
                   </CardContent>
@@ -501,6 +593,13 @@ export function NutritionDashboard() {
         entries={entries}
         onSaved={refresh}
       />
+      <MealShareDialog
+        open={mealShareTarget !== null}
+        onOpenChange={(open) => !open && setMealShareTarget(null)}
+        mealName={mealShareTarget?.name ?? "Shared meal"}
+        entries={mealShareTarget?.entries ?? []}
+      />
+      <ImportShareDialog open={importShareOpen} onOpenChange={setImportShareOpen} />
       <NutritionTargetsDialog
         open={targetsOpen}
         onOpenChange={setTargetsOpen}
@@ -542,6 +641,42 @@ export function NutritionDashboard() {
         destructive
         onConfirm={confirmDelete}
       />
+      <Dialog
+        open={pendingMealImport !== null}
+        onOpenChange={(open) => !open && setPendingMealImport(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle>Import {pendingMealImport?.meal.name ?? "shared meal"}?</DialogTitle>
+            <DialogDescription>
+              Review the foods below. This saves a reusable meal and does not add anything to today automatically.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingMealImport?.message && (
+            <blockquote className="rounded-xl border bg-muted/30 p-3 text-sm italic text-muted-foreground">
+              “{pendingMealImport.message}”
+            </blockquote>
+          )}
+          <ul className="max-h-64 divide-y overflow-y-auto rounded-xl border px-3">
+            {pendingMealImport?.meal.items.map((item, index) => (
+              <li key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <span className="min-w-0 truncate">{item.name}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {number(item.nutrients.caloriesKcal)} kcal
+                </span>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" onClick={() => setPendingMealImport(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={confirmMealImport}>
+              Save reusable meal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

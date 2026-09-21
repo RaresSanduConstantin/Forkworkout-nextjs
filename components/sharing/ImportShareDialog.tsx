@@ -39,7 +39,7 @@ export function ImportShareDialog({
     (candidate: string, showError: boolean): boolean => {
       const destination = getShareImportDestination(candidate, window.location.origin);
       if (!destination) {
-        if (showError) toast.error("That is not a valid ForkWorkout workout or program share.");
+        if (showError) toast.error("That is not a valid ForkWorkout workout, program, or meal share.");
         return false;
       }
       onOpenChange(false);
@@ -66,9 +66,9 @@ export function ImportShareDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[calc(100dvh-1rem)] min-w-0 max-w-sm flex-col overflow-hidden">
         <DialogHeader className="shrink-0 text-left">
-          <DialogTitle>Import workout or program</DialogTitle>
+          <DialogTitle>Import shared item</DialogTitle>
           <DialogDescription>
-            Paste a ForkWorkout link or scan its QR code. You&apos;ll review everything
+            Paste a workout, program, or meal link, or scan its QR code. You&apos;ll review everything
             before it is added to this device.
           </DialogDescription>
         </DialogHeader>

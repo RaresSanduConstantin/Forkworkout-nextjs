@@ -37,7 +37,10 @@ export function normalizeNutritionFood(
   if (
     !id ||
     !name ||
-    (source !== "builtin" && source !== "custom" && source !== "barcode") ||
+    (source !== "builtin" &&
+      source !== "usda" &&
+      source !== "custom" &&
+      source !== "barcode") ||
     (expectedSource && source !== expectedSource) ||
     !Number.isFinite(basisAmount) ||
     basisAmount <= 0 ||

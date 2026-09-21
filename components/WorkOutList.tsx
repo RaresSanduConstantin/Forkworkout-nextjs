@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpDown, CalendarDays, Copy, Download, Dumbbell, Flame, HardDrive, Layers3, Play, Plus, Scale, ScanLine, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
+import { Apple, ArrowUpDown, CalendarDays, Copy, Download, Dumbbell, Flame, HardDrive, Layers3, Play, Plus, Scale, ScanLine, SkipForward, Sparkles, Trash2, Trophy } from "lucide-react";
 
 import { honkFont } from "@/lib/honkFont";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ import {
   extractSharedImport,
   type SharedImportReference,
 } from "@/lib/storage/share-link";
-import { consumeShareHandoff } from "@/lib/sharing/handoff";
+import { consumeShareHandoff, storeShareHandoff } from "@/lib/sharing/handoff";
 import { buildShortShareUrl, extractShortShare } from "@/lib/sharing/link";
 import { deliverSharedReference } from "@/lib/sharing/delivery";
 import { createCloudShare } from "@/lib/sharing/client";
@@ -77,6 +77,7 @@ type IncomingShare =
   | { kind: "program"; decoded: DecodedProgramShare };
 
 function decodeIncomingShare(reference: SharedImportReference): IncomingShare | null {
+  if (reference.kind === "nutrition-meal") return null;
   if (reference.kind === "program") {
     const decoded = decodeProgram(reference.encoded);
     return decoded ? { kind: "program", decoded } : null;
@@ -273,6 +274,15 @@ const WorkoutList = () => {
       toast.error("No ForkWorkout share link was found.");
       return;
     }
+    if (reference.kind === "nutrition-meal") {
+      const handoffId = storeShareHandoff({ reference, sourceUrl: handoff?.sourceUrl });
+      window.location.replace(
+        handoffId
+          ? `${ROUTES.nutrition}?shareHandoff=${handoffId}`
+          : buildSharedImportUrl(reference, window.location.origin)
+      );
+      return;
+    }
     const incoming = decodeIncomingShare(reference);
     if (incoming) showIncomingShare(incoming, reference, handoff?.sourceUrl);
     else toast.error(`That shared ${reference.kind} link looks invalid.`);
@@ -426,7 +436,7 @@ const WorkoutList = () => {
     if (!pendingShareLink) return;
     if (await copyText(pendingShareLink)) {
       toast.success("Shared link copied", {
-        description: "Open ForkWorkout from your Home Screen, then tap Import workout or program.",
+        description: "Open ForkWorkout from your Home Screen, then tap Import.",
       });
     } else {
       toast.error("Couldn't copy the link. Select and copy it manually instead.");
@@ -744,6 +754,12 @@ const WorkoutList = () => {
           </Link>
         </Button>
         <Button asChild variant="outline" className="w-full gap-2">
+          <Link href={ROUTES.nutrition}>
+            <Apple className="size-4" />
+            Nutrition &amp; meals
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="w-full gap-2">
           <Link href={ROUTES.exercises}>
             <Dumbbell className="size-4" />
             Browse &amp; manage exercises
@@ -756,7 +772,7 @@ const WorkoutList = () => {
           onClick={() => setImportShareOpen(true)}
         >
           <ScanLine className="size-4" />
-          Import workout or program
+          Import workout, program or meal
         </Button>
       </div>
 
@@ -1170,7 +1186,7 @@ const WorkoutList = () => {
                   <p className="font-medium">Using the Home Screen app?</p>
                   <p className="mt-1 text-muted-foreground">
                     Your browser and installed app save separately. Copy this link,
-                    open ForkWorkout from your Home Screen, then tap Import workout or program.
+                    open ForkWorkout from your Home Screen, then tap Import.
                   </p>
                   <Input
                     readOnly
@@ -1241,7 +1257,7 @@ const WorkoutList = () => {
                   <p className="font-medium">Using the Home Screen app?</p>
                   <p className="mt-1 text-muted-foreground">
                     Your browser and installed app save separately. Copy this link,
-                    open ForkWorkout from your Home Screen, then tap Import workout or program.
+                    open ForkWorkout from your Home Screen, then tap Import.
                   </p>
                   <Input
                     readOnly

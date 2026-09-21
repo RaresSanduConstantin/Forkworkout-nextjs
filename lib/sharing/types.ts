@@ -10,7 +10,7 @@ export const SHORT_SHARE_KEY_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const base64UrlSchema = z.string().regex(/^[A-Za-z0-9_-]+$/);
 
 export const sharedReferenceSchema = z.object({
-  kind: z.enum(["workout", "program"]),
+  kind: z.enum(["workout", "program", "nutrition-meal"]),
   encoded: z.string().min(1).max(MAX_SHARE_PAYLOAD_BYTES),
 });
 
@@ -34,15 +34,14 @@ export type StoredShare = z.infer<typeof storedShareSchema>;
 
 export class SharePayloadTooLargeError extends Error {
   constructor() {
-    super("This workout or program is too large for cloud sharing.");
+    super("This shared item is too large for cloud sharing.");
     this.name = "SharePayloadTooLargeError";
   }
 }
 
 export class InvalidShareError extends Error {
-  constructor(message = "That shared workout or program is invalid.") {
+  constructor(message = "That ForkWorkout share is invalid.") {
     super(message);
     this.name = "InvalidShareError";
   }
 }
-

@@ -8,6 +8,11 @@ describe("ForkWorkout share files", () => {
     expect(parseShareFile(buildShareFile(reference))).toEqual(reference);
   });
 
+  it("accepts a portable nutrition meal reference", () => {
+    const reference = { kind: "nutrition-meal" as const, encoded: "meal-payload" };
+    expect(parseShareFile(buildShareFile(reference))).toEqual(reference);
+  });
+
   it("does not confuse backups or malformed JSON with share files", () => {
     expect(parseShareFile('{"version":1,"workouts":[]}')).toBeNull();
     expect(parseShareFile("broken")).toBeNull();
@@ -19,4 +24,3 @@ describe("ForkWorkout share files", () => {
     );
   });
 });
-

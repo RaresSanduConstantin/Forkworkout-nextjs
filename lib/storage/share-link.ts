@@ -1,9 +1,13 @@
 export type SharedImportReference = {
-  kind: "workout" | "program";
+  kind: "workout" | "program" | "nutrition-meal";
   encoded: string;
 };
 
 function extractDirect(value: string): SharedImportReference | null {
+  const nutritionMealMatch = value.match(/(?:#|&)importMeal=([^&\s]+)/);
+  if (nutritionMealMatch) {
+    return { kind: "nutrition-meal", encoded: nutritionMealMatch[1] };
+  }
   const programMatch = value.match(/(?:#|&)importProgram=([^&\s]+)/);
   if (programMatch) return { kind: "program", encoded: programMatch[1] };
 
@@ -34,6 +38,9 @@ export function buildSharedImportUrl(
   reference: SharedImportReference,
   origin: string
 ): string {
+  if (reference.kind === "nutrition-meal") {
+    return `${origin.replace(/\/$/, "")}/nutrition#importMeal=${reference.encoded}`;
+  }
   const key = reference.kind === "program" ? "importProgram" : "import";
   return `${origin.replace(/\/$/, "")}/app#${key}=${reference.encoded}`;
 }

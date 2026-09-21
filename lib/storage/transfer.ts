@@ -69,6 +69,10 @@ import {
   getCachedNutritionBarcodeProducts,
   saveCachedNutritionBarcodeProducts,
 } from "./nutrition-barcode-storage";
+import {
+  getCachedNutritionUsdaFoods,
+  saveCachedNutritionUsdaFoods,
+} from "./nutrition-usda-storage";
 
 export type ExportBundle = {
   version: number;
@@ -93,6 +97,7 @@ export type ExportBundle = {
   nutritionFoodPreferences?: NutritionFoodPreference[];
   nutritionSavedMeals?: NutritionSavedMeal[];
   nutritionBarcodeProducts?: NutritionFood[];
+  nutritionUsdaFoods?: NutritionFood[];
 };
 
 /** Builds a full snapshot of the user's local data. */
@@ -121,6 +126,7 @@ export function buildExport(): ExportBundle {
     nutritionFoodPreferences: getNutritionFoodPreferences(),
     nutritionSavedMeals: getNutritionSavedMeals(),
     nutritionBarcodeProducts: getCachedNutritionBarcodeProducts(),
+    nutritionUsdaFoods: getCachedNutritionUsdaFoods(),
   };
 }
 
@@ -169,6 +175,7 @@ export function mergeImport(
   nutritionFoodPreferencesRestored: number;
   nutritionSavedMealsAdded: number;
   nutritionBarcodeProductsRestored: number;
+  nutritionUsdaFoodsRestored: number;
 } {
   let parsed: unknown;
   try {
@@ -435,6 +442,27 @@ export function mergeImport(
     saveCachedNutritionBarcodeProducts(Array.from(barcodeProducts.values()));
   }
 
+  const usdaFoods = new Map(
+    getCachedNutritionUsdaFoods().map((food) => [food.id, food])
+  );
+  let nutritionUsdaFoodsRestored = 0;
+  if (Array.isArray(bundle.nutritionUsdaFoods)) {
+    for (const rawFood of bundle.nutritionUsdaFoods) {
+      const food = normalizeNutritionFood(rawFood, "usda");
+      if (!food) continue;
+      const existing = usdaFoods.get(food.id);
+      if (
+        !existing ||
+        options.restoreNutritionData ||
+        (food.updatedAt ?? "") > (existing.updatedAt ?? "")
+      ) {
+        usdaFoods.set(food.id, food);
+        nutritionUsdaFoodsRestored += 1;
+      }
+    }
+    saveCachedNutritionUsdaFoods(Array.from(usdaFoods.values()));
+  }
+
   // Restore body profile: only fill fields that aren't already set locally, so
   // an import never clobbers the current device's profile.
   let profileRestored = false;
@@ -505,5 +533,6 @@ export function mergeImport(
     nutritionFoodPreferencesRestored,
     nutritionSavedMealsAdded,
     nutritionBarcodeProductsRestored,
+    nutritionUsdaFoodsRestored,
   };
 }

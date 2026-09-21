@@ -13,6 +13,17 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added selective saved-meal creation so any subset of foods logged under a
+  meal can become its own reusable meal.
+- Added arbitrary custom-food nutrition bases such as values per 40 g or 250 ml,
+  with a live per-100 equivalent and automatic quantity scaling.
+- Added an explicit combined USDA FoodData Central and Open Food Facts name
+  search when the offline catalog does not have a match. The USDA API key
+  remains server-only, each result identifies its source, and selected foods
+  are cached locally for offline reuse and backups.
+- Added selective meal sharing and importing through encrypted links, QR codes,
+  self-contained links, and portable files. Imported foods are reviewed and
+  stored as a reusable meal rather than silently added to a day.
 - Added EAN/UPC food barcode scanning from the rear camera or an uploaded
   image, manual-code fallback, Open Food Facts lookup, editable nutrition
   confirmation, and a bounded offline product cache included in backups.
@@ -65,6 +76,12 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Added a full-width Import Meal action below Nutrition's primary logging
+  controls for pasted links and QR codes, while retaining review before a
+  shared meal is saved.
+- Updated privacy and attribution text for USDA food-name searches, Open Food
+  Facts name/barcode lookups, and reusable-meal sharing.
+- Added a direct Nutrition and meals shortcut to the main app dashboard.
 - Added a Saved meals shortcut inside each meal category's Add Food sheet,
   carrying that category into the reusable-meal picker automatically.
 - Updated the privacy disclosure and credits for optional Open Food Facts

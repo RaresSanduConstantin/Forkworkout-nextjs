@@ -29,8 +29,10 @@ export function SharedImportClient({ id }: { id: string }) {
         const reference = await resolveCloudShare(id, key);
         if (cancelled) return;
         const handoffId = storeShareHandoff({ reference, sourceUrl });
+        const destination =
+          reference.kind === "nutrition-meal" ? ROUTES.nutrition : ROUTES.dashboard;
         if (handoffId) {
-          window.location.replace(`${ROUTES.dashboard}?shareHandoff=${handoffId}`);
+          window.location.replace(`${destination}?shareHandoff=${handoffId}`);
         } else {
           // SessionStorage can be unavailable in strict privacy modes. The
           // payload stays inside this browser tab, so a legacy fragment is a
@@ -64,7 +66,7 @@ export function SharedImportClient({ id }: { id: string }) {
               <CloudDownload className="size-6" />
             )}
           </div>
-          <CardTitle>{error ? "Couldn’t open this share" : "Opening shared plan"}</CardTitle>
+          <CardTitle>{error ? "Couldn’t open this share" : "Opening shared item"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-center">
           {error ? (

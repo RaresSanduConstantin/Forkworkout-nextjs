@@ -23,6 +23,7 @@ export const STORAGE_KEYS = {
   nutritionFoodPreferences: "forkworkout:nutrition-food-preferences",
   nutritionSavedMeals: "forkworkout:nutrition-saved-meals",
   nutritionBarcodeProducts: "forkworkout:nutrition-barcode-products",
+  nutritionUsdaFoods: "forkworkout:nutrition-usda-foods",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

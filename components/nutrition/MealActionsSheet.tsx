@@ -89,6 +89,9 @@ export function MealActionsSheet({
   const [multiplier, setMultiplier] = React.useState<(typeof MULTIPLIERS)[number]>(1);
   const [savingCurrent, setSavingCurrent] = React.useState(false);
   const [savedMealName, setSavedMealName] = React.useState("");
+  const [selectedCurrentEntryIds, setSelectedCurrentEntryIds] = React.useState<Set<string>>(
+    new Set()
+  );
   const [pendingDelete, setPendingDelete] = React.useState<NutritionSavedMeal | null>(null);
   const [pendingDayCopy, setPendingDayCopy] = React.useState<string | null>(null);
 
@@ -103,8 +106,15 @@ export function MealActionsSheet({
     setMultiplier(1);
     setSavingCurrent(startSaving);
     setSavedMealName("");
+    setSelectedCurrentEntryIds(
+      new Set(
+        entries
+          .filter((entry) => entry.dayKey === dayKey && entry.meal === initialMeal)
+          .map((entry) => entry.id)
+      )
+    );
     refreshSavedMeals();
-  }, [initialMeal, open, refreshSavedMeals, startSaving]);
+  }, [dayKey, entries, initialMeal, open, refreshSavedMeals, startSaving]);
 
   const yesterdayKey = previousDayKey(dayKey);
   const currentMealEntries = entries.filter(
@@ -162,7 +172,14 @@ export function MealActionsSheet({
       toast.error(`Log something in ${MEAL_LABELS[destinationMeal].toLowerCase()} first.`);
       return;
     }
-    const saved = saveMealFromEntries(savedMealName, currentMealEntries);
+    const selectedEntries = currentMealEntries.filter((entry) =>
+      selectedCurrentEntryIds.has(entry.id)
+    );
+    if (!selectedEntries.length) {
+      toast.error("Choose at least one food to save.");
+      return;
+    }
+    const saved = saveMealFromEntries(savedMealName, selectedEntries);
     if (!saved) {
       toast.error("Enter a unique meal name.");
       return;
@@ -171,6 +188,20 @@ export function MealActionsSheet({
     setSavingCurrent(false);
     setSavedMealName("");
     toast.success("Meal saved for quick reuse");
+  };
+
+  const beginSavingCurrent = () => {
+    setSelectedCurrentEntryIds(new Set(currentMealEntries.map((entry) => entry.id)));
+    setSavingCurrent(true);
+  };
+
+  const toggleCurrentEntry = (id: string) => {
+    setSelectedCurrentEntryIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const confirmDelete = () => {
@@ -261,15 +292,27 @@ export function MealActionsSheet({
               <SheetHeader className="text-left">
                 <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setSavingCurrent(false)}><ArrowLeft className="size-4" /> Add meal</button>
                 <SheetTitle>Save {MEAL_LABELS[destinationMeal]}</SheetTitle>
-                <SheetDescription>{currentMealEntries.length} food{currentMealEntries.length === 1 ? "" : "s"} will be saved as a reusable meal.</SheetDescription>
+                <SheetDescription>Choose exactly which foods belong in this reusable meal.</SheetDescription>
               </SheetHeader>
               <div className="flex-1 space-y-3 px-4">
                 <div className="space-y-1.5"><Label htmlFor="saved-meal-name">Meal name</Label><Input id="saved-meal-name" value={savedMealName} onChange={(event) => setSavedMealName(event.target.value)} placeholder="e.g. Usual breakfast" maxLength={120} autoFocus /></div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">{selectedCurrentEntryIds.size} of {currentMealEntries.length} selected</p>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedCurrentEntryIds(new Set(currentMealEntries.map((entry) => entry.id)))}>Select all</Button>
+                </div>
                 <ul className="divide-y rounded-xl border px-3">
-                  {currentMealEntries.map((entry) => <li key={entry.id} className="flex items-center justify-between gap-3 py-2.5 text-sm"><span className="min-w-0 truncate">{entry.name}</span><span className="shrink-0 text-muted-foreground">{number(entry.nutrients.caloriesKcal)} kcal</span></li>)}
+                  {currentMealEntries.map((entry) => (
+                    <li key={entry.id}>
+                      <label className="flex cursor-pointer items-center gap-3 py-3 text-sm">
+                        <input type="checkbox" className="size-4 accent-primary" checked={selectedCurrentEntryIds.has(entry.id)} onChange={() => toggleCurrentEntry(entry.id)} />
+                        <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                        <span className="shrink-0 text-muted-foreground">{number(entry.nutrients.caloriesKcal)} kcal</span>
+                      </label>
+                    </li>
+                  ))}
                 </ul>
               </div>
-              <SheetFooter><Button type="button" size="lg" onClick={saveCurrentMeal}>Save meal</Button></SheetFooter>
+              <SheetFooter><Button type="button" size="lg" disabled={selectedCurrentEntryIds.size === 0} onClick={saveCurrentMeal}>Save {selectedCurrentEntryIds.size || ""} food{selectedCurrentEntryIds.size === 1 ? "" : "s"}</Button></SheetFooter>
             </>
           ) : (
             <>
@@ -285,7 +328,7 @@ export function MealActionsSheet({
                     <Select value={destinationMeal} onValueChange={(value) => setDestinationMeal(value as NutritionMeal)}><SelectTrigger id="repeat-destination" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{(Object.entries(MEAL_LABELS) as [NutritionMeal, string][]).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
                   </div>
 
-                  <Button type="button" variant="outline" className="w-full justify-start" disabled={!currentMealEntries.length} onClick={() => setSavingCurrent(true)}>
+                  <Button type="button" variant="outline" className="w-full justify-start" disabled={!currentMealEntries.length} onClick={beginSavingCurrent}>
                     <BookmarkPlus className="size-4" /> Save current {MEAL_LABELS[destinationMeal].toLowerCase()}
                   </Button>
 

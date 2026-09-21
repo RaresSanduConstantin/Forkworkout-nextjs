@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { SharedImportClient } from "@/components/sharing/SharedImportClient";
 
 export const metadata: Metadata = {
-  title: "Shared workout",
-  description: "Open an encrypted workout or program shared with ForkWorkout.",
+  title: "Shared ForkWorkout item",
+  description: "Open an encrypted workout, program, or meal shared with ForkWorkout.",
   robots: { index: false, follow: false },
 };
 
@@ -16,4 +16,3 @@ export default async function SharedWorkoutPage({
   const { id } = await params;
   return <SharedImportClient id={id} />;
 }
-

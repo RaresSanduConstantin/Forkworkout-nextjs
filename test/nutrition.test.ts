@@ -54,6 +54,10 @@ import {
   cacheNutritionBarcodeProduct,
   getCachedNutritionBarcodeProducts,
 } from "@/lib/storage/nutrition-barcode-storage";
+import {
+  cacheNutritionUsdaFood,
+  getCachedNutritionUsdaFoods,
+} from "@/lib/storage/nutrition-usda-storage";
 
 beforeEach(() => localStorage.clear());
 
@@ -89,6 +93,18 @@ describe("nutrition calculations", () => {
       sugarG: undefined,
       sodiumMg: 111,
     });
+  });
+
+  it("scales nutrition entered for a non-100g label serving", () => {
+    expect(
+      nutrientsForQuantity(
+        { caloriesKcal: 160, proteinG: 8, carbsG: 20, fatG: 4 },
+        100,
+        40
+      )
+    ).toEqual(
+      expect.objectContaining({ caloriesKcal: 400, proteinG: 20, carbsG: 50, fatG: 10 })
+    );
   });
 
   it("clamps displayed progress while retaining over-target totals", () => {
@@ -204,6 +220,17 @@ describe("nutrition storage", () => {
         { caloriesKcal: 539, proteinG: 6.3, carbsG: 57.5, fatG: 30.9 }
       )
     );
+    cacheNutritionUsdaFood({
+      id: "2341644",
+      name: "Cornmeal mush, cooked",
+      aliases: ["mamaliga"],
+      basisAmount: 100,
+      basisUnit: "g",
+      nutrients: { caloriesKcal: 70, proteinG: 1.5, carbsG: 15, fatG: 0.4 },
+      source: "usda",
+      sourceReference:
+        "https://fdc.nal.usda.gov/fdc-app.html#/food-details/2341644/nutrients",
+    });
     const bundle = buildExport();
 
     localStorage.clear();
@@ -219,12 +246,14 @@ describe("nutrition storage", () => {
     expect(result.nutritionFoodPreferencesRestored).toBe(1);
     expect(result.nutritionSavedMealsAdded).toBe(1);
     expect(result.nutritionBarcodeProductsRestored).toBe(1);
+    expect(result.nutritionUsdaFoodsRestored).toBe(1);
     expect(getNutritionEntries()[0].id).toBe(created?.id);
     expect(getNutritionTargets()?.caloriesKcal).toBe(2200);
     expect(getNutritionDayAdjustments()[0]?.dayKey).toBe("2026-09-20");
     expect(getCustomNutritionFoods()[0]?.name).toBe("Backup food");
     expect(getNutritionSavedMeals()[0]?.name).toBe("Backup breakfast");
     expect(getCachedNutritionBarcodeProducts()[0]?.id).toBe("3017620422003");
+    expect(getCachedNutritionUsdaFoods()[0]?.id).toBe("2341644");
   });
 
   it("restores an edited nutrition entry when recovering a backup", () => {
