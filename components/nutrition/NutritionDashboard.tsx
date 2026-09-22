@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { QuickAddSheet } from "./QuickAddSheet";
 import { FoodPickerSheet } from "./FoodPickerSheet";
+import { FoodPhotoAnalysisSheet } from "./FoodPhotoAnalysisSheet";
 import { MealActionsSheet } from "./MealActionsSheet";
 import { MealShareDialog } from "./MealShareDialog";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
@@ -51,6 +52,7 @@ import {
   NUTRITION_MEALS,
   type NutritionEntry,
   type NutritionMeal,
+  type NutritionSavedMeal,
   type NutritionTargets,
 } from "@/lib/nutrition/types";
 import {
@@ -128,8 +130,11 @@ export function NutritionDashboard() {
   const [workoutAdjustmentDays, setWorkoutAdjustmentDays] = React.useState<string[]>([]);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
   const [foodPickerOpen, setFoodPickerOpen] = React.useState(false);
+  const [foodPhotoOpen, setFoodPhotoOpen] = React.useState(false);
   const [mealActionsOpen, setMealActionsOpen] = React.useState(false);
   const [mealActionStartSaving, setMealActionStartSaving] = React.useState(false);
+  const [mealActionInitialSavedMealId, setMealActionInitialSavedMealId] =
+    React.useState<string | null>(null);
   const [targetsOpen, setTargetsOpen] = React.useState(false);
   const [importShareOpen, setImportShareOpen] = React.useState(false);
   const [workoutAdjustmentOpen, setWorkoutAdjustmentOpen] = React.useState(false);
@@ -208,6 +213,11 @@ export function NutritionDashboard() {
     setFoodPickerOpen(true);
   };
 
+  const openFoodPhoto = (meal: NutritionMeal) => {
+    setQuickMeal(meal);
+    setFoodPhotoOpen(true);
+  };
+
   const openEntryEditor = (entry: NutritionEntry) => {
     if (
       entry.foodSnapshot &&
@@ -222,9 +232,14 @@ export function NutritionDashboard() {
     }
   };
 
-  const openMealActions = (meal: NutritionMeal, startSaving = false) => {
+  const openMealActions = (
+    meal: NutritionMeal,
+    startSaving = false,
+    savedMeal?: NutritionSavedMeal
+  ) => {
     setQuickMeal(meal);
     setMealActionStartSaving(startSaving);
+    setMealActionInitialSavedMealId(savedMeal?.id ?? null);
     setMealActionsOpen(true);
   };
 
@@ -423,7 +438,7 @@ export function NutritionDashboard() {
       </button>
 
       <div className="mt-5 space-y-2">
-        <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
             size="lg"
@@ -443,16 +458,17 @@ export function NutritionDashboard() {
             <Utensils className="size-4" />
             Add Meal
           </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="col-span-2 gap-2"
+            onClick={() => setImportShareOpen(true)}
+          >
+            <ScanLine className="size-4" />
+            Import Meal
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full gap-2"
-          onClick={() => setImportShareOpen(true)}
-        >
-          <ScanLine className="size-4" />
-          Import Meal
-        </Button>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -572,23 +588,34 @@ export function NutritionDashboard() {
         initialMeal={quickMeal}
         entry={editingFoodEntry}
         onSaved={refresh}
-        onQuickAdd={(meal) => {
+        onPhotoScan={(meal) => {
           setFoodPickerOpen(false);
-          window.setTimeout(() => openQuickAdd(meal), 150);
+          window.setTimeout(() => openFoodPhoto(meal), 150);
         }}
-        onSavedMeals={(meal) => {
+        onSavedMeal={(savedMeal, meal) => {
           setFoodPickerOpen(false);
-          window.setTimeout(() => openMealActions(meal), 150);
+          window.setTimeout(() => openMealActions(meal, false, savedMeal), 150);
         }}
+      />
+      <FoodPhotoAnalysisSheet
+        open={foodPhotoOpen}
+        onOpenChange={setFoodPhotoOpen}
+        dayKey={dayKey}
+        initialMeal={quickMeal}
+        onSaved={refresh}
       />
       <MealActionsSheet
         open={mealActionsOpen}
         onOpenChange={(open) => {
           setMealActionsOpen(open);
-          if (!open) setMealActionStartSaving(false);
+          if (!open) {
+            setMealActionStartSaving(false);
+            setMealActionInitialSavedMealId(null);
+          }
         }}
         dayKey={dayKey}
         initialMeal={quickMeal}
+        initialSavedMealId={mealActionInitialSavedMealId}
         startSaving={mealActionStartSaving}
         entries={entries}
         onSaved={refresh}

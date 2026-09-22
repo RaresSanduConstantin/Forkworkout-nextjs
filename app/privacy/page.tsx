@@ -37,11 +37,13 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-lg font-semibold text-foreground">What we collect</h2>
           <p className="mt-2">
-            <strong>Nothing is sent to us.</strong> ForkWorkout has no servers
-            that receive your personal information. Everything you create —
-            workouts, exercises, sessions, history, body metrics, nutrition logs
-            and settings — is stored on your device. Optional third-party
-            features are described below.
+            ForkWorkout has no account system or central profile database.
+            Everything you create — workouts, exercises, sessions, history, body
+            metrics, nutrition logs and settings — is stored on your device.
+            ForkWorkout sends anonymous page-view information to Vercel Web
+            Analytics. Your fitness data leaves your device only when you
+            explicitly use one of the optional online, sharing, or backup
+            features described below.
           </p>
         </section>
 
@@ -56,6 +58,43 @@ export default function PrivacyPage() {
             time, while the decryption key stays in the link fragment. A recipient
             must review and import the shared item before it is stored on their
             device.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-foreground">Optional AI food-photo analysis</h2>
+          <p className="mt-2">
+            When you explicitly choose to analyze a food photo, ForkWorkout
+            resizes it on your device and sends the prepared image, plus an
+            optional weight you entered, through ForkWorkout&apos;s server to
+            OpenAI. The OpenAI API key stays on the server. A random anonymous
+            installation identifier and a hashed representation of your IP
+            address are used only to enforce scan limits and protect the service
+            from abuse. ForkWorkout requests that the model response is not
+            stored, but OpenAI may retain limited API data under its own data
+            controls and abuse-monitoring policies.
+          </p>
+          <p className="mt-2">
+            The photo and AI estimate are never added to your local diary
+            automatically. You review and edit the estimated foods, weights,
+            calories and macros first; only the confirmed nutrition values are
+            stored on your device. Read OpenAI&apos;s{" "}
+            <a
+              href="https://openai.com/policies/privacy-policy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              privacy policy
+            </a>
+            .
+          </p>
+          <p className="mt-2">
+            The random installation identifier is kept separately from your
+            workout and nutrition data, is not included in backups, and may
+            remain when you use the in-app data reset so that resetting the app
+            cannot bypass usage limits. Clearing all site data in your browser
+            removes it.
           </p>
         </section>
 
@@ -156,9 +195,22 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-lg font-semibold text-foreground">Tracking &amp; analytics</h2>
           <p className="mt-2">
-            ForkWorkout does not use advertising or third-party analytics/tracking
-            cookies. Standard hosting logs may be recorded by our host (Vercel) to
-            serve and secure the site.
+            ForkWorkout uses Vercel Web Analytics for anonymous, aggregated page
+            views and basic traffic information such as the visited route,
+            referrer, approximate location, device type, browser and operating
+            system. It does not send workout, body or nutrition records, and it
+            does not use advertising or third-party tracking cookies. Vercel may
+            also record standard hosting logs to serve and secure the site. Read
+            Vercel&apos;s{" "}
+            <a
+              href="https://vercel.com/docs/analytics/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Web Analytics privacy information
+            </a>
+            .
           </p>
         </section>
 

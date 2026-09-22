@@ -9,6 +9,7 @@ import {
 } from "@/lib/nutrition/calculations";
 import { buildExport, mergeImport } from "@/lib/storage/transfer";
 import {
+  addNutritionEntries,
   addNutritionEntry,
   deleteNutritionEntry,
   getNutritionDayAdjustments,
@@ -48,6 +49,7 @@ import {
   deleteNutritionSavedMeal,
   getNutritionSavedMeals,
   saveMealFromEntries,
+  saveMealFromItems,
 } from "@/lib/storage/nutrition-meal-storage";
 import {
   MAX_CACHED_BARCODE_PRODUCTS,
@@ -128,6 +130,36 @@ describe("nutrition calculations", () => {
 });
 
 describe("nutrition storage", () => {
+  it("saves a confirmed multi-food photo estimate atomically", () => {
+    const saved = addNutritionEntries([
+      {
+        ...quickAdd,
+        name: "Chicken",
+        source: "meal_photo",
+        quantity: { amount: 180, unit: "g" },
+      },
+      {
+        ...quickAdd,
+        name: "Rice",
+        source: "meal_photo",
+        quantity: { amount: 170, unit: "g" },
+      },
+    ]);
+    expect(saved).toHaveLength(2);
+    expect(getNutritionEntries()).toEqual([
+      expect.objectContaining({ name: "Chicken", source: "meal_photo" }),
+      expect.objectContaining({ name: "Rice", source: "meal_photo" }),
+    ]);
+
+    expect(
+      addNutritionEntries([
+        { ...quickAdd, name: "Valid" },
+        { ...quickAdd, name: "", source: "meal_photo" },
+      ])
+    ).toBeNull();
+    expect(getNutritionEntries()).toHaveLength(2);
+  });
+
   it("adds, updates, moves, and deletes a quick entry", () => {
     const created = addNutritionEntry(quickAdd);
     expect(created).not.toBeNull();
@@ -295,6 +327,36 @@ describe("nutrition storage", () => {
     });
     expect(deleteNutritionSavedMeal(meal!.id)).toBe(true);
     expect(getNutritionSavedMeals()).toEqual([]);
+  });
+
+  it("creates a reusable meal directly from catalog foods with gram quantities", () => {
+    const meal = saveMealFromItems("Chicken bowl", [
+      {
+        name: "Chicken breast",
+        source: "builtin",
+        quantity: { amount: 180, unit: "g" },
+        nutrients: { caloriesKcal: 297, proteinG: 55.8, carbsG: 0, fatG: 6.5 },
+        foodSnapshot: {
+          foodId: "chicken-breast-cooked",
+          name: "Chicken breast",
+          variant: "Cooked",
+          basisAmount: 100,
+          basisUnit: "g",
+          nutrients: { caloriesKcal: 165, proteinG: 31, carbsG: 0, fatG: 3.6 },
+          source: "builtin",
+        },
+      },
+    ]);
+
+    expect(meal?.items[0].quantity).toEqual({ amount: 180, unit: "g" });
+    expect(getNutritionSavedMeals()[0]?.items[0].quantity?.amount).toBe(180);
+
+    const result = copyNutritionItemsToDay(meal!.items, "2026-09-22", "dinner", 0.5);
+    expect(result).toEqual({ added: 1, skipped: 0, saved: true });
+    expect(getNutritionEntriesForDay("2026-09-22")[0]?.quantity).toEqual({
+      amount: 90,
+      unit: "g",
+    });
   });
 
   it("copies a complete previous day while preserving meals and skipping duplicates", () => {

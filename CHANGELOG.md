@@ -13,6 +13,12 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added Vercel Web Analytics page-view tracking through the root app layout.
+- Added an in-place saved-meal builder with searchable catalog foods, editable
+  gram or millilitre amounts, calculated calories, and immediate reuse.
+- Added optional AI food-photo analysis with browser-side image resizing,
+  editable multi-food estimates, optional known weights, and confirmation-only
+  local nutrition logging.
 - Added selective saved-meal creation so any subset of foods logged under a
   meal can become its own reusable meal.
 - Added arbitrary custom-food nutrition bases such as values per 40 g or 250 ml,
@@ -56,6 +62,11 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Accepted the server-normalized nested nutrient shape in the food-photo client
+  validator, preventing valid AI results from being rejected as incomplete.
+- Distinguished exhausted OpenAI API credits and temporary provider throttling
+  from an actual project or organization monthly spend limit in food-photo
+  errors, so the recovery message now matches the upstream cause.
 - Prevented the mobile keyboard from opening automatically with the Add Food
   sheet and obscuring its initial search and action controls.
 - Kept exercise-history progress charts inside their dialog on narrow or short
@@ -76,6 +87,11 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Consolidated nutrition logging around Add Food: saved meals now appear first,
+  photo scanning moved into the sheet, and the redundant Quick Add creation
+  shortcut was removed while legacy entries remain editable.
+- Saved meal details now show each food's stored amount and update it with the
+  selected portion multiplier.
 - Added a full-width Import Meal action below Nutrition's primary logging
   controls for pasted links and QR codes, while retaining review before a
   shared meal is saved.
@@ -98,6 +114,13 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
   backup restoration.
 - Limited migration safety snapshots to a 30-day recovery window, after which
   they are removed automatically.
+
+### Security
+
+- Protected AI photo analysis behind a server-only OpenAI key, strict file and
+  response validation, configurable per-installation and per-IP rate limits,
+  a production Redis requirement, and a feature kill switch that leaves all
+  non-AI nutrition tools available.
 
 ## 2026-08-19 — IndexedDB, short links, and QR sharing
 

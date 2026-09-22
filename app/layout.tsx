@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -79,6 +80,7 @@ export default function RootLayout({
             <Toaster richColors position="top-center" />
           </StorageBoot>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );

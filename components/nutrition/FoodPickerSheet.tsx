@@ -8,10 +8,10 @@ import {
   Loader2,
   Pencil,
   Plus,
+  ScanSearch,
   Search,
   Star,
   Trash2,
-  Utensils,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,7 +37,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { nutrientsForQuantity } from "@/lib/nutrition/calculations";
+import { nutrientsForQuantity, sumNutrients } from "@/lib/nutrition/calculations";
 import {
   barcodeDraftToFood,
   fetchOpenFoodFactsProduct,
@@ -57,6 +57,7 @@ import type {
   NutritionFoodPreference,
   NutritionEntry,
   NutritionMeal,
+  NutritionSavedMeal,
 } from "@/lib/nutrition/types";
 import {
   cacheNutritionBarcodeProduct,
@@ -72,6 +73,7 @@ import {
   upsertCustomNutritionFood,
 } from "@/lib/storage/nutrition-food-storage";
 import { addNutritionEntry, updateNutritionEntry } from "@/lib/storage/nutrition-storage";
+import { getNutritionSavedMeals } from "@/lib/storage/nutrition-meal-storage";
 
 const MEAL_LABELS: Record<NutritionMeal, string> = {
   breakfast: "Breakfast",
@@ -138,8 +140,8 @@ export function FoodPickerSheet({
   initialMeal,
   entry,
   onSaved,
-  onQuickAdd,
-  onSavedMeals,
+  onPhotoScan,
+  onSavedMeal,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -147,12 +149,13 @@ export function FoodPickerSheet({
   initialMeal: NutritionMeal;
   entry?: NutritionEntry | null;
   onSaved: () => void;
-  onQuickAdd: (meal: NutritionMeal) => void;
-  onSavedMeals: (meal: NutritionMeal) => void;
+  onPhotoScan: (meal: NutritionMeal) => void;
+  onSavedMeal: (savedMeal: NutritionSavedMeal, destinationMeal: NutritionMeal) => void;
 }) {
   const [view, setView] = React.useState<View>("browse");
   const [meal, setMeal] = React.useState<NutritionMeal>(initialMeal);
   const [foods, setFoods] = React.useState<NutritionFood[]>([]);
+  const [savedMeals, setSavedMeals] = React.useState<NutritionSavedMeal[]>([]);
   const [preferences, setPreferences] = React.useState<NutritionFoodPreference[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -202,6 +205,7 @@ export function FoodPickerSheet({
     setOnlineSearchLoading(false);
     setOnlineSearchError(null);
     setOnlineSources(null);
+    setSavedMeals(getNutritionSavedMeals());
     barcodeLookupControllerRef.current?.abort();
     onlineSearchControllerRef.current?.abort();
     void reloadFoods(true).then((loadedFoods) => {
@@ -631,6 +635,33 @@ export function FoodPickerSheet({
                 <SheetDescription>Search the offline catalog or use a recent favourite.</SheetDescription>
               </SheetHeader>
               <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">
+                {savedMeals.length > 0 && (
+                  <section className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Saved meals
+                    </p>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {savedMeals.map((savedMeal) => {
+                        const totals = sumNutrients(savedMeal.items);
+                        return (
+                          <button
+                            key={savedMeal.id}
+                            type="button"
+                            className="min-w-[9.5rem] max-w-[12rem] rounded-xl border bg-card p-3 text-left transition hover:bg-muted/50"
+                            onClick={() => onSavedMeal(savedMeal, meal)}
+                          >
+                            <span className="block truncate text-sm font-medium">
+                              {savedMeal.name}
+                            </span>
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              {savedMeal.items.length} foods · {number(totals.caloriesKcal)} kcal
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -652,13 +683,10 @@ export function FoodPickerSheet({
                   >
                     <Barcode className="size-4" /> Scan barcode
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => onSavedMeals(meal)}>
-                    <Utensils className="size-4" /> Saved meals
+                  <Button type="button" variant="secondary" onClick={() => onPhotoScan(meal)}>
+                    <ScanSearch className="size-4" /> Photo scan
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => onQuickAdd(meal)}>
-                    <Plus className="size-4" /> Quick Add
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => openCustomForm()}>
+                  <Button type="button" variant="outline" className="col-span-2" onClick={() => openCustomForm()}>
                     <Plus className="size-4" /> Custom food
                   </Button>
                 </div>

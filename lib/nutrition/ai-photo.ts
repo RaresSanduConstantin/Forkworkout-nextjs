@@ -1,0 +1,222 @@
+import type { NutritionNutrients } from "@/lib/nutrition/types";
+
+export const AI_PHOTO_SUPPORTED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export const AI_PHOTO_CLIENT_MAX_SOURCE_BYTES = 25 * 1024 * 1024;
+export const AI_PHOTO_CLIENT_MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+export type AIPhotoConfidence = "low" | "medium" | "high";
+
+export type AIPhotoFood = {
+  name: string;
+  estimatedWeightGrams: number;
+  nutrients: NutritionNutrients;
+  confidence: number;
+};
+
+export type AIPhotoAnalysis = {
+  foods: AIPhotoFood[];
+  total: NutritionNutrients;
+  confidence: AIPhotoConfidence;
+};
+
+export type AIPhotoErrorCode =
+  | "RATE_LIMITED"
+  | "MONTHLY_BUDGET_REACHED"
+  | "AI_BILLING_UNAVAILABLE"
+  | "INVALID_IMAGE"
+  | "AI_ANALYSIS_FAILED"
+  | "SCANNER_UNAVAILABLE";
+
+export class AIPhotoAnalysisError extends Error {
+  constructor(
+    readonly code: AIPhotoErrorCode,
+    message: string,
+    readonly retryAfterSeconds?: number
+  ) {
+    super(message);
+    this.name = "AIPhotoAnalysisError";
+  }
+}
+
+function boundedNumber(value: unknown, max: number): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= max ? parsed : null;
+}
+
+function round(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/** Validates untrusted model/API output and derives totals from the food rows. */
+export function normalizeAIPhotoAnalysis(raw: unknown): AIPhotoAnalysis | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  if (!Array.isArray(value.foods) || value.foods.length === 0 || value.foods.length > 20) {
+    return null;
+  }
+
+  const foods: AIPhotoFood[] = [];
+  for (const candidate of value.foods) {
+    if (!candidate || typeof candidate !== "object") return null;
+    const food = candidate as Record<string, unknown>;
+    // OpenAI's strict schema returns flat nutrient fields. The API route then
+    // normalizes them into the public `nutrients` object before sending them to
+    // the browser, so this shared validator must accept both representations.
+    const nutrientSource =
+      food.nutrients && typeof food.nutrients === "object"
+        ? (food.nutrients as Record<string, unknown>)
+        : food;
+    const name = typeof food.name === "string" ? food.name.trim().slice(0, 160) : "";
+    const estimatedWeightGrams = boundedNumber(food.estimatedWeightGrams, 100_000);
+    const caloriesKcal = boundedNumber(nutrientSource.caloriesKcal, 100_000);
+    const proteinG = boundedNumber(nutrientSource.proteinG, 10_000);
+    const carbsG = boundedNumber(nutrientSource.carbsG, 10_000);
+    const fatG = boundedNumber(nutrientSource.fatG, 10_000);
+    const confidence = boundedNumber(food.confidence, 1);
+    if (
+      !name ||
+      estimatedWeightGrams === null ||
+      caloriesKcal === null ||
+      proteinG === null ||
+      carbsG === null ||
+      fatG === null ||
+      confidence === null
+    ) {
+      return null;
+    }
+    foods.push({
+      name,
+      estimatedWeightGrams: round(estimatedWeightGrams),
+      nutrients: {
+        caloriesKcal: round(caloriesKcal),
+        proteinG: round(proteinG),
+        carbsG: round(carbsG),
+        fatG: round(fatG),
+      },
+      confidence,
+    });
+  }
+
+  const confidence = value.confidence;
+  if (confidence !== "low" && confidence !== "medium" && confidence !== "high") {
+    return null;
+  }
+
+  return {
+    foods,
+    total: foods.reduce<NutritionNutrients>(
+      (total, food) => ({
+        caloriesKcal: round(total.caloriesKcal + food.nutrients.caloriesKcal),
+        proteinG: round(total.proteinG + food.nutrients.proteinG),
+        carbsG: round(total.carbsG + food.nutrients.carbsG),
+        fatG: round(total.fatG + food.nutrients.fatG),
+      }),
+      { caloriesKcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+    ),
+    confidence,
+  };
+}
+
+function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Could not prepare this image."))),
+      "image/jpeg",
+      0.82
+    );
+  });
+}
+
+/** Shrinks camera photos before upload to reduce latency, tokens, and spend. */
+export async function prepareAIPhoto(file: File): Promise<Blob> {
+  if (!AI_PHOTO_SUPPORTED_TYPES.includes(file.type as (typeof AI_PHOTO_SUPPORTED_TYPES)[number])) {
+    throw new AIPhotoAnalysisError(
+      "INVALID_IMAGE",
+      "Choose a JPEG, PNG, or WebP image."
+    );
+  }
+  if (file.size <= 0 || file.size > AI_PHOTO_CLIENT_MAX_SOURCE_BYTES) {
+    throw new AIPhotoAnalysisError(
+      "INVALID_IMAGE",
+      "That image is empty or too large to prepare."
+    );
+  }
+
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    const maxDimension = 1_600;
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not prepare this image.");
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await canvasBlob(canvas);
+    if (blob.size > AI_PHOTO_CLIENT_MAX_UPLOAD_BYTES) {
+      throw new AIPhotoAnalysisError(
+        "INVALID_IMAGE",
+        "The prepared image is still larger than 4 MB. Try a smaller photo."
+      );
+    }
+    return blob;
+  } finally {
+    bitmap.close();
+  }
+}
+
+export async function analyzeFoodPhoto({
+  image,
+  weightGrams,
+  anonymousDeviceId,
+  signal,
+}: {
+  image: Blob;
+  weightGrams?: number;
+  anonymousDeviceId: string;
+  signal?: AbortSignal;
+}): Promise<AIPhotoAnalysis> {
+  const form = new FormData();
+  form.append("image", image, "food-photo.jpg");
+  form.append("anonymousDeviceId", anonymousDeviceId);
+  if (weightGrams !== undefined) form.append("weightGrams", String(weightGrams));
+
+  const response = await fetch("/api/nutrition/analyze-photo", {
+    method: "POST",
+    body: form,
+    cache: "no-store",
+    signal,
+  });
+  const body = (await response.json().catch(() => null)) as
+    | { error?: unknown; message?: unknown; analysis?: unknown }
+    | null;
+  if (!response.ok) {
+    const code =
+      body?.error === "RATE_LIMITED" ||
+      body?.error === "MONTHLY_BUDGET_REACHED" ||
+      body?.error === "AI_BILLING_UNAVAILABLE" ||
+      body?.error === "INVALID_IMAGE" ||
+      body?.error === "SCANNER_UNAVAILABLE"
+        ? body.error
+        : "AI_ANALYSIS_FAILED";
+    const retryAfter = Number(response.headers.get("Retry-After"));
+    throw new AIPhotoAnalysisError(
+      code,
+      typeof body?.message === "string" ? body.message : "The food photo could not be analyzed.",
+      Number.isFinite(retryAfter) ? retryAfter : undefined
+    );
+  }
+  const analysis = normalizeAIPhotoAnalysis(body?.analysis);
+  if (!analysis) {
+    throw new AIPhotoAnalysisError(
+      "AI_ANALYSIS_FAILED",
+      "The analysis response was incomplete. Try another photo."
+    );
+  }
+  return analysis;
+}

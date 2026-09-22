@@ -58,6 +58,7 @@ export function QuickAddSheet({
   const [protein, setProtein] = React.useState("");
   const [carbs, setCarbs] = React.useState("");
   const [fat, setFat] = React.useState("");
+  const [weight, setWeight] = React.useState("");
 
   React.useEffect(() => {
     if (!open) return;
@@ -67,6 +68,11 @@ export function QuickAddSheet({
     setProtein(entry?.nutrients.proteinG ? String(entry.nutrients.proteinG) : "");
     setCarbs(entry?.nutrients.carbsG ? String(entry.nutrients.carbsG) : "");
     setFat(entry?.nutrients.fatG ? String(entry.nutrients.fatG) : "");
+    setWeight(
+      entry?.source === "meal_photo" && entry.quantity?.unit === "g"
+        ? String(entry.quantity.amount)
+        : ""
+    );
   }, [entry, initialMeal, open]);
 
   const save = () => {
@@ -84,12 +90,24 @@ export function QuickAddSheet({
       toast.error("Macros cannot be negative.");
       return;
     }
+    const parsedWeight = weight.trim() ? Number.parseFloat(weight) : undefined;
+    if (
+      entry?.source === "meal_photo" &&
+      (parsedWeight === undefined || !Number.isFinite(parsedWeight) || parsedWeight <= 0)
+    ) {
+      toast.error("Enter a weight greater than zero.");
+      return;
+    }
     const input = {
       dayKey,
       meal,
       name: name.trim() || "Quick add",
-      source: "quick_add" as const,
+      source: entry?.source ?? ("quick_add" as const),
       nutrients: parsed,
+      quantity:
+        entry?.source === "meal_photo" && parsedWeight !== undefined
+          ? { amount: parsedWeight, unit: "g" as const }
+          : undefined,
     };
     const saved = entry
       ? updateNutritionEntry(entry.id, input)
@@ -110,7 +128,13 @@ export function QuickAddSheet({
         className="mx-auto max-h-[92dvh] max-w-xl overflow-y-auto rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
       >
         <SheetHeader className="text-left">
-          <SheetTitle>{entry ? "Edit quick entry" : "Quick Add"}</SheetTitle>
+          <SheetTitle>
+            {entry?.source === "meal_photo"
+              ? "Edit photo estimate"
+              : entry
+                ? "Edit quick entry"
+                : "Quick Add"}
+          </SheetTitle>
           <SheetDescription>
             {format(dayKeyToDate(dayKey), "EEEE, MMMM d")} · enter calories and any macros you
             know.
@@ -133,6 +157,17 @@ export function QuickAddSheet({
               </SelectContent>
             </Select>
           </div>
+          {entry?.source === "meal_photo" && (
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="quick-add-weight">Estimated weight (g)</Label>
+              <NumberInput
+                id="quick-add-weight"
+                decimal
+                value={weight}
+                onChange={(event) => setWeight(event.target.value)}
+              />
+            </div>
+          )}
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="quick-add-name">Name (optional)</Label>
             <Input
@@ -196,4 +231,3 @@ export function QuickAddSheet({
     </Sheet>
   );
 }
-

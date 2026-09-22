@@ -98,8 +98,26 @@ export function saveMealFromEntries(
   entries: NutritionEntry[],
   id?: string
 ): NutritionSavedMeal | null {
+  return saveMealFromItems(
+    name,
+    entries.map((entry) => ({
+      name: entry.name,
+      source: entry.source,
+      nutrients: entry.nutrients,
+      quantity: entry.quantity,
+      foodSnapshot: entry.foodSnapshot,
+    })),
+    id
+  );
+}
+
+export function saveMealFromItems(
+  name: string,
+  items: NutritionSavedMealItem[],
+  id?: string
+): NutritionSavedMeal | null {
   const trimmedName = name.trim().slice(0, 120);
-  if (!trimmedName || entries.length === 0) return null;
+  if (!trimmedName || items.length === 0) return null;
   const meals = getNutritionSavedMeals();
   const existing = id ? meals.find((meal) => meal.id === id) : undefined;
   const duplicate = meals.some(
@@ -110,13 +128,7 @@ export function saveMealFromEntries(
   const meal = normalizeNutritionSavedMeal({
     id: existing?.id ?? id ?? uuidv4(),
     name: trimmedName,
-    items: entries.map((entry) => ({
-      name: entry.name,
-      source: entry.source,
-      nutrients: entry.nutrients,
-      quantity: entry.quantity,
-      foodSnapshot: entry.foodSnapshot,
-    })),
+    items,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });

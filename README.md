@@ -107,6 +107,28 @@ commit the key. ForkWorkout sends explicit online food searches through
 `/api/nutrition/search` to both providers, then caches only the food selected by
 the user locally. Open Food Facts remains available when no USDA key is set.
 
+## AI food-photo analysis (optional)
+
+The Nutrition page can resize a food photo in the browser, send it through the
+server-only `/api/nutrition/analyze-photo` route, and show editable calorie and
+macro estimates. The estimate is never saved automatically: the user must
+review it and choose **Add** before it becomes a local nutrition entry.
+
+1. Create a dedicated OpenAI project and API key, then configure a small hard
+   monthly project spend limit in the OpenAI dashboard.
+2. Connect an Upstash Redis database (the same one used by optional short share
+   links is supported) and set its REST URL and token.
+3. Copy the AI variables from `.env.example` into `.env.local` and Vercel.
+4. Set `AI_FOOD_SCANNER_ENABLED=true` and redeploy.
+
+The defaults allow 20 scans per anonymous installation per day and 20 per IP
+per hour, accept prepared images up to 4 MB, and use `gpt-4.1-mini`. All values
+are configurable. The OpenAI key and optional project ID are server-only; never
+give either variable a `NEXT_PUBLIC_` prefix. Production fails closed when
+Redis is unavailable so a serverless deployment cannot silently bypass the
+application rate limits. Search, barcode, manual entry, and saved nutrition
+continue working when AI scanning is disabled or its budget is exhausted.
+
 ## Encrypted short share links (optional)
 
 Workouts, programs, and reusable meals can be shared through short, expiring links without adding user

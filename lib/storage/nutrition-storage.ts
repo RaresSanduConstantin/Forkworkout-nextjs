@@ -202,18 +202,28 @@ export function saveNutritionEntries(entries: NutritionEntry[]): boolean {
 }
 
 export function addNutritionEntry(input: NutritionEntryInput): NutritionEntry | null {
+  return addNutritionEntries([input])?.[0] ?? null;
+}
+
+/** Adds a confirmed multi-food result in one storage write, avoiding partial meals. */
+export function addNutritionEntries(
+  inputs: NutritionEntryInput[]
+): NutritionEntry[] | null {
+  if (inputs.length === 0 || inputs.length > 100) return null;
   const now = new Date().toISOString();
-  const entry = normalizeNutritionEntry({
-    ...input,
-    id: uuidv4(),
-    source: input.source ?? "quick_add",
-    createdAt: now,
-    updatedAt: now,
-  });
-  if (!entry) return null;
+  const created = inputs.map((input) =>
+    normalizeNutritionEntry({
+      ...input,
+      id: uuidv4(),
+      source: input.source ?? "quick_add",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+  if (created.some((entry) => entry === null)) return null;
   const all = getNutritionEntries();
-  all.push(entry);
-  return saveNutritionEntries(all) ? entry : null;
+  all.push(...(created as NutritionEntry[]));
+  return saveNutritionEntries(all) ? (created as NutritionEntry[]) : null;
 }
 
 export function updateNutritionEntry(
