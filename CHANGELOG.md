@@ -62,6 +62,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Split food-photo selection into explicit camera and gallery actions so mobile
+  users can upload an existing image without being forced into the camera.
 - Accepted the server-normalized nested nutrient shape in the food-photo client
   validator, preventing valid AI results from being rejected as incomplete.
 - Distinguished exhausted OpenAI API credits and temporary provider throttling

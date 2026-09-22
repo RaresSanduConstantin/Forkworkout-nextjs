@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import {
   Camera,
   ImagePlus,
+  ImageUp,
   Loader2,
   RotateCcw,
   ShieldCheck,
@@ -131,6 +132,8 @@ export function FoodPhotoAnalysisSheet({
   const [saving, setSaving] = React.useState(false);
   const [scannerDisabledReason, setScannerDisabledReason] = React.useState<string | null>(null);
   const controllerRef = React.useRef<AbortController | null>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const galleryInputRef = React.useRef<HTMLInputElement>(null);
 
   const clearPreview = React.useCallback(() => {
     setPreviewUrl((current) => {
@@ -171,12 +174,13 @@ export function FoodPhotoAnalysisSheet({
   const chooseFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.files?.[0] ?? null;
     event.target.value = "";
+    if (!next) return;
     clearPreview();
     setFile(next);
     setAnalysis(null);
     setDrafts([]);
     setError(null);
-    if (next) setPreviewUrl(URL.createObjectURL(next));
+    setPreviewUrl(URL.createObjectURL(next));
   };
 
   const analyze = async () => {
@@ -303,7 +307,7 @@ export function FoodPhotoAnalysisSheet({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
           {!analysis ? (
             <>
-              <label className="group relative flex min-h-52 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-muted/20 text-center transition hover:bg-muted/40">
+              <div className="relative flex min-h-52 items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-muted/20 text-center">
                 {previewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={previewUrl} alt="Selected food" className="max-h-72 w-full object-contain" />
@@ -312,37 +316,57 @@ export function FoodPhotoAnalysisSheet({
                     <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <Camera className="size-5" />
                     </span>
-                    <span className="block text-sm font-semibold">Take or choose a food photo</span>
+                    <span className="block text-sm font-semibold">Add a food photo</span>
                     <span className="block text-xs text-muted-foreground">
-                      JPEG, PNG, or WebP · resized before upload
+                      Take a new photo or choose one from your gallery
                     </span>
                   </span>
                 )}
-                <Input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="environment"
-                  className="sr-only"
-                  onChange={chooseFile}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => cameraInputRef.current?.click()}
                   disabled={analyzing || scannerDisabledReason !== null}
-                />
-              </label>
+                >
+                  <Camera className="size-4" />
+                  Take photo
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => galleryInputRef.current?.click()}
+                  disabled={analyzing || scannerDisabledReason !== null}
+                >
+                  <ImageUp className="size-4" />
+                  Choose from gallery
+                </Button>
+              </div>
+
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                className="hidden"
+                onChange={chooseFile}
+                disabled={analyzing || scannerDisabledReason !== null}
+              />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={chooseFile}
+                disabled={analyzing || scannerDisabledReason !== null}
+              />
 
               {file && (
-                <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 truncate text-xs text-muted-foreground">{file.name}</p>
-                  <label className="shrink-0 cursor-pointer text-sm font-medium text-primary hover:underline">
-                    Change photo
-                    <Input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      capture="environment"
-                      className="sr-only"
-                      onChange={chooseFile}
-                      disabled={analyzing || scannerDisabledReason !== null}
-                    />
-                  </label>
-                </div>
+                <p className="truncate text-center text-xs text-muted-foreground">
+                  Selected: {file.name}
+                </p>
               )}
 
               <div className="space-y-1.5">
