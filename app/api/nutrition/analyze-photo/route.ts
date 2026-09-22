@@ -4,6 +4,7 @@ import { AI_PHOTO_SUPPORTED_TYPES } from "@/lib/nutrition/ai-photo";
 import {
   OpenAIPhotoError,
   checkAIPhotoRateLimit,
+  getAIPhotoDailyUsage,
   getAIPhotoServerConfig,
   isAIPhotoConfigured,
   requestOpenAIPhotoAnalysis,
@@ -36,12 +37,20 @@ function errorResponse(
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const config = getAIPhotoServerConfig();
+  const anonymousDeviceId = request.headers.get("x-forkworkout-installation-id");
+  const dailyUsage =
+    anonymousDeviceId && DEVICE_ID_PATTERN.test(anonymousDeviceId)
+      ? await getAIPhotoDailyUsage({ anonymousDeviceId, config })
+      : null;
   return NextResponse.json(
     {
       enabled: isAIPhotoConfigured(config),
       maxImageSizeMb: config.maxImageBytes / 1024 / 1024,
+      dailyLimit: dailyUsage?.limit ?? config.deviceDailyLimit,
+      dailyRemaining: dailyUsage?.remaining ?? null,
+      dailyResetAt: dailyUsage?.resetAt ?? null,
     },
     { headers: noStoreHeaders }
   );

@@ -24,6 +24,13 @@ export type AIPhotoAnalysis = {
   confidence: AIPhotoConfidence;
 };
 
+export type AIPhotoUsage = {
+  enabled: boolean;
+  dailyLimit: number;
+  dailyRemaining: number;
+  dailyResetAt?: number;
+};
+
 export type AIPhotoErrorCode =
   | "RATE_LIMITED"
   | "MONTHLY_BUDGET_REACHED"
@@ -41,6 +48,38 @@ export class AIPhotoAnalysisError extends Error {
     super(message);
     this.name = "AIPhotoAnalysisError";
   }
+}
+
+export async function fetchAIPhotoUsage(
+  anonymousDeviceId: string,
+  signal?: AbortSignal
+): Promise<AIPhotoUsage> {
+  const response = await fetch("/api/nutrition/analyze-photo", {
+    method: "GET",
+    cache: "no-store",
+    headers: { "X-ForkWorkout-Installation-Id": anonymousDeviceId },
+    signal,
+  });
+  const body = (await response.json().catch(() => null)) as
+    | {
+        enabled?: unknown;
+        dailyLimit?: unknown;
+        dailyRemaining?: unknown;
+        dailyResetAt?: unknown;
+      }
+    | null;
+  const dailyLimit = boundedNumber(body?.dailyLimit, 1_000);
+  const dailyRemaining = boundedNumber(body?.dailyRemaining, 1_000);
+  if (!response.ok || typeof body?.enabled !== "boolean" || !dailyLimit || dailyRemaining === null) {
+    throw new Error("Daily scan usage is unavailable.");
+  }
+  const resetAt = boundedNumber(body.dailyResetAt, Number.MAX_SAFE_INTEGER);
+  return {
+    enabled: body.enabled,
+    dailyLimit,
+    dailyRemaining: Math.min(dailyLimit, dailyRemaining),
+    dailyResetAt: resetAt && resetAt > 0 ? resetAt : undefined,
+  };
 }
 
 function boundedNumber(value: unknown, max: number): number | null {

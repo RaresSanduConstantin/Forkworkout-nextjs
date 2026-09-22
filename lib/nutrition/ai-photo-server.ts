@@ -141,6 +141,47 @@ function checkMemoryBucket(
   return { allowed: true };
 }
 
+export type AIPhotoDailyUsage = {
+  limit: number;
+  remaining: number;
+  resetAt?: number;
+};
+
+/** Reads the installation's daily allowance without consuming a scan. */
+export async function getAIPhotoDailyUsage({
+  anonymousDeviceId,
+  config,
+}: {
+  anonymousDeviceId: string;
+  config: AIPhotoServerConfig;
+}): Promise<AIPhotoDailyUsage> {
+  const deviceKey = hash(anonymousDeviceId);
+  const limiters = durableLimiters(config);
+  if (limiters) {
+    const usage = await limiters.device.getRemaining(deviceKey);
+    return {
+      limit: usage.limit,
+      remaining: Math.max(0, usage.remaining),
+      resetAt: usage.reset,
+    };
+  }
+
+  const now = Date.now();
+  const current = memoryDeviceBuckets.get(deviceKey);
+  if (!current || current.resetAt <= now) {
+    if (current) memoryDeviceBuckets.delete(deviceKey);
+    return {
+      limit: config.deviceDailyLimit,
+      remaining: config.deviceDailyLimit,
+    };
+  }
+  return {
+    limit: config.deviceDailyLimit,
+    remaining: Math.max(0, config.deviceDailyLimit - current.count),
+    resetAt: current.resetAt,
+  };
+}
+
 export async function checkAIPhotoRateLimit({
   request,
   anonymousDeviceId,

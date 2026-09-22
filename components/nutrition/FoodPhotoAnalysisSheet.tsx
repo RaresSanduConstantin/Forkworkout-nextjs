@@ -37,8 +37,10 @@ import { dayKeyToDate } from "@/lib/date/day-key";
 import {
   AIPhotoAnalysisError,
   analyzeFoodPhoto,
+  fetchAIPhotoUsage,
   prepareAIPhoto,
   type AIPhotoAnalysis,
+  type AIPhotoUsage,
 } from "@/lib/nutrition/ai-photo";
 import type { NutritionMeal, NutritionNutrients } from "@/lib/nutrition/types";
 import { getAnonymousInstallationId } from "@/lib/storage/anonymous-installation";
@@ -131,7 +133,10 @@ export function FoodPhotoAnalysisSheet({
   const [analyzing, setAnalyzing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [scannerDisabledReason, setScannerDisabledReason] = React.useState<string | null>(null);
+  const [usage, setUsage] = React.useState<AIPhotoUsage | null>(null);
+  const [usageLoading, setUsageLoading] = React.useState(false);
   const controllerRef = React.useRef<AbortController | null>(null);
+  const usageControllerRef = React.useRef<AbortController | null>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const galleryInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -154,18 +159,41 @@ export function FoodPhotoAnalysisSheet({
     setSaving(false);
   }, [clearPreview]);
 
+  const refreshUsage = React.useCallback(async () => {
+    usageControllerRef.current?.abort();
+    const controller = new AbortController();
+    usageControllerRef.current = controller;
+    setUsageLoading(true);
+    try {
+      const anonymousDeviceId = await getAnonymousInstallationId();
+      const nextUsage = await fetchAIPhotoUsage(anonymousDeviceId, controller.signal);
+      if (!controller.signal.aborted) setUsage(nextUsage);
+    } catch {
+      if (!controller.signal.aborted) setUsage(null);
+    } finally {
+      if (usageControllerRef.current === controller) {
+        usageControllerRef.current = null;
+        setUsageLoading(false);
+      }
+    }
+  }, []);
+
   React.useEffect(() => {
     if (open) {
       setMeal(initialMeal);
       reset();
+      setUsage(null);
+      void refreshUsage();
     } else {
       controllerRef.current?.abort();
+      usageControllerRef.current?.abort();
     }
-  }, [initialMeal, open, reset]);
+  }, [initialMeal, open, refreshUsage, reset]);
 
   React.useEffect(
     () => () => {
       controllerRef.current?.abort();
+      usageControllerRef.current?.abort();
       clearPreview();
     },
     [clearPreview]
@@ -230,6 +258,7 @@ export function FoodPhotoAnalysisSheet({
         controllerRef.current = null;
         setAnalyzing(false);
       }
+      void refreshUsage();
     }
   };
 
@@ -305,6 +334,32 @@ export function FoodPhotoAnalysisSheet({
         </SheetHeader>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+          <div
+            className="flex items-center justify-between gap-3 rounded-xl border bg-muted/25 px-3 py-2.5"
+            aria-live="polite"
+          >
+            <div>
+              <p className="text-sm font-medium">Daily AI scans</p>
+              <p className="text-xs text-muted-foreground">Per device allowance</p>
+            </div>
+            {usageLoading ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="size-3.5 animate-spin" aria-hidden /> Checking…
+              </span>
+            ) : usage ? (
+              <div className="text-right">
+                <p className="text-sm font-semibold tabular-nums">
+                  {usage.dailyRemaining} of {usage.dailyLimit} left today
+                </p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {usage.dailyLimit - usage.dailyRemaining} used
+                </p>
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">Count unavailable</span>
+            )}
+          </div>
+
           {!analysis ? (
             <>
               <div className="relative flex min-h-52 items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-muted/20 text-center">
@@ -503,7 +558,12 @@ export function FoodPhotoAnalysisSheet({
                 type="button"
                 className="min-w-40 overflow-hidden transition-colors"
                 onClick={analyze}
-                disabled={!file || analyzing || scannerDisabledReason !== null}
+                disabled={
+                  !file ||
+                  analyzing ||
+                  scannerDisabledReason !== null ||
+                  usage?.dailyRemaining === 0
+                }
               >
                 {analyzing ? (
                   <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">

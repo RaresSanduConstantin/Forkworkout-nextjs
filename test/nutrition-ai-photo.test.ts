@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { POST } from "@/app/api/nutrition/analyze-photo/route";
+import { GET, POST } from "@/app/api/nutrition/analyze-photo/route";
 import { normalizeAIPhotoAnalysis } from "@/lib/nutrition/ai-photo";
 
 afterEach(() => {
@@ -50,6 +50,12 @@ const modelAnalysis = {
   total: { caloriesKcal: 297, proteinG: 55.8, carbsG: 0, fatG: 6.4 },
   confidence: "high",
 };
+
+function usageRequest(deviceId: string) {
+  return new Request("http://localhost/api/nutrition/analyze-photo", {
+    headers: { "x-forkworkout-installation-id": deviceId },
+  });
+}
 
 describe("AI photo nutrition normalization", () => {
   it("validates rows and derives a trustworthy total from them", () => {
@@ -103,6 +109,40 @@ describe("AI photo nutrition normalization", () => {
 });
 
 describe("AI photo nutrition API", () => {
+  it("reports daily device usage without consuming a scan", async () => {
+    enableScanner({ AI_SCAN_DAILY_DEVICE_LIMIT: "2", AI_SCAN_HOURLY_IP_LIMIT: "20" });
+    const deviceId = crypto.randomUUID();
+
+    const before = await GET(usageRequest(deviceId));
+    expect(before.status).toBe(200);
+    await expect(before.json()).resolves.toMatchObject({
+      enabled: true,
+      dailyLimit: 2,
+      dailyRemaining: 2,
+    });
+    await expect((await GET(usageRequest(deviceId))).json()).resolves.toMatchObject({
+      dailyRemaining: 2,
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              content: [{ type: "output_text", text: JSON.stringify(modelAnalysis) }],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    expect((await POST(request({ deviceId }))).status).toBe(200);
+    await expect((await GET(usageRequest(deviceId))).json()).resolves.toMatchObject({
+      dailyLimit: 2,
+      dailyRemaining: 1,
+    });
+  });
+
   it("fails closed while the optional scanner is disabled", async () => {
     vi.stubEnv("AI_FOOD_SCANNER_ENABLED", "false");
     const response = await POST(request());

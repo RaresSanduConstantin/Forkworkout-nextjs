@@ -13,6 +13,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added a live daily AI photo-scan allowance indicator that shows each device's
+  configured limit, used scans, and remaining scans without consuming usage.
 - Added Vercel Web Analytics page-view tracking through the root app layout.
 - Added an in-place saved-meal builder with searchable catalog foods, editable
   gram or millilitre amounts, calculated calories, and immediate reuse.
