@@ -499,9 +499,23 @@ export function FoodPhotoAnalysisSheet({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="button" onClick={analyze} disabled={!file || analyzing || scannerDisabledReason !== null}>
-                {analyzing ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                {analyzing ? "Analyzing…" : "Analyze photo"}
+              <Button
+                type="button"
+                className="min-w-40 overflow-hidden transition-colors"
+                onClick={analyze}
+                disabled={!file || analyzing || scannerDisabledReason !== null}
+              >
+                {analyzing ? (
+                  <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                    <span>Analyzing…</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
+                    <Sparkles className="size-4" aria-hidden />
+                    <span>Analyze photo</span>
+                  </span>
+                )}
               </Button>
             </>
           )}
