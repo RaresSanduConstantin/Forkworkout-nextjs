@@ -29,6 +29,7 @@ export type AIPhotoUsage = {
   dailyLimit: number;
   dailyRemaining: number;
   dailyResetAt?: number;
+  unlimited: boolean;
 };
 
 export type AIPhotoErrorCode =
@@ -66,20 +67,50 @@ export async function fetchAIPhotoUsage(
         dailyLimit?: unknown;
         dailyRemaining?: unknown;
         dailyResetAt?: unknown;
+        unlimited?: unknown;
       }
     | null;
   const dailyLimit = boundedNumber(body?.dailyLimit, 1_000);
   const dailyRemaining = boundedNumber(body?.dailyRemaining, 1_000);
-  if (!response.ok || typeof body?.enabled !== "boolean" || !dailyLimit || dailyRemaining === null) {
+  const unlimited = body?.unlimited === true;
+  if (
+    !response.ok ||
+    typeof body?.enabled !== "boolean" ||
+    !dailyLimit ||
+    (!unlimited && dailyRemaining === null)
+  ) {
     throw new Error("Daily scan usage is unavailable.");
   }
   const resetAt = boundedNumber(body.dailyResetAt, Number.MAX_SAFE_INTEGER);
   return {
     enabled: body.enabled,
     dailyLimit,
-    dailyRemaining: Math.min(dailyLimit, dailyRemaining),
+    dailyRemaining: unlimited
+      ? dailyLimit
+      : Math.min(dailyLimit, dailyRemaining ?? dailyLimit),
     dailyResetAt: resetAt && resetAt > 0 ? resetAt : undefined,
+    unlimited,
   };
+}
+
+export async function unlockAIPhotoScanning(
+  key: string,
+  anonymousDeviceId: string
+): Promise<void> {
+  const response = await fetch("/api/nutrition/analyze-photo/unlock", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, anonymousDeviceId }),
+  });
+  const body = (await response.json().catch(() => null)) as
+    | { message?: unknown }
+    | null;
+  if (!response.ok) {
+    throw new Error(
+      typeof body?.message === "string" ? body.message : "Owner scan access could not be unlocked."
+    );
+  }
 }
 
 function boundedNumber(value: unknown, max: number): number | null {

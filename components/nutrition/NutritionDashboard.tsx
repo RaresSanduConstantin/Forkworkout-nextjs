@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Cookie,
   Flame,
+  KeyRound,
+  Loader2,
   Moon,
   Pencil,
   Plus,
@@ -23,6 +25,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -60,6 +68,8 @@ import {
   type DecodedNutritionMealShare,
 } from "@/lib/nutrition/meal-share";
 import { consumeShareHandoff } from "@/lib/sharing/handoff";
+import { unlockAIPhotoScanning } from "@/lib/nutrition/ai-photo";
+import { getAnonymousInstallationId } from "@/lib/storage/anonymous-installation";
 import { extractSharedImport } from "@/lib/storage/share-link";
 import { getCompletedWorkouts } from "@/lib/storage/history-storage";
 import {
@@ -149,6 +159,9 @@ export function NutritionDashboard() {
   } | null>(null);
   const [pendingMealImport, setPendingMealImport] =
     React.useState<DecodedNutritionMealShare | null>(null);
+  const [ownerAccessOpen, setOwnerAccessOpen] = React.useState(false);
+  const [ownerAccessKey, setOwnerAccessKey] = React.useState("");
+  const [ownerAccessLoading, setOwnerAccessLoading] = React.useState(false);
 
   const refresh = React.useCallback(() => {
     setEntries(getNutritionEntries());
@@ -301,10 +314,59 @@ export function NutritionDashboard() {
     );
   };
 
+  const unlockOwnerScans = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!ownerAccessKey.trim() || ownerAccessLoading) return;
+    setOwnerAccessLoading(true);
+    try {
+      const anonymousDeviceId = await getAnonymousInstallationId();
+      await unlockAIPhotoScanning(ownerAccessKey, anonymousDeviceId);
+      setOwnerAccessKey("");
+      setOwnerAccessOpen(false);
+      toast.success("Unlimited AI scans unlocked on this device");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Owner scan access could not be unlocked.");
+    } finally {
+      setOwnerAccessLoading(false);
+    }
+  };
+
   return (
     <PageContainer className="pb-24">
       <PageHeader
-        title="Nutrition"
+        title={
+          <Popover open={ownerAccessOpen} onOpenChange={setOwnerAccessOpen}>
+            <PopoverTrigger asChild>
+              <button type="button" className="rounded-sm text-left" aria-label="Nutrition owner access">
+                Nutrition
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-72"
+              onOpenAutoFocus={(event) => event.preventDefault()}
+            >
+              <form className="space-y-3" onSubmit={unlockOwnerScans}>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <KeyRound className="size-4" /> Owner scan access
+                </div>
+                <Input
+                  type="password"
+                  value={ownerAccessKey}
+                  onChange={(event) => setOwnerAccessKey(event.target.value)}
+                  placeholder="Access key"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label="Owner scan access key"
+                />
+                <Button type="submit" size="sm" className="w-full" disabled={!ownerAccessKey.trim() || ownerAccessLoading}>
+                  {ownerAccessLoading ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+                  Unlock scans
+                </Button>
+              </form>
+            </PopoverContent>
+          </Popover>
+        }
         description="Simple daily calories and macros, stored only on this device."
         action={
           <Button type="button" variant="outline" onClick={() => setTargetsOpen(true)}>

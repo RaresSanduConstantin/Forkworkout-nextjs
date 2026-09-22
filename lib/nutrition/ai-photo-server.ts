@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -12,6 +12,10 @@ const DEFAULT_DEVICE_DAILY_LIMIT = 20;
 const DEFAULT_IP_HOURLY_LIMIT = 20;
 const DEFAULT_MAX_IMAGE_SIZE_MB = 4;
 const DEFAULT_MODEL = "gpt-4.1-mini";
+const UNLOCK_ATTEMPT_LIMIT = 5;
+const UNLOCK_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
+
+export const AI_PHOTO_UNLIMITED_COOKIE = "forkworkout-ai-unlimited";
 
 function positiveInteger(value: string | undefined, fallback: number, max: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -29,6 +33,7 @@ export type AIPhotoServerConfig = {
   redisUrl?: string;
   redisToken?: string;
   requireRedis: boolean;
+  unlimitedUnlockKey?: string;
 };
 
 export function getAIPhotoServerConfig(
@@ -56,6 +61,10 @@ export function getAIPhotoServerConfig(
     requireRedis:
       env.AI_SCAN_REQUIRE_REDIS === "true" ||
       (env.AI_SCAN_REQUIRE_REDIS !== "false" && env.NODE_ENV === "production"),
+    unlimitedUnlockKey:
+      env.AI_SCAN_UNLIMITED_KEY?.trim() && env.AI_SCAN_UNLIMITED_KEY.trim().length >= 32
+        ? env.AI_SCAN_UNLIMITED_KEY.trim()
+        : undefined,
   };
 }
 
@@ -80,11 +89,13 @@ type CachedLimiters = {
   signature: string;
   device: Ratelimit;
   ip: Ratelimit;
+  unlock: Ratelimit;
 };
 
 let cachedLimiters: CachedLimiters | undefined;
 const memoryDeviceBuckets = new Map<string, { count: number; resetAt: number }>();
 const memoryIpBuckets = new Map<string, { count: number; resetAt: number }>();
+const memoryUnlockBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function durableLimiters(config: AIPhotoServerConfig): CachedLimiters | null {
   if (!config.redisUrl || !config.redisToken) return null;
@@ -110,9 +121,114 @@ function durableLimiters(config: AIPhotoServerConfig): CachedLimiters | null {
       prefix: "forkworkout:ai-photo:ip",
       analytics: false,
     }),
+    unlock: new Ratelimit({
+      redis,
+      limiter: Ratelimit.fixedWindow(UNLOCK_ATTEMPT_LIMIT, "1 h"),
+      prefix: "forkworkout:ai-photo:unlock",
+      analytics: false,
+    }),
   };
   return cachedLimiters;
 }
+
+function secureEqual(left: string, right: string): boolean {
+  return timingSafeEqual(
+    createHash("sha256").update(left).digest(),
+    createHash("sha256").update(right).digest()
+  );
+}
+
+export function matchesAIPhotoUnlimitedKey(
+  candidate: string,
+  config: AIPhotoServerConfig
+): boolean {
+  return !!config.unlimitedUnlockKey && secureEqual(candidate, config.unlimitedUnlockKey);
+}
+
+function unlimitedTokenSignature(payload: string, key: string): string {
+  return createHmac("sha256", key).update(payload).digest("base64url");
+}
+
+export function createAIPhotoUnlimitedToken(
+  anonymousDeviceId: string,
+  config: AIPhotoServerConfig,
+  now = Date.now()
+): string | null {
+  if (!config.unlimitedUnlockKey) return null;
+  const expiresAt = Math.floor(now / 1_000) + UNLOCK_COOKIE_MAX_AGE_SECONDS;
+  const payload = `v1.${hash(anonymousDeviceId)}.${expiresAt}`;
+  return `${payload}.${unlimitedTokenSignature(payload, config.unlimitedUnlockKey)}`;
+}
+
+function requestCookie(request: Request, name: string): string | undefined {
+  for (const item of (request.headers.get("cookie") ?? "").split(";")) {
+    const [rawName, ...rawValue] = item.trim().split("=");
+    if (rawName === name) {
+      try {
+        return decodeURIComponent(rawValue.join("="));
+      } catch {
+        return undefined;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function hasAIPhotoUnlimitedAccess({
+  request,
+  anonymousDeviceId,
+  config,
+  now = Date.now(),
+}: {
+  request: Request;
+  anonymousDeviceId: string;
+  config: AIPhotoServerConfig;
+  now?: number;
+}): boolean {
+  if (!config.unlimitedUnlockKey) return false;
+  const token = requestCookie(request, AI_PHOTO_UNLIMITED_COOKIE);
+  if (!token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 4 || parts[0] !== "v1" || parts[1] !== hash(anonymousDeviceId)) {
+    return false;
+  }
+  const expiresAt = Number(parts[2]);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt <= Math.floor(now / 1_000)) return false;
+  const payload = parts.slice(0, 3).join(".");
+  return secureEqual(
+    parts[3],
+    unlimitedTokenSignature(payload, config.unlimitedUnlockKey)
+  );
+}
+
+export async function checkAIPhotoUnlockAttempt({
+  request,
+  config,
+}: {
+  request: Request;
+  config: AIPhotoServerConfig;
+}): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const ipKey = requestIpIdentifier(request);
+  const limiters = durableLimiters(config);
+  if (limiters) {
+    const result = await limiters.unlock.limit(ipKey);
+    return result.success
+      ? { allowed: true }
+      : {
+          allowed: false,
+          retryAfterSeconds: Math.max(1, Math.ceil((result.reset - Date.now()) / 1_000)),
+        };
+  }
+  return checkMemoryBucket(
+    memoryUnlockBuckets,
+    ipKey,
+    UNLOCK_ATTEMPT_LIMIT,
+    60 * 60 * 1_000,
+    Date.now()
+  );
+}
+
+export const AI_PHOTO_UNLIMITED_COOKIE_MAX_AGE = UNLOCK_COOKIE_MAX_AGE_SECONDS;
 
 function checkMemoryBucket(
   buckets: Map<string, { count: number; resetAt: number }>,

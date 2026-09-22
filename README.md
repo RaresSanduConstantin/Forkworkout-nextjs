@@ -129,6 +129,15 @@ Redis is unavailable so a serverless deployment cannot silently bypass the
 application rate limits. Search, barcode, manual entry, and saved nutrition
 continue working when AI scanning is disabled or its budget is exhausted.
 
+For an owner device, optionally set `AI_SCAN_UNLIMITED_KEY` to a unique random
+value of at least 32 characters. Clicking the Nutrition heading reveals the
+owner-key field. A successful entry is exchanged for a signed, installation-
+bound HttpOnly cookie; the key is not embedded in the client bundle or saved
+in persistent browser storage. Unlock
+attempts are limited to five per IP per hour. This bypasses only ForkWorkout's
+daily device/IP limits—it never bypasses the OpenAI project billing or spend
+limit. Rotate the environment value to invalidate every existing owner cookie.
+
 ## Encrypted short share links (optional)
 
 Workouts, programs, and reusable meals can be shared through short, expiring links without adding user

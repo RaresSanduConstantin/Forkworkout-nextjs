@@ -433,11 +433,15 @@ export function FoodPhotoAnalysisSheet({
             ) : usage ? (
               <div className="text-right">
                 <p className="text-sm font-semibold tabular-nums">
-                  {usage.dailyRemaining} of {usage.dailyLimit} left today
+                  {usage.unlimited
+                    ? "Unlimited scans enabled"
+                    : `${usage.dailyRemaining} of ${usage.dailyLimit} left today`}
                 </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {usage.dailyLimit - usage.dailyRemaining} used
-                </p>
+                {!usage.unlimited && (
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {usage.dailyLimit - usage.dailyRemaining} used
+                  </p>
+                )}
               </div>
             ) : (
               <span className="text-xs text-muted-foreground">Count unavailable</span>
@@ -651,7 +655,7 @@ export function FoodPhotoAnalysisSheet({
                   !file ||
                   analyzing ||
                   scannerDisabledReason !== null ||
-                  usage?.dailyRemaining === 0
+                  (usage?.dailyRemaining === 0 && !usage.unlimited)
                 }
               >
                 {analyzing ? (

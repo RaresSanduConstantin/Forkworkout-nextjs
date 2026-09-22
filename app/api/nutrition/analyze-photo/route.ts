@@ -6,6 +6,7 @@ import {
   checkAIPhotoRateLimit,
   getAIPhotoDailyUsage,
   getAIPhotoServerConfig,
+  hasAIPhotoUnlimitedAccess,
   isAIPhotoConfigured,
   requestOpenAIPhotoAnalysis,
 } from "@/lib/nutrition/ai-photo-server";
@@ -40,8 +41,13 @@ function errorResponse(
 export async function GET(request: Request) {
   const config = getAIPhotoServerConfig();
   const anonymousDeviceId = request.headers.get("x-forkworkout-installation-id");
+  const unlimited = Boolean(
+    anonymousDeviceId &&
+      DEVICE_ID_PATTERN.test(anonymousDeviceId) &&
+      hasAIPhotoUnlimitedAccess({ request, anonymousDeviceId, config })
+  );
   const dailyUsage =
-    anonymousDeviceId && DEVICE_ID_PATTERN.test(anonymousDeviceId)
+    !unlimited && anonymousDeviceId && DEVICE_ID_PATTERN.test(anonymousDeviceId)
       ? await getAIPhotoDailyUsage({ anonymousDeviceId, config })
       : null;
   return NextResponse.json(
@@ -51,6 +57,7 @@ export async function GET(request: Request) {
       dailyLimit: dailyUsage?.limit ?? config.deviceDailyLimit,
       dailyRemaining: dailyUsage?.remaining ?? null,
       dailyResetAt: dailyUsage?.resetAt ?? null,
+      unlimited,
     },
     { headers: noStoreHeaders }
   );
@@ -103,18 +110,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const rateLimit = await checkAIPhotoRateLimit({
-      request,
-      anonymousDeviceId,
-      config,
-    });
-    if (!rateLimit.allowed) {
-      return errorResponse(
-        "RATE_LIMITED",
-        "The AI scan limit has been reached. Try again later or add food another way.",
-        429,
-        rateLimit.retryAfterSeconds
-      );
+    const unlimited = hasAIPhotoUnlimitedAccess({ request, anonymousDeviceId, config });
+    if (!unlimited) {
+      const rateLimit = await checkAIPhotoRateLimit({
+        request,
+        anonymousDeviceId,
+        config,
+      });
+      if (!rateLimit.allowed) {
+        return errorResponse(
+          "RATE_LIMITED",
+          "The AI scan limit has been reached. Try again later or add food another way.",
+          429,
+          rateLimit.retryAfterSeconds
+        );
+      }
     }
 
     const analysis = await requestOpenAIPhotoAnalysis({

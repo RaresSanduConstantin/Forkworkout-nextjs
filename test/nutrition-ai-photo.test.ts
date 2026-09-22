@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GET, POST } from "@/app/api/nutrition/analyze-photo/route";
+import { POST as UNLOCK } from "@/app/api/nutrition/analyze-photo/unlock/route";
 import { normalizeAIPhotoAnalysis } from "@/lib/nutrition/ai-photo";
 
 afterEach(() => {
@@ -19,10 +20,12 @@ function request({
   deviceId = crypto.randomUUID(),
   ip = `192.0.2.${Math.floor(Math.random() * 200) + 1}`,
   type = "image/jpeg",
+  cookie,
 }: {
   deviceId?: string;
   ip?: string;
   type?: string;
+  cookie?: string;
 } = {}) {
   const form = new FormData();
   form.append("image", new Blob(["image-bytes"], { type }), "meal.jpg");
@@ -30,7 +33,10 @@ function request({
   form.append("weightGrams", "350");
   return new Request("http://localhost/api/nutrition/analyze-photo", {
     method: "POST",
-    headers: { "x-forwarded-for": ip },
+    headers: {
+      "x-forwarded-for": ip,
+      ...(cookie ? { cookie } : {}),
+    },
     body: form,
   });
 }
@@ -51,9 +57,20 @@ const modelAnalysis = {
   confidence: "high",
 };
 
-function usageRequest(deviceId: string) {
+function usageRequest(deviceId: string, cookie?: string) {
   return new Request("http://localhost/api/nutrition/analyze-photo", {
-    headers: { "x-forkworkout-installation-id": deviceId },
+    headers: {
+      "x-forkworkout-installation-id": deviceId,
+      ...(cookie ? { cookie } : {}),
+    },
+  });
+}
+
+function unlockRequest(deviceId: string, key: string, ip = "203.0.113.10") {
+  return new Request("http://localhost/api/nutrition/analyze-photo/unlock", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-forwarded-for": ip },
+    body: JSON.stringify({ anonymousDeviceId: deviceId, key }),
   });
 }
 
@@ -124,7 +141,7 @@ describe("AI photo nutrition API", () => {
       dailyRemaining: 2,
     });
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           output: [
@@ -283,7 +300,7 @@ describe("AI photo nutrition API", () => {
 
   it("enforces both anonymous-device and IP application limits", async () => {
     enableScanner({ AI_SCAN_DAILY_DEVICE_LIMIT: "1", AI_SCAN_HOURLY_IP_LIMIT: "1" });
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           output: [
@@ -301,5 +318,53 @@ describe("AI photo nutrition API", () => {
     const limited = await POST(request({ deviceId, ip }));
     expect(limited.status).toBe(429);
     await expect(limited.json()).resolves.toMatchObject({ error: "RATE_LIMITED" });
+  });
+
+  it("exchanges the server-only owner key for an installation-bound unlimited cookie", async () => {
+    const ownerKey = "owner-only-random-key-that-is-longer-than-32-characters";
+    enableScanner({
+      AI_SCAN_DAILY_DEVICE_LIMIT: "1",
+      AI_SCAN_HOURLY_IP_LIMIT: "1",
+      AI_SCAN_UNLIMITED_KEY: ownerKey,
+    });
+    const deviceId = crypto.randomUUID();
+    const unlock = await UNLOCK(unlockRequest(deviceId, ownerKey));
+    const cookie = unlock.headers.get("set-cookie")?.split(";")[0];
+
+    expect(unlock.status).toBe(200);
+    expect(cookie).toContain("forkworkout-ai-unlimited=");
+    await expect((await GET(usageRequest(deviceId, cookie))).json()).resolves.toMatchObject({
+      unlimited: true,
+    });
+    await expect((await GET(usageRequest(crypto.randomUUID(), cookie))).json()).resolves.toMatchObject({
+      unlimited: false,
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              content: [{ type: "output_text", text: JSON.stringify(modelAnalysis) }],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const ip = "203.0.113.11";
+    expect((await POST(request({ deviceId, ip, cookie }))).status).toBe(200);
+    expect((await POST(request({ deviceId, ip, cookie }))).status).toBe(200);
+  });
+
+  it("does not set an owner cookie for an invalid key", async () => {
+    enableScanner({
+      AI_SCAN_UNLIMITED_KEY: "owner-only-random-key-that-is-longer-than-32-characters",
+    });
+    const response = await UNLOCK(
+      unlockRequest(crypto.randomUUID(), "wrong-key", "203.0.113.12")
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });
