@@ -62,7 +62,17 @@ export function normalizeNutritionSavedMeal(raw: unknown): NutritionSavedMeal | 
         .slice(0, 100)
     : [];
   if (!id || !name || !createdAt || !updatedAt || items.length === 0) return null;
-  return { id, name, items, createdAt, updatedAt };
+  const kind = value.kind === "recipe" ? "recipe" : undefined;
+  const rawServings =
+    typeof value.servings === "number" ? value.servings : Number(value.servings);
+  const servings =
+    kind === "recipe" &&
+    Number.isFinite(rawServings) &&
+    rawServings > 0 &&
+    rawServings <= 1_000
+      ? rawServings
+      : undefined;
+  return { id, name, items, kind, servings, createdAt, updatedAt };
 }
 
 export function getNutritionSavedMeals(): NutritionSavedMeal[] {
@@ -114,7 +124,8 @@ export function saveMealFromEntries(
 export function saveMealFromItems(
   name: string,
   items: NutritionSavedMealItem[],
-  id?: string
+  id?: string,
+  options?: { kind?: "recipe"; servings?: number }
 ): NutritionSavedMeal | null {
   const trimmedName = name.trim().slice(0, 120);
   if (!trimmedName || items.length === 0) return null;
@@ -129,6 +140,8 @@ export function saveMealFromItems(
     id: existing?.id ?? id ?? uuidv4(),
     name: trimmedName,
     items,
+    kind: options?.kind,
+    servings: options?.servings,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });
@@ -191,7 +204,7 @@ export function copyNutritionItemsToDay(
   meal: NutritionMeal,
   multiplier = 1
 ): NutritionCopyResult {
-  if (![0.5, 1, 1.5, 2].includes(multiplier)) {
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 100) {
     return { added: 0, skipped: 0, saved: false };
   }
   const entries = getNutritionEntries();

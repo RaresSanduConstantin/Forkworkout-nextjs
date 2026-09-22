@@ -133,6 +133,7 @@ export function NutritionDashboard() {
   const [foodPhotoOpen, setFoodPhotoOpen] = React.useState(false);
   const [mealActionsOpen, setMealActionsOpen] = React.useState(false);
   const [mealActionStartSaving, setMealActionStartSaving] = React.useState(false);
+  const [mealActionStartRecipe, setMealActionStartRecipe] = React.useState(false);
   const [mealActionInitialSavedMealId, setMealActionInitialSavedMealId] =
     React.useState<string | null>(null);
   const [targetsOpen, setTargetsOpen] = React.useState(false);
@@ -235,11 +236,13 @@ export function NutritionDashboard() {
   const openMealActions = (
     meal: NutritionMeal,
     startSaving = false,
-    savedMeal?: NutritionSavedMeal
+    savedMeal?: NutritionSavedMeal,
+    startRecipe = false
   ) => {
     setQuickMeal(meal);
     setMealActionStartSaving(startSaving);
     setMealActionInitialSavedMealId(savedMeal?.id ?? null);
+    setMealActionStartRecipe(startRecipe);
     setMealActionsOpen(true);
   };
 
@@ -596,6 +599,10 @@ export function NutritionDashboard() {
           setFoodPickerOpen(false);
           window.setTimeout(() => openMealActions(meal, false, savedMeal), 150);
         }}
+        onCreateRecipe={(meal) => {
+          setFoodPickerOpen(false);
+          window.setTimeout(() => openMealActions(meal, false, undefined, true), 150);
+        }}
       />
       <FoodPhotoAnalysisSheet
         open={foodPhotoOpen}
@@ -610,6 +617,7 @@ export function NutritionDashboard() {
           setMealActionsOpen(open);
           if (!open) {
             setMealActionStartSaving(false);
+            setMealActionStartRecipe(false);
             setMealActionInitialSavedMealId(null);
           }
         }}
@@ -617,6 +625,7 @@ export function NutritionDashboard() {
         initialMeal={quickMeal}
         initialSavedMealId={mealActionInitialSavedMealId}
         startSaving={mealActionStartSaving}
+        startRecipe={mealActionStartRecipe}
         entries={entries}
         onSaved={refresh}
       />

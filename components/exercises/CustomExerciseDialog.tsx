@@ -173,7 +173,10 @@ export function CustomExerciseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+      <DialogContent
+        className="max-h-[90vh] max-w-md overflow-y-auto"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <DialogHeader className="text-left">
           <DialogTitle className="flex items-center gap-2">
             {editing ? (
@@ -198,7 +201,6 @@ export function CustomExerciseDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Swimming"
-              autoFocus
               disabled={editingBundled}
             />
             {editingBundled && (

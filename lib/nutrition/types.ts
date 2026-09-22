@@ -35,7 +35,7 @@ export type NutritionFoodSnapshot = {
   basisAmount: number;
   basisUnit: "g" | "ml";
   nutrients: NutritionNutrients;
-  source: Exclude<NutritionSource, "quick_add" | "meal_photo">;
+  source: Exclude<NutritionSource, "quick_add">;
   sourceReference?: string;
 };
 
@@ -100,6 +100,9 @@ export type NutritionSavedMeal = {
   id: string;
   name: string;
   items: NutritionSavedMealItem[];
+  /** Recipes store a complete cooked batch and the number of portions it makes. */
+  kind?: "recipe";
+  servings?: number;
   createdAt: string;
   updatedAt: string;
 };

@@ -24,7 +24,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { dayKeyToDate } from "@/lib/date/day-key";
-import type { NutritionEntry, NutritionMeal } from "@/lib/nutrition/types";
+import { nutrientsForQuantity } from "@/lib/nutrition/calculations";
+import type {
+  NutritionEntry,
+  NutritionMeal,
+  NutritionNutrients,
+} from "@/lib/nutrition/types";
 import {
   addNutritionEntry,
   updateNutritionEntry,
@@ -36,6 +41,9 @@ const MEAL_LABELS: Record<NutritionMeal, string> = {
   dinner: "Dinner",
   snacks: "Snacks",
 };
+
+const number = (value: number) =>
+  new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(value);
 
 export function QuickAddSheet({
   open,
@@ -59,21 +67,68 @@ export function QuickAddSheet({
   const [carbs, setCarbs] = React.useState("");
   const [fat, setFat] = React.useState("");
   const [weight, setWeight] = React.useState("");
+  const [photoBasis, setPhotoBasis] = React.useState<NutritionNutrients | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
+    const photoWeight =
+      entry?.source === "meal_photo" && entry.quantity?.unit === "g"
+        ? entry.quantity.amount
+        : undefined;
+    const basis =
+      entry?.source === "meal_photo" && entry.foodSnapshot?.basisUnit === "g"
+        ? nutrientsForQuantity(
+            entry.foodSnapshot.nutrients,
+            100,
+            entry.foodSnapshot.basisAmount
+          )
+        : entry?.source === "meal_photo" && photoWeight
+          ? nutrientsForQuantity(entry.nutrients, 100, photoWeight)
+          : null;
     setMeal(entry?.meal ?? initialMeal);
     setName(entry?.name === "Quick add" ? "" : entry?.name ?? "");
     setCalories(entry ? String(entry.nutrients.caloriesKcal) : "");
     setProtein(entry?.nutrients.proteinG ? String(entry.nutrients.proteinG) : "");
     setCarbs(entry?.nutrients.carbsG ? String(entry.nutrients.carbsG) : "");
     setFat(entry?.nutrients.fatG ? String(entry.nutrients.fatG) : "");
-    setWeight(
-      entry?.source === "meal_photo" && entry.quantity?.unit === "g"
-        ? String(entry.quantity.amount)
-        : ""
-    );
+    setWeight(photoWeight ? String(photoWeight) : "");
+    setPhotoBasis(basis);
   }, [entry, initialMeal, open]);
+
+  const updatePhotoWeight = (value: string) => {
+    setWeight(value);
+    const nextWeight = Number.parseFloat(value);
+    if (
+      entry?.source !== "meal_photo" ||
+      !photoBasis ||
+      !Number.isFinite(nextWeight) ||
+      nextWeight <= 0
+    ) return;
+    const adjusted = nutrientsForQuantity(photoBasis, nextWeight, 100);
+    setCalories(String(adjusted.caloriesKcal));
+    setProtein(String(adjusted.proteinG));
+    setCarbs(String(adjusted.carbsG));
+    setFat(String(adjusted.fatG));
+  };
+
+  const updatePhotoNutrient = (
+    field: "caloriesKcal" | "proteinG" | "carbsG" | "fatG",
+    value: string,
+    updateInput: React.Dispatch<React.SetStateAction<string>>
+  ) => {
+    updateInput(value);
+    if (entry?.source !== "meal_photo") return;
+    const currentWeight = Number.parseFloat(weight);
+    const nextValue = Number.parseFloat(value);
+    if (!Number.isFinite(currentWeight) || currentWeight <= 0 || !Number.isFinite(nextValue)) {
+      return;
+    }
+    setPhotoBasis((current) =>
+      current
+        ? { ...current, [field]: (nextValue * 100) / currentWeight }
+        : current
+    );
+  };
 
   const save = () => {
     const parsed = {
@@ -108,6 +163,17 @@ export function QuickAddSheet({
         entry?.source === "meal_photo" && parsedWeight !== undefined
           ? { amount: parsedWeight, unit: "g" as const }
           : undefined,
+      foodSnapshot:
+        entry?.source === "meal_photo"
+          ? {
+              foodId: entry.foodSnapshot?.foodId,
+              name: name.trim() || entry.name,
+              basisAmount: 100,
+              basisUnit: "g" as const,
+              nutrients: nutrientsForQuantity(parsed, 100, parsedWeight),
+              source: "meal_photo" as const,
+            }
+          : entry?.foodSnapshot,
     };
     const saved = entry
       ? updateNutritionEntry(entry.id, input)
@@ -126,6 +192,7 @@ export function QuickAddSheet({
       <SheetContent
         side="bottom"
         className="mx-auto max-h-[92dvh] max-w-xl overflow-y-auto rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+        onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <SheetHeader className="text-left">
           <SheetTitle>
@@ -136,8 +203,9 @@ export function QuickAddSheet({
                 : "Quick Add"}
           </SheetTitle>
           <SheetDescription>
-            {format(dayKeyToDate(dayKey), "EEEE, MMMM d")} · enter calories and any macros you
-            know.
+            {format(dayKeyToDate(dayKey), "EEEE, MMMM d")} · {entry?.source === "meal_photo"
+              ? "nutrition is adjusted from a 100 g basis."
+              : "enter calories and any macros you know."}
           </SheetDescription>
         </SheetHeader>
 
@@ -159,13 +227,16 @@ export function QuickAddSheet({
           </div>
           {entry?.source === "meal_photo" && (
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="quick-add-weight">Estimated weight (g)</Label>
+              <Label htmlFor="quick-add-weight">Amount eaten (g)</Label>
               <NumberInput
                 id="quick-add-weight"
                 decimal
                 value={weight}
-                onChange={(event) => setWeight(event.target.value)}
+                onChange={(event) => updatePhotoWeight(event.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                The editable nutrition values below update automatically from the per-100g reference.
+              </p>
             </div>
           )}
           <div className="col-span-2 space-y-1.5">
@@ -184,9 +255,8 @@ export function QuickAddSheet({
               id="quick-add-calories"
               decimal
               value={calories}
-              onChange={(event) => setCalories(event.target.value)}
+              onChange={(event) => updatePhotoNutrient("caloriesKcal", event.target.value, setCalories)}
               placeholder="Required"
-              autoFocus
             />
           </div>
           <div className="space-y-1.5">
@@ -195,7 +265,7 @@ export function QuickAddSheet({
               id="quick-add-protein"
               decimal
               value={protein}
-              onChange={(event) => setProtein(event.target.value)}
+              onChange={(event) => updatePhotoNutrient("proteinG", event.target.value, setProtein)}
               placeholder="Optional"
             />
           </div>
@@ -205,7 +275,7 @@ export function QuickAddSheet({
               id="quick-add-carbs"
               decimal
               value={carbs}
-              onChange={(event) => setCarbs(event.target.value)}
+              onChange={(event) => updatePhotoNutrient("carbsG", event.target.value, setCarbs)}
               placeholder="Optional"
             />
           </div>
@@ -215,10 +285,18 @@ export function QuickAddSheet({
               id="quick-add-fat"
               decimal
               value={fat}
-              onChange={(event) => setFat(event.target.value)}
+              onChange={(event) => updatePhotoNutrient("fatG", event.target.value, setFat)}
               placeholder="Optional"
             />
           </div>
+          {entry?.source === "meal_photo" && photoBasis && (
+            <div className="col-span-2 rounded-xl border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">Per 100 g reference</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {number(photoBasis.caloriesKcal)} kcal · P {number(photoBasis.proteinG)}g · C {number(photoBasis.carbsG)}g · F {number(photoBasis.fatG)}g
+              </p>
+            </div>
+          )}
         </div>
 
         <SheetFooter className="gap-2 sm:flex-row sm:justify-end">

@@ -160,6 +160,26 @@ describe("nutrition storage", () => {
     expect(getNutritionEntries()).toHaveLength(2);
   });
 
+  it("preserves a per-100g basis for editable photo estimates", () => {
+    const saved = addNutritionEntry({
+      ...quickAdd,
+      name: "Photo pasta",
+      source: "meal_photo",
+      quantity: { amount: 250, unit: "g" },
+      nutrients: { caloriesKcal: 400, proteinG: 15, carbsG: 60, fatG: 10 },
+      foodSnapshot: {
+        name: "Photo pasta",
+        basisAmount: 100,
+        basisUnit: "g",
+        nutrients: { caloriesKcal: 160, proteinG: 6, carbsG: 24, fatG: 4 },
+        source: "meal_photo",
+      },
+    });
+
+    expect(saved?.foodSnapshot?.source).toBe("meal_photo");
+    expect(saved?.foodSnapshot?.nutrients.caloriesKcal).toBe(160);
+  });
+
   it("adds, updates, moves, and deletes a quick entry", () => {
     const created = addNutritionEntry(quickAdd);
     expect(created).not.toBeNull();
@@ -357,6 +377,32 @@ describe("nutrition storage", () => {
       amount: 90,
       unit: "g",
     });
+  });
+
+  it("stores a full recipe and logs an arbitrary fraction as one portion", () => {
+    const recipe = saveMealFromItems(
+      "Pasta bolognese",
+      [
+        {
+          name: "Ground beef",
+          source: "builtin",
+          quantity: { amount: 500, unit: "g" },
+          nutrients: { caloriesKcal: 1000, proteinG: 100, carbsG: 0, fatG: 60 },
+        },
+      ],
+      undefined,
+      { kind: "recipe", servings: 3 }
+    );
+
+    expect(recipe).toMatchObject({ kind: "recipe", servings: 3 });
+    expect(copyNutritionItemsToDay(recipe!.items, "2026-09-23", "lunch", 1 / 3)).toEqual({
+      added: 1,
+      skipped: 0,
+      saved: true,
+    });
+    const portion = getNutritionEntriesForDay("2026-09-23")[0];
+    expect(portion.quantity?.amount).toBeCloseTo(166.67, 1);
+    expect(portion.nutrients.caloriesKcal).toBe(333.3);
   });
 
   it("copies a complete previous day while preserving meals and skipping duplicates", () => {

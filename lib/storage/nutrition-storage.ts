@@ -108,7 +108,8 @@ function normalizeFoodSnapshot(raw: unknown): NutritionFoodSnapshot | undefined 
       source !== "usda" &&
       source !== "custom" &&
       source !== "barcode" &&
-      source !== "label_ocr")
+      source !== "label_ocr" &&
+      source !== "meal_photo")
   ) {
     return undefined;
   }

@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ArrowLeft,
   Barcode,
+  ChefHat,
   Globe2,
   Loader2,
   Pencil,
@@ -58,6 +59,7 @@ import type {
   NutritionEntry,
   NutritionMeal,
   NutritionSavedMeal,
+  NutritionSavedMealItem,
 } from "@/lib/nutrition/types";
 import {
   cacheNutritionBarcodeProduct,
@@ -142,6 +144,9 @@ export function FoodPickerSheet({
   onSaved,
   onPhotoScan,
   onSavedMeal,
+  onCreateRecipe,
+  mode = "log",
+  onIngredientSelected,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -151,6 +156,9 @@ export function FoodPickerSheet({
   onSaved: () => void;
   onPhotoScan: (meal: NutritionMeal) => void;
   onSavedMeal: (savedMeal: NutritionSavedMeal, destinationMeal: NutritionMeal) => void;
+  onCreateRecipe?: (meal: NutritionMeal) => void;
+  mode?: "log" | "ingredient";
+  onIngredientSelected?: (item: NutritionSavedMealItem) => void;
 }) {
   const [view, setView] = React.useState<View>("browse");
   const [meal, setMeal] = React.useState<NutritionMeal>(initialMeal);
@@ -503,9 +511,7 @@ export function FoodPickerSheet({
       parsedQuantity,
       selectedFood.basisAmount
     );
-    const input = {
-      dayKey,
-      meal,
+    const item: NutritionSavedMealItem = {
       name: selectedFood.variant
         ? `${selectedFood.name} · ${selectedFood.variant}`
         : selectedFood.name,
@@ -523,6 +529,21 @@ export function FoodPickerSheet({
         source: selectedFood.source,
         sourceReference: selectedFood.sourceReference,
       },
+    };
+    if (mode === "ingredient") {
+      if (!onIngredientSelected) {
+        toast.error("Couldn't add that ingredient.");
+        return;
+      }
+      onIngredientSelected(item);
+      onOpenChange(false);
+      toast.success(`${item.name} added to the recipe`);
+      return;
+    }
+    const input = {
+      dayKey,
+      meal,
+      ...item,
     };
     const saved = entry
       ? updateNutritionEntry(entry.id, input)
@@ -631,11 +652,15 @@ export function FoodPickerSheet({
           {view === "browse" && (
             <>
               <SheetHeader className="text-left">
-                <SheetTitle>Add Food</SheetTitle>
-                <SheetDescription>Search the offline catalog or use a recent favourite.</SheetDescription>
+                <SheetTitle>{mode === "ingredient" ? "Add ingredient" : "Add Food"}</SheetTitle>
+                <SheetDescription>
+                  {mode === "ingredient"
+                    ? "Search locally or online, scan a barcode, or use a photo."
+                    : "Search the offline catalog or use a recent favourite."}
+                </SheetDescription>
               </SheetHeader>
               <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">
-                {savedMeals.length > 0 && (
+                {mode === "log" && savedMeals.length > 0 && (
                   <section className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Saved meals
@@ -654,7 +679,9 @@ export function FoodPickerSheet({
                               {savedMeal.name}
                             </span>
                             <span className="mt-1 block text-xs text-muted-foreground">
-                              {savedMeal.items.length} foods · {number(totals.caloriesKcal)} kcal
+                              {savedMeal.kind === "recipe" && savedMeal.servings
+                                ? `${number(savedMeal.servings)} servings · ${number(totals.caloriesKcal / savedMeal.servings)} kcal each`
+                                : `${savedMeal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}
                             </span>
                           </button>
                         );
@@ -689,6 +716,11 @@ export function FoodPickerSheet({
                   <Button type="button" variant="outline" className="col-span-2" onClick={() => openCustomForm()}>
                     <Plus className="size-4" /> Custom food
                   </Button>
+                  {mode === "log" && onCreateRecipe && (
+                    <Button type="button" variant="outline" className="col-span-2" onClick={() => onCreateRecipe(meal)}>
+                      <ChefHat className="size-4" /> Create recipe
+                    </Button>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -904,20 +936,22 @@ export function FoodPickerSheet({
                 <SheetDescription>{[selectedFood.brand, selectedFood.variant ?? `Per ${selectedFood.basisAmount}${selectedFood.basisUnit}`].filter(Boolean).join(" · ")}</SheetDescription>
               </SheetHeader>
               <div className="grid grid-cols-2 gap-3 overflow-y-auto px-4">
-                <div className="col-span-2 space-y-1.5">
-                  <Label htmlFor="food-meal">Meal</Label>
-                  <Select value={meal} onValueChange={(value) => setMeal(value as NutritionMeal)}>
-                    <SelectTrigger id="food-meal" className="w-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(Object.entries(MEAL_LABELS) as [NutritionMeal, string][]).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {mode === "log" && (
+                  <div className="col-span-2 space-y-1.5">
+                    <Label htmlFor="food-meal">Meal</Label>
+                    <Select value={meal} onValueChange={(value) => setMeal(value as NutritionMeal)}>
+                      <SelectTrigger id="food-meal" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(Object.entries(MEAL_LABELS) as [NutritionMeal, string][]).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="col-span-2 space-y-1.5">
                   <Label htmlFor="food-quantity">Amount ({selectedFood.basisUnit})</Label>
-                  <NumberInput id="food-quantity" decimal value={quantity} onChange={(event) => setQuantity(event.target.value)} autoFocus />
+                  <NumberInput id="food-quantity" decimal value={quantity} onChange={(event) => setQuantity(event.target.value)} />
                   <p className="text-xs text-muted-foreground">Values are calculated from {selectedFood.basisAmount}{selectedFood.basisUnit}.</p>
                 </div>
                 {[
@@ -954,7 +988,13 @@ export function FoodPickerSheet({
                 )}
               </div>
               <SheetFooter>
-                <Button type="button" size="lg" onClick={saveSelectedFood}>{entry ? "Save changes" : `Add to ${MEAL_LABELS[meal]}`}</Button>
+                <Button type="button" size="lg" onClick={saveSelectedFood}>
+                  {mode === "ingredient"
+                    ? "Add ingredient"
+                    : entry
+                      ? "Save changes"
+                      : `Add to ${MEAL_LABELS[meal]}`}
+                </Button>
               </SheetFooter>
             </>
           )}
@@ -969,7 +1009,7 @@ export function FoodPickerSheet({
                 <SheetDescription>Enter nutrition for the serving size you have available.</SheetDescription>
               </SheetHeader>
               <div className="grid grid-cols-2 gap-3 overflow-y-auto px-4">
-                <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-name">Name</Label><Input id="custom-food-name" value={customForm.name} onChange={(event) => setCustomForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Homemade granola" autoFocus /></div>
+                <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-name">Name</Label><Input id="custom-food-name" value={customForm.name} onChange={(event) => setCustomForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Homemade granola" /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-variant">Variant (optional)</Label><Input id="custom-food-variant" value={customForm.variant} onChange={(event) => setCustomForm((form) => ({ ...form, variant: event.target.value }))} placeholder="e.g. Baked" /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-aliases">Search aliases (optional)</Label><Input id="custom-food-aliases" value={customForm.aliases} onChange={(event) => setCustomForm((form) => ({ ...form, aliases: event.target.value }))} placeholder="Romanian name, another name" /><p className="text-xs text-muted-foreground">Separate aliases with commas.</p></div>
                 <div className="col-span-2 space-y-1.5">

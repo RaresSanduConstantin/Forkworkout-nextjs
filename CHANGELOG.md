@@ -13,6 +13,11 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added a direct Create recipe action to each meal's Add Food sheet, opening the
+  recipe builder with that meal already selected.
+- Added a portion-aware recipe builder that stores the full cooked batch,
+  accepts ingredients from local and online search, barcode scans, and food
+  photos, then logs only the selected share of the recipe.
 - Added a live daily AI photo-scan allowance indicator that shows each device's
   configured limit, used scans, and remaining scans without consuming usage.
 - Added Vercel Web Analytics page-view tracking through the root app layout.
@@ -64,6 +69,14 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Kept the in-progress recipe open after selecting an ingredient by nesting the
+  ingredient and photo pickers within the recipe sheet's modal hierarchy.
+- Reversed the photo-estimate editor presentation so editable nutrients reflect
+  the amount eaten while the reference card shows the normalized per-100 g values.
+- Made food-photo gram edits recalculate calories and macros from a preserved
+  per-100 g basis, both during photo review and when editing a logged food.
+- Prevented nutrition and custom-exercise modals from focusing an input and
+  opening the mobile keyboard before the user chooses a field.
 - Stabilized the food-photo Analyze button layout so its loading spinner and
   label no longer overlap on mobile.
 - Split food-photo selection into explicit camera and gallery actions so mobile
@@ -93,6 +106,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Recipe creation now defaults to saving without logging food, uses clearer
+  full-batch serving language, and keeps optional immediate meal logging explicit.
 - Consolidated nutrition logging around Add Food: saved meals now appear first,
   photo scanning moved into the sheet, and the redundant Quick Add creation
   shortcut was removed while legacy entries remain editable.

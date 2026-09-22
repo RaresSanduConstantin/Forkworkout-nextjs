@@ -34,6 +34,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { dayKeyToDate } from "@/lib/date/day-key";
+import { nutrientsForQuantity } from "@/lib/nutrition/calculations";
 import {
   AIPhotoAnalysisError,
   analyzeFoodPhoto,
@@ -42,7 +43,11 @@ import {
   type AIPhotoAnalysis,
   type AIPhotoUsage,
 } from "@/lib/nutrition/ai-photo";
-import type { NutritionMeal, NutritionNutrients } from "@/lib/nutrition/types";
+import type {
+  NutritionMeal,
+  NutritionNutrients,
+  NutritionSavedMealItem,
+} from "@/lib/nutrition/types";
 import { getAnonymousInstallationId } from "@/lib/storage/anonymous-installation";
 import { addNutritionEntries } from "@/lib/storage/nutrition-storage";
 
@@ -61,6 +66,7 @@ type DraftFood = {
   carbs: string;
   fat: string;
   confidence: number;
+  basisNutrients: NutritionNutrients;
 };
 
 function inputNumber(value: number): string {
@@ -68,15 +74,23 @@ function inputNumber(value: number): string {
 }
 
 function analysisDraft(analysis: AIPhotoAnalysis): DraftFood[] {
-  return analysis.foods.map((food) => ({
-    name: food.name,
-    weight: inputNumber(food.estimatedWeightGrams),
-    calories: inputNumber(food.nutrients.caloriesKcal),
-    protein: inputNumber(food.nutrients.proteinG),
-    carbs: inputNumber(food.nutrients.carbsG),
-    fat: inputNumber(food.nutrients.fatG),
-    confidence: food.confidence,
-  }));
+  return analysis.foods.map((food) => {
+    const basisNutrients = nutrientsForQuantity(
+      food.nutrients,
+      100,
+      food.estimatedWeightGrams
+    );
+    return {
+      name: food.name,
+      weight: inputNumber(food.estimatedWeightGrams),
+      calories: inputNumber(food.nutrients.caloriesKcal),
+      protein: inputNumber(food.nutrients.proteinG),
+      carbs: inputNumber(food.nutrients.carbsG),
+      fat: inputNumber(food.nutrients.fatG),
+      confidence: food.confidence,
+      basisNutrients,
+    };
+  });
 }
 
 function parseDraftFoods(drafts: DraftFood[]) {
@@ -116,12 +130,16 @@ export function FoodPhotoAnalysisSheet({
   dayKey,
   initialMeal,
   onSaved,
+  mode = "log",
+  onIngredientsSelected,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dayKey: string;
   initialMeal: NutritionMeal;
   onSaved: () => void;
+  mode?: "log" | "ingredient";
+  onIngredientsSelected?: (items: NutritionSavedMealItem[]) => void;
 }) {
   const [meal, setMeal] = React.useState<NutritionMeal>(initialMeal);
   const [file, setFile] = React.useState<File | null>(null);
@@ -264,9 +282,51 @@ export function FoodPhotoAnalysisSheet({
 
   const updateDraft = (index: number, field: keyof DraftFood, value: string) => {
     setDrafts((current) =>
-      current.map((draft, draftIndex) =>
-        draftIndex === index ? { ...draft, [field]: value } : draft
-      )
+      current.map((draft, draftIndex) => {
+        if (draftIndex !== index) return draft;
+        if (field === "weight") {
+          const nextWeight = Number.parseFloat(value);
+          if (!Number.isFinite(nextWeight) || nextWeight <= 0) {
+            return { ...draft, weight: value };
+          }
+          const scaled = nutrientsForQuantity(draft.basisNutrients, nextWeight, 100);
+          return {
+            ...draft,
+            weight: value,
+            calories: inputNumber(scaled.caloriesKcal),
+            protein: inputNumber(scaled.proteinG),
+            carbs: inputNumber(scaled.carbsG),
+            fat: inputNumber(scaled.fatG),
+          };
+        }
+        if (
+          field === "calories" ||
+          field === "protein" ||
+          field === "carbs" ||
+          field === "fat"
+        ) {
+          const nextValue = Number.parseFloat(value);
+          const currentWeight = Number.parseFloat(draft.weight);
+          const nutrientKey = {
+            calories: "caloriesKcal",
+            protein: "proteinG",
+            carbs: "carbsG",
+            fat: "fatG",
+          }[field] as keyof NutritionNutrients;
+          return {
+            ...draft,
+            [field]: value,
+            basisNutrients:
+              Number.isFinite(nextValue) && Number.isFinite(currentWeight) && currentWeight > 0
+                ? {
+                    ...draft.basisNutrients,
+                    [nutrientKey]: (nextValue * 100) / currentWeight,
+                  }
+                : draft.basisNutrients,
+          };
+        }
+        return { ...draft, [field]: value };
+      })
     );
   };
 
@@ -276,15 +336,39 @@ export function FoodPhotoAnalysisSheet({
       setError("Review every food and enter valid values of zero or more.");
       return;
     }
+    const items = parsed.map(
+      (food): NutritionSavedMealItem => ({
+        name: food.name,
+        source: "meal_photo",
+        quantity: { amount: food.weight, unit: "g" },
+        nutrients: food.nutrients,
+        foodSnapshot: {
+          name: food.name,
+          basisAmount: 100,
+          basisUnit: "g",
+          nutrients: nutrientsForQuantity(food.nutrients, 100, food.weight),
+          source: "meal_photo",
+        },
+      })
+    );
+    if (mode === "ingredient") {
+      if (!onIngredientsSelected) {
+        setError("These ingredients could not be added to the recipe.");
+        return;
+      }
+      onIngredientsSelected(items);
+      onOpenChange(false);
+      toast.success(
+        `${items.length} ${items.length === 1 ? "ingredient" : "ingredients"} added to the recipe`
+      );
+      return;
+    }
     setSaving(true);
     const saved = addNutritionEntries(
-      parsed.map((food) => ({
+      items.map((item) => ({
         dayKey,
         meal,
-        name: food.name,
-        source: "meal_photo" as const,
-        quantity: { amount: food.weight, unit: "g" as const },
-        nutrients: food.nutrients,
+        ...item,
       }))
     );
     setSaving(false);
@@ -325,7 +409,7 @@ export function FoodPhotoAnalysisSheet({
               <Sparkles className="size-4" />
             </span>
             <div>
-              <SheetTitle>Analyze food photo</SheetTitle>
+              <SheetTitle>{mode === "ingredient" ? "Scan recipe ingredients" : "Analyze food photo"}</SheetTitle>
               <p className="text-xs text-muted-foreground">
                 AI estimate · you review before anything is saved
               </p>
@@ -461,21 +545,23 @@ export function FoodPhotoAnalysisSheet({
                 </Badge>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="photo-meal">Meal</Label>
-                <Select value={meal} onValueChange={(value) => setMeal(value as NutritionMeal)}>
-                  <SelectTrigger id="photo-meal" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.entries(MEAL_LABELS) as [NutritionMeal, string][]).map(
-                      ([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      )
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+              {mode === "log" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="photo-meal">Meal</Label>
+                  <Select value={meal} onValueChange={(value) => setMeal(value as NutritionMeal)}>
+                    <SelectTrigger id="photo-meal" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.entries(MEAL_LABELS) as [NutritionMeal, string][]).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-3">
                 {drafts.map((draft, index) => (
@@ -498,6 +584,7 @@ export function FoodPhotoAnalysisSheet({
                       <div className="space-y-1.5">
                         <Label htmlFor={`photo-weight-${index}`}>Weight (g)</Label>
                         <NumberInput id={`photo-weight-${index}`} decimal value={draft.weight} onChange={(event) => updateDraft(index, "weight", event.target.value)} />
+                        <p className="text-[11px] text-muted-foreground">Changing grams scales calories and macros.</p>
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor={`photo-calories-${index}`}>Calories</Label>
@@ -546,7 +633,9 @@ export function FoodPhotoAnalysisSheet({
               </Button>
               <Button type="button" onClick={save} disabled={saving || drafts.length === 0}>
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
-                Add to {format(dayKeyToDate(dayKey), "MMM d")}
+                {mode === "ingredient"
+                  ? "Add ingredients to recipe"
+                  : `Add to ${format(dayKeyToDate(dayKey), "MMM d")}`}
               </Button>
             </>
           ) : (
