@@ -357,6 +357,12 @@ describe("nutrition storage", () => {
       skipped: 1,
       saved: true,
     });
+    expect(
+      copyNutritionItemsToDay(meal!.items, "2026-09-21", "lunch", 1.5, {
+        allowDuplicates: true,
+      })
+    ).toEqual({ added: 1, skipped: 0, saved: true });
+    expect(getNutritionEntriesForDay("2026-09-21")).toHaveLength(2);
     expect(deleteNutritionSavedMeal(meal!.id)).toBe(true);
     expect(getNutritionSavedMeals()).toEqual([]);
   });

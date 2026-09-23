@@ -17,6 +17,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
   a goal timeframe, and selectable calorie, protein, carb, and fat estimates.
 - Added saved-recipe editing so ingredients can be added through food search,
   barcode scan, or photo scan, adjusted, removed, and saved back to the recipe.
+- Added arbitrary saved-meal portion counts, including a 3× shortcut, and
+  allowed intentional repeat logging without weakening day-copy duplicate checks.
 - Added an expandable daily nutrient summary for fiber, sugar, and sodium,
   including clear unavailable and potentially incomplete data states.
 - Added an in-app square food camera with a direct Photo Scan action above meal

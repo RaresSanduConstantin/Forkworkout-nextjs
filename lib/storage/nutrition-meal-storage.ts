@@ -202,7 +202,8 @@ export function copyNutritionItemsToDay(
   items: NutritionSavedMealItem[],
   dayKey: string,
   meal: NutritionMeal,
-  multiplier = 1
+  multiplier = 1,
+  options?: { allowDuplicates?: boolean }
 ): NutritionCopyResult {
   if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 100) {
     return { added: 0, skipped: 0, saved: false };
@@ -238,7 +239,10 @@ export function copyNutritionItemsToDay(
     const signature = entrySignature(candidate);
     const sourceOccurrence = (sourceSignatureCounts.get(signature) ?? 0) + 1;
     sourceSignatureCounts.set(signature, sourceOccurrence);
-    if ((existingSignatureCounts.get(signature) ?? 0) >= sourceOccurrence) {
+    if (
+      !options?.allowDuplicates &&
+      (existingSignatureCounts.get(signature) ?? 0) >= sourceOccurrence
+    ) {
       skipped += 1;
       continue;
     }

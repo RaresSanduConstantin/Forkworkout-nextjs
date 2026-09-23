@@ -65,7 +65,7 @@ const MEAL_LABELS: Record<NutritionMeal, string> = {
   snacks: "Snacks",
 };
 
-const MULTIPLIERS = [0.5, 1, 1.5, 2] as const;
+const MULTIPLIERS = [0.5, 1, 1.5, 2, 3] as const;
 
 const number = (value: number) =>
   new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(value);
@@ -135,7 +135,7 @@ export function MealActionsSheet({
   const [savedMeals, setSavedMeals] = React.useState<NutritionSavedMeal[]>([]);
   const [selectedSavedMeal, setSelectedSavedMeal] = React.useState<NutritionSavedMeal | null>(null);
   const [selectedItemAmounts, setSelectedItemAmounts] = React.useState<string[]>([]);
-  const [multiplier, setMultiplier] = React.useState(1);
+  const [mealPortions, setMealPortions] = React.useState("1");
   const [recipePortions, setRecipePortions] = React.useState("1");
   const [savingCurrent, setSavingCurrent] = React.useState(false);
   const [savedMealName, setSavedMealName] = React.useState("");
@@ -173,7 +173,7 @@ export function MealActionsSheet({
         item.quantity ? String(item.quantity.amount) : ""
       ) ?? []
     );
-    setMultiplier(1);
+    setMealPortions("1");
     setRecipePortions("1");
     setTab(startRecipe ? "create" : "meals");
     setSavingCurrent(startSaving);
@@ -241,12 +241,15 @@ export function MealActionsSheet({
     .slice(0, 6);
   const recentFullDays = priorDayKeys.slice(0, 8);
   const parsedRecipePortions = Number.parseFloat(recipePortions);
+  const parsedMealPortions = Number.parseFloat(mealPortions);
   const effectiveMultiplier =
     selectedSavedMeal?.kind === "recipe" && selectedSavedMeal.servings
       ? Number.isFinite(parsedRecipePortions) && parsedRecipePortions > 0
         ? parsedRecipePortions / selectedSavedMeal.servings
         : 0
-      : multiplier;
+      : Number.isFinite(parsedMealPortions) && parsedMealPortions > 0 && parsedMealPortions <= 100
+        ? parsedMealPortions
+        : 0;
 
   const adjustedSelectedItems = React.useMemo(() => {
     if (!selectedSavedMeal) return null;
@@ -286,7 +289,7 @@ export function MealActionsSheet({
     setSelectedItemAmounts(
       meal.items.map((item) => (item.quantity ? String(item.quantity.amount) : ""))
     );
-    setMultiplier(1);
+    setMealPortions("1");
     setRecipePortions("1");
   };
 
@@ -364,14 +367,19 @@ export function MealActionsSheet({
       return;
     }
     if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier <= 0) {
-      toast.error("Enter how many recipe servings you ate.");
+      toast.error(
+        selectedSavedMeal.kind === "recipe"
+          ? "Enter how many recipe servings you ate."
+          : "Enter how many portions you want to add."
+      );
       return;
     }
     const result = copyNutritionItemsToDay(
       adjustedSelectedItems,
       dayKey,
       destinationMeal,
-      effectiveMultiplier
+      effectiveMultiplier,
+      { allowDuplicates: true }
     );
     reportCopy(result, selectedSavedMeal.name);
     if (result.saved && result.added > 0) onOpenChange(false);
@@ -596,10 +604,17 @@ export function MealActionsSheet({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Label>Portion</Label>
-                    <div className="grid grid-cols-4 gap-2">
+                    <Label htmlFor="saved-meal-portions">How many portions?</Label>
+                    <NumberInput
+                      id="saved-meal-portions"
+                      decimal
+                      value={mealPortions}
+                      onChange={(event) => setMealPortions(event.target.value)}
+                      aria-label="Number of saved meal portions"
+                    />
+                    <div className="grid grid-cols-5 gap-1.5">
                       {MULTIPLIERS.map((value) => (
-                        <Button key={value} type="button" variant={multiplier === value ? "default" : "outline"} onClick={() => setMultiplier(value)}>
+                        <Button key={value} type="button" className="px-1" variant={parsedMealPortions === value ? "default" : "outline"} onClick={() => setMealPortions(String(value))}>
                           {value}×
                         </Button>
                       ))}
@@ -685,7 +700,7 @@ export function MealActionsSheet({
                 <Button type="button" size="lg" onClick={useSavedMeal} disabled={effectiveMultiplier <= 0 || !adjustedSelectedItems}>
                   {selectedSavedMeal.kind === "recipe"
                     ? `Add ${recipePortions || ""} serving${parsedRecipePortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`
-                    : `Add ${multiplier}× to ${MEAL_LABELS[destinationMeal]}`}
+                    : `Add ${mealPortions || ""} portion${parsedMealPortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`}
                 </Button>
               </SheetFooter>
             </>
