@@ -1,0 +1,185 @@
+"use client";
+
+import * as React from "react";
+import { Camera, Loader2, RefreshCw } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+type CameraStatus = "starting" | "ready" | "capturing" | "error";
+
+function cameraErrorMessage(reason: unknown): string {
+  const name = reason instanceof DOMException ? reason.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "Camera access was blocked. Allow it in your browser settings, then try again or choose a gallery photo.";
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "No usable rear camera was found. You can still choose a photo from your gallery.";
+  }
+  return "The camera could not be started. Try again or choose a photo from your gallery.";
+}
+
+export function FoodCameraPanel({
+  active,
+  disabled,
+  onCaptured,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  onCaptured: (file: File) => void;
+}) {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const [attempt, setAttempt] = React.useState(0);
+  const [status, setStatus] = React.useState<CameraStatus>("starting");
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!active) return;
+    let disposed = false;
+    const videoElement = videoRef.current;
+
+    setStatus("starting");
+    setError(null);
+
+    const start = async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Camera capture is not supported by this browser.");
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+        if (disposed || !videoElement) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        videoElement.srcObject = stream;
+        await videoElement.play();
+        if (!disposed) setStatus("ready");
+      } catch (reason) {
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        if (videoElement) videoElement.srcObject = null;
+        if (!disposed) {
+          setStatus("error");
+          setError(cameraErrorMessage(reason));
+        }
+      }
+    };
+
+    void start();
+    return () => {
+      disposed = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (videoElement) videoElement.srcObject = null;
+    };
+  }, [active, attempt]);
+
+  const capture = async () => {
+    const video = videoRef.current;
+    if (!video || status !== "ready" || !video.videoWidth || !video.videoHeight) return;
+    setStatus("capturing");
+    try {
+      const sourceSize = Math.min(video.videoWidth, video.videoHeight);
+      const sourceX = (video.videoWidth - sourceSize) / 2;
+      const sourceY = (video.videoHeight - sourceSize) / 2;
+      const outputSize = Math.min(1_280, sourceSize);
+      const canvas = document.createElement("canvas");
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Photo capture is not supported by this browser.");
+      context.drawImage(
+        video,
+        sourceX,
+        sourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        outputSize,
+        outputSize
+      );
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.9)
+      );
+      if (!blob) throw new Error("The photo could not be captured.");
+      onCaptured(new File([blob], `food-photo-${Date.now()}.jpg`, { type: "image/jpeg" }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The photo could not be captured.");
+      setStatus("ready");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="relative aspect-square overflow-hidden rounded-2xl border bg-zinc-950">
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          aria-label="Camera preview for taking a food photo"
+          className="size-full object-cover"
+        />
+        <div className="pointer-events-none absolute inset-5 rounded-2xl border border-white/70" />
+
+        {(status === "starting" || status === "error") && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/90 p-6 text-center text-white">
+            {status === "starting" ? (
+              <>
+                <Loader2 className="size-7 animate-spin" />
+                <p className="text-sm">Starting camera…</p>
+              </>
+            ) : (
+              <>
+                <Camera className="size-8" />
+                <p className="text-sm">{error}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setAttempt((value) => value + 1)}
+                >
+                  <RefreshCw className="size-4" />
+                  Try camera again
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
+        {status === "ready" && (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md bg-black/65 px-3 py-2 text-center text-xs text-white backdrop-blur-sm">
+            Keep the full meal inside the square
+          </div>
+        )}
+      </div>
+
+      {error && status !== "error" && (
+        <p className="text-center text-sm text-destructive" role="alert">{error}</p>
+      )}
+
+      <Button
+        type="button"
+        className="w-full"
+        size="lg"
+        onClick={() => void capture()}
+        disabled={disabled || status !== "ready"}
+      >
+        {status === "capturing" ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Camera className="size-4" />
+        )}
+        {status === "capturing" ? "Capturing…" : "Take photo"}
+      </Button>
+    </div>
+  );
+}

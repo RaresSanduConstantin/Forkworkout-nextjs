@@ -1,6 +1,20 @@
 import { describe, it, expect } from "vitest";
 
-import { currentWeekDayKeys, toDayKey } from "@/lib/date/day-key";
+import { currentWeekDayKeys, toDayKey, weekDayKeys } from "@/lib/date/day-key";
+
+describe("weekDayKeys", () => {
+  it("returns ordered Monday–Sunday keys across month boundaries", () => {
+    expect(weekDayKeys(new Date(2026, 8, 2, 15, 30))).toEqual([
+      "2026-08-31",
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+      "2026-09-04",
+      "2026-09-05",
+      "2026-09-06",
+    ]);
+  });
+});
 
 describe("currentWeekDayKeys", () => {
   it("returns Monday–Sunday of the week containing the given date", () => {

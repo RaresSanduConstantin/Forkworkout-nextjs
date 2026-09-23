@@ -103,6 +103,13 @@ describe("body profile storage", () => {
     updateBodyProfile({ heightCm: 5 });
     expect(getBodyProfile().heightCm).toBeUndefined();
   });
+
+  it("keeps a goal timeframe within a sane range", () => {
+    updateBodyProfile({ goalWeightKg: 75, goalTimeframeWeeks: 16 });
+    expect(getBodyProfile().goalTimeframeWeeks).toBe(16);
+    updateBodyProfile({ goalTimeframeWeeks: 500 });
+    expect(getBodyProfile().goalTimeframeWeeks).toBeUndefined();
+  });
 });
 
 describe("settings storage", () => {

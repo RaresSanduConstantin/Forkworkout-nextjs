@@ -403,6 +403,22 @@ describe("nutrition storage", () => {
     const portion = getNutritionEntriesForDay("2026-09-23")[0];
     expect(portion.quantity?.amount).toBeCloseTo(166.67, 1);
     expect(portion.nutrients.caloriesKcal).toBe(333.3);
+
+    const updated = saveMealFromItems(
+      recipe!.name,
+      [
+        {
+          ...recipe!.items[0],
+          quantity: { amount: 600, unit: "g" },
+          nutrients: { caloriesKcal: 1200, proteinG: 120, carbsG: 0, fatG: 72 },
+        },
+      ],
+      recipe!.id,
+      { kind: recipe!.kind, servings: recipe!.servings }
+    );
+    expect(updated).toMatchObject({ kind: "recipe", servings: 3 });
+    expect(getNutritionSavedMeals()[0]?.items[0].quantity?.amount).toBe(600);
+    expect(getNutritionSavedMeals()[0]?.items[0].nutrients.caloriesKcal).toBe(1200);
   });
 
   it("copies a complete previous day while preserving meals and skipping duplicates", () => {

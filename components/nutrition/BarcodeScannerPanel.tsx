@@ -32,17 +32,20 @@ async function createFoodBarcodeReader() {
   const { BarcodeFormat, BrowserMultiFormatOneDReader } = await import(
     "@zxing/browser"
   );
-  const reader = new BrowserMultiFormatOneDReader(undefined, {
-    delayBetweenScanAttempts: 120,
-    delayBetweenScanSuccess: 1_000,
-  });
-  reader.possibleFormats = [
+  const { DecodeHintType } = await import("@zxing/library");
+  const formats = [
     BarcodeFormat.EAN_8,
     BarcodeFormat.EAN_13,
     BarcodeFormat.UPC_A,
     BarcodeFormat.UPC_E,
   ];
-  return reader;
+  const hints = new Map<import("@zxing/library").DecodeHintType, unknown>();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+  return new BrowserMultiFormatOneDReader(hints, {
+    delayBetweenScanAttempts: 120,
+    delayBetweenScanSuccess: 1_000,
+  });
 }
 
 export function BarcodeScannerPanel({
@@ -110,6 +113,10 @@ export function BarcodeScannerPanel({
               facingMode: { ideal: "environment" },
               width: { ideal: 1280 },
               height: { ideal: 720 },
+              aspectRatio: { ideal: 16 / 9 },
+              advanced: [
+                { focusMode: "continuous" } as MediaTrackConstraintSet,
+              ],
             },
             audio: false,
           },
@@ -177,16 +184,18 @@ export function BarcodeScannerPanel({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-xl border bg-zinc-950">
+    <div className="grid gap-3 landscape:grid-cols-[minmax(0,1.45fr)_minmax(15rem,1fr)] landscape:items-start">
+      <div className="relative aspect-video min-h-44 overflow-hidden rounded-xl border bg-zinc-950">
         <video
           ref={videoRef}
           muted
           playsInline
           aria-label="Camera preview for scanning a food barcode"
-          className="size-full object-cover"
+          className="size-full object-contain"
         />
-        <div className="pointer-events-none absolute inset-x-[12%] top-1/2 h-24 -translate-y-1/2 rounded-lg border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.25)]" />
+        <div className="pointer-events-none absolute inset-x-[5%] top-1/2 h-[42%] -translate-y-1/2 rounded-xl border-2 border-white/90 bg-black/5 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]">
+          <span className="absolute inset-x-4 top-1/2 h-px -translate-y-1/2 bg-red-400/90 shadow-[0_0_6px_rgba(248,113,113,0.8)]" />
+        </div>
 
         {(status === "starting" || status === "error" || lookupLoading) && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/90 p-6 text-center text-white">
@@ -218,61 +227,67 @@ export function BarcodeScannerPanel({
         {status === "scanning" && !lookupLoading && (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md bg-black/65 px-3 py-2 text-center text-xs text-white backdrop-blur-sm">
             <ScanBarcode className="mr-1 inline size-4" />
-            Hold the barcode inside the frame
+            Keep the full barcode visible; the frame is only a guide
           </div>
         )}
       </div>
 
-      {(scanError || lookupError) && (
-        <p className="text-center text-sm text-destructive" role="status">
-          {scanError ?? lookupError}
+      <div className="space-y-3">
+        <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Barcodes can be scanned anywhere in the camera image. In landscape, keep the whole label visible instead of filling the frame.
         </p>
-      )}
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        {flashAvailable && (
-          <Button type="button" variant="outline" onClick={() => void toggleFlash()}>
-            <Flashlight className="size-4" />
-            {flashOn ? "Turn flash off" : "Turn flash on"}
-          </Button>
+        {(scanError || lookupError) && (
+          <p className="text-center text-sm text-destructive" role="status">
+            {scanError ?? lookupError}
+          </p>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          className={flashAvailable ? "" : "sm:col-span-2"}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={lookupLoading}
-        >
-          <ImageUp className="size-4" />
-          Scan saved image
-        </Button>
-      </div>
 
-      <form className="flex gap-2" onSubmit={submitManualCode}>
-        <div className="relative min-w-0 flex-1">
-          <Keyboard className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={manualCode}
-            onChange={(event) => setManualCode(event.target.value)}
-            className="pl-9 tabular-nums"
-            placeholder="Enter barcode number"
-            inputMode="numeric"
-            autoComplete="off"
+        <div className="grid gap-2 sm:grid-cols-2">
+          {flashAvailable && (
+            <Button type="button" variant="outline" onClick={() => void toggleFlash()}>
+              <Flashlight className="size-4" />
+              {flashOn ? "Turn flash off" : "Turn flash on"}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            className={flashAvailable ? "" : "sm:col-span-2"}
+            onClick={() => fileInputRef.current?.click()}
             disabled={lookupLoading}
-          />
+          >
+            <ImageUp className="size-4" />
+            Scan saved image
+          </Button>
         </div>
-        <Button type="submit" variant="secondary" disabled={lookupLoading}>
-          Look up
-        </Button>
-      </form>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={scanImage}
-      />
+        <form className="flex gap-2" onSubmit={submitManualCode}>
+          <div className="relative min-w-0 flex-1">
+            <Keyboard className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={manualCode}
+              onChange={(event) => setManualCode(event.target.value)}
+              className="pl-9 tabular-nums"
+              placeholder="Enter barcode number"
+              inputMode="numeric"
+              autoComplete="off"
+              disabled={lookupLoading}
+            />
+          </div>
+          <Button type="submit" variant="secondary" disabled={lookupLoading}>
+            Look up
+          </Button>
+        </form>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={scanImage}
+        />
+      </div>
     </div>
   );
 }

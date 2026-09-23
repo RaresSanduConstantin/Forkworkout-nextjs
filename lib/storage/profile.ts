@@ -14,6 +14,7 @@ export type BodyProfile = {
   birthYear?: number;
   activity?: ActivityLevel;
   goalWeightKg?: number;
+  goalTimeframeWeeks?: number;
 };
 
 function posNum(v: unknown, min: number, max: number): number | undefined {
@@ -25,6 +26,7 @@ function normalize(raw: unknown): BodyProfile {
   if (!raw || typeof raw !== "object") return {};
   const r = raw as Record<string, unknown>;
   const currentYear = new Date().getFullYear();
+  const goalWeightKg = posNum(r.goalWeightKg, 20, 400);
   return {
     heightCm: posNum(r.heightCm, 50, 260),
     sex: r.sex === "male" || r.sex === "female" ? r.sex : undefined,
@@ -37,7 +39,10 @@ function normalize(raw: unknown): BodyProfile {
       r.activity === "very_active"
         ? r.activity
         : undefined,
-    goalWeightKg: posNum(r.goalWeightKg, 20, 400),
+    goalWeightKg,
+    goalTimeframeWeeks: goalWeightKg
+      ? posNum(r.goalTimeframeWeeks, 1, 260)
+      : undefined,
   };
 }
 

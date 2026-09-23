@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Calculator, Sparkles } from "lucide-react";
+import { Calculator, Scale, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,24 +15,38 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
-import { calorieTargets, computeAge, computeBMR, computeTDEE } from "@/lib/body-metrics";
-import { ROUTES } from "@/lib/routes";
-import { getBodyMetrics } from "@/lib/storage/body-storage";
-import { getBodyProfile } from "@/lib/storage/profile";
-import { saveNutritionTargets } from "@/lib/storage/nutrition-storage";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ACTIVITY_LEVELS, computeAge, computeBMR, computeTDEE } from "@/lib/body-metrics";
+import { nutritionGoalPlans } from "@/lib/nutrition/target-plans";
 import type { NutritionTargets } from "@/lib/nutrition/types";
+import { addBodyMetric, getBodyMetrics } from "@/lib/storage/body-storage";
+import {
+  getBodyProfile,
+  updateBodyProfile,
+  type ActivityLevel,
+  type BodySex,
+} from "@/lib/storage/profile";
+import { saveNutritionTargets } from "@/lib/storage/nutrition-storage";
+import { cn } from "@/lib/utils";
 
-type Suggestion = { cut: number; maintain: number; bulk: number } | null;
+const TIMEFRAMES = [4, 8, 12, 16, 24, 36, 52] as const;
 
-function currentSuggestion(): { suggestion: Suggestion; missing: boolean } {
-  const profile = getBodyProfile();
-  const latestWeight = [...getBodyMetrics()]
+function parsed(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function latestWeight(): number | undefined {
+  return [...getBodyMetrics()]
     .reverse()
     .find((entry) => entry.weightKg !== undefined)?.weightKg;
-  const age = computeAge(profile.birthYear);
-  const bmr = computeBMR(latestWeight, profile.heightCm, age, profile.sex);
-  const tdee = computeTDEE(bmr, profile.activity);
-  return { suggestion: calorieTargets(tdee), missing: tdee === null };
 }
 
 export function NutritionTargetsDialog({
@@ -51,18 +64,71 @@ export function NutritionTargetsDialog({
   const [protein, setProtein] = React.useState("");
   const [carbs, setCarbs] = React.useState("");
   const [fat, setFat] = React.useState("");
-  const [profileSuggestion, setProfileSuggestion] = React.useState<ReturnType<
-    typeof currentSuggestion
-  > | null>(null);
+  const [weight, setWeight] = React.useState("");
+  const [initialWeight, setInitialWeight] = React.useState<number | undefined>();
+  const [goalWeight, setGoalWeight] = React.useState("");
+  const [height, setHeight] = React.useState("");
+  const [birthYear, setBirthYear] = React.useState("");
+  const [sex, setSex] = React.useState<BodySex | "">("");
+  const [activity, setActivity] = React.useState<ActivityLevel | "">("");
+  const [timeframeWeeks, setTimeframeWeeks] = React.useState("12");
+  const [selectedPlanId, setSelectedPlanId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
+    const profile = getBodyProfile();
+    const currentWeight = latestWeight();
     setCalories(targets ? String(targets.caloriesKcal) : "");
     setProtein(targets ? String(targets.proteinG) : "");
     setCarbs(targets ? String(targets.carbsG) : "");
     setFat(targets ? String(targets.fatG) : "");
-    setProfileSuggestion(currentSuggestion());
+    setWeight(currentWeight !== undefined ? String(currentWeight) : "");
+    setInitialWeight(currentWeight);
+    setGoalWeight(profile.goalWeightKg !== undefined ? String(profile.goalWeightKg) : "");
+    setHeight(profile.heightCm !== undefined ? String(profile.heightCm) : "");
+    setBirthYear(profile.birthYear !== undefined ? String(profile.birthYear) : "");
+    setSex(profile.sex ?? "");
+    setActivity(profile.activity ?? "");
+    setTimeframeWeeks(
+      TIMEFRAMES.includes(profile.goalTimeframeWeeks as (typeof TIMEFRAMES)[number])
+        ? String(profile.goalTimeframeWeeks)
+        : "12"
+    );
+    setSelectedPlanId(null);
   }, [open, targets]);
+
+  const plans = React.useMemo(() => {
+    const currentWeight = parsed(weight);
+    const targetWeight = parsed(goalWeight);
+    const heightCm = parsed(height);
+    const year = parsed(birthYear);
+    const weeks = parsed(timeframeWeeks);
+    if (!currentWeight || !targetWeight || !heightCm || !year || !weeks || !sex || !activity) {
+      return [];
+    }
+    const bmr = computeBMR(currentWeight, heightCm, computeAge(year), sex);
+    const tdee = computeTDEE(bmr, activity);
+    if (!bmr || !tdee) return [];
+    return nutritionGoalPlans({
+      bmr,
+      tdee,
+      currentWeightKg: currentWeight,
+      goalWeightKg: targetWeight,
+      timeframeWeeks: weeks,
+    });
+  }, [activity, birthYear, goalWeight, height, sex, timeframeWeeks, weight]);
+
+  React.useEffect(() => {
+    setSelectedPlanId(null);
+  }, [activity, birthYear, goalWeight, height, sex, timeframeWeeks, weight]);
+
+  const applyPlan = (plan: (typeof plans)[number]) => {
+    setCalories(String(plan.caloriesKcal));
+    setProtein(String(plan.proteinG));
+    setCarbs(String(plan.carbsG));
+    setFat(String(plan.fatG));
+    setSelectedPlanId(plan.id);
+  };
 
   const save = () => {
     const values = {
@@ -79,126 +145,218 @@ export function NutritionTargetsDialog({
       toast.error("Macro targets cannot be negative.");
       return;
     }
+
+    const currentWeight = parsed(weight);
+    const targetWeight = parsed(goalWeight);
+    const heightCm = parsed(height);
+    const year = parsed(birthYear);
+    const weeks = parsed(timeframeWeeks);
+    if (weight.trim() && (!currentWeight || currentWeight < 20 || currentWeight > 400)) {
+      toast.error("Enter a current weight between 20 and 400 kg.");
+      return;
+    }
+    if (goalWeight.trim() && (!targetWeight || targetWeight < 20 || targetWeight > 400)) {
+      toast.error("Enter a goal weight between 20 and 400 kg.");
+      return;
+    }
+    if (height.trim() && (!heightCm || heightCm < 50 || heightCm > 260)) {
+      toast.error("Enter a height between 50 and 260 cm.");
+      return;
+    }
+    const currentYear = new Date().getFullYear();
+    if (birthYear.trim() && (!year || year < 1900 || year > currentYear)) {
+      toast.error(`Enter a birth year between 1900 and ${currentYear}.`);
+      return;
+    }
+
     const saved = saveNutritionTargets(values);
     if (!saved) {
       toast.error("Couldn't save your nutrition targets.");
       return;
     }
+
+    updateBodyProfile({
+      heightCm,
+      birthYear: year,
+      sex: sex || undefined,
+      activity: activity || undefined,
+      goalWeightKg: targetWeight,
+      goalTimeframeWeeks: targetWeight && weeks ? weeks : undefined,
+    });
+    if (
+      currentWeight &&
+      (initialWeight === undefined || Math.abs(currentWeight - initialWeight) >= 0.05) &&
+      !addBodyMetric({ weightKg: currentWeight, note: "Updated from nutrition targets" })
+    ) {
+      toast.error("Targets were saved, but the current weight could not be added to Body.");
+    }
+
     onSaved(saved);
     onOpenChange(false);
     toast.success("Nutrition targets saved");
   };
 
-  const suggestion = profileSuggestion?.suggestion;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        className="max-h-[calc(100dvh-1rem)] overflow-y-auto sm:max-w-xl"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <DialogHeader className="text-left">
-          <DialogTitle>Daily nutrition targets</DialogTitle>
+          <DialogTitle>Nutrition targets</DialogTitle>
           <DialogDescription>
-            Targets stay under your control. Profile suggestions are estimates and are only applied
-            when you choose one.
+            Add your details, choose an estimated plan, then adjust anything you prefer.
           </DialogDescription>
         </DialogHeader>
 
-        {suggestion ? (
-          <div className="rounded-xl border bg-muted/30 p-3">
-            <div className="mb-2 flex items-center gap-2">
-              <Sparkles className="size-4 text-primary" />
-              <p className="text-sm font-semibold">From your body profile</p>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                ["Cut", suggestion.cut],
-                ["Maintain", suggestion.maintain],
-                ["Gain", suggestion.bulk],
-              ] as const).map(([label, value]) => (
-                <Button
-                  key={label}
-                  type="button"
-                  variant="outline"
-                  className="h-auto flex-col gap-0.5 px-2 py-2"
-                  onClick={() => setCalories(String(value))}
-                >
-                  <span className="text-xs">{label}</span>
-                  <span className="font-semibold tabular-nums">{value}</span>
-                </Button>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Based on your latest weight and existing BMR/TDEE profile calculation.
+        <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <Scale className="size-4 text-primary" /> Your goal details
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Shared with Body and stored only on this device. A changed current weight creates a new Body weigh-in.
             </p>
           </div>
-        ) : profileSuggestion?.missing ? (
-          <div className="rounded-xl border border-dashed p-3 text-sm">
-            <div className="flex gap-2">
-              <Calculator className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Want a calorie suggestion?</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Add a current weight, height, birth year, sex, and activity level in Body.
-                </p>
-                <Button asChild variant="link" className="mt-1 h-auto p-0 text-xs">
-                  <Link href={ROUTES.body} onClick={() => onOpenChange(false)}>
-                    Complete body profile
-                  </Link>
-                </Button>
-              </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="target-current-weight">Current weight (kg)</Label>
+              <NumberInput id="target-current-weight" decimal value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="e.g. 82" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="target-goal-weight">Goal weight (kg)</Label>
+              <NumberInput id="target-goal-weight" decimal value={goalWeight} onChange={(event) => setGoalWeight(event.target.value)} placeholder="e.g. 75" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="target-height">Height (cm)</Label>
+              <NumberInput id="target-height" decimal value={height} onChange={(event) => setHeight(event.target.value)} placeholder="e.g. 178" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="target-birth-year">Birth year</Label>
+              <NumberInput id="target-birth-year" value={birthYear} onChange={(event) => setBirthYear(event.target.value)} placeholder="e.g. 1995" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="target-sex">Sex</Label>
+              <Select value={sex} onValueChange={(value) => setSex(value as BodySex)}>
+                <SelectTrigger id="target-sex" className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="target-activity">Activity</Label>
+              <Select value={activity} onValueChange={(value) => setActivity(value as ActivityLevel)}>
+                <SelectTrigger id="target-activity" className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {ACTIVITY_LEVELS.map((level) => (
+                    <SelectItem key={level.value} value={level.value}>{level.label} — {level.hint}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="target-timeframe">Time to reach your goal</Label>
+              <Select value={timeframeWeeks} onValueChange={setTimeframeWeeks}>
+                <SelectTrigger id="target-timeframe" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TIMEFRAMES.map((weeks) => (
+                    <SelectItem key={weeks} value={String(weeks)}>
+                      {weeks} weeks{weeks >= 52 ? " (about 1 year)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        ) : null}
+        </section>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="nutrition-target-calories">Calories (kcal)</Label>
-            <NumberInput
-              id="nutrition-target-calories"
-              value={calories}
-              onChange={(event) => setCalories(event.target.value)}
-              placeholder="e.g. 2300"
-            />
+        {plans.length > 0 ? (
+          <section className="space-y-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Sparkles className="size-4 text-primary" /> Choose an estimate
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Calories use your estimated daily energy needs. Macros are editable starting points.
+              </p>
+            </div>
+            <div className="grid gap-2">
+              {plans.map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  className={cn(
+                    "rounded-xl border p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    selectedPlanId === plan.id && "border-primary bg-primary/10"
+                  )}
+                  onClick={() => applyPlan(plan)}
+                  aria-pressed={selectedPlanId === plan.id}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span>
+                      <span className="block text-sm font-semibold">{plan.label}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {plan.description}{plan.limited ? " · adjusted to a conservative range" : ""}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-base font-bold tabular-nums">{plan.caloriesKcal} kcal</span>
+                  </span>
+                  <span className="mt-2 block text-xs text-muted-foreground">
+                    Protein {plan.proteinG}g · Carbs {plan.carbsG}g · Fat {plan.fatG}g
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <div className="flex gap-2 rounded-xl border border-dashed p-3 text-sm">
+            <Calculator className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Complete your goal details for estimates</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Current and goal weight, height, birth year, sex, and activity are needed.
+              </p>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nutrition-target-protein">Protein (g)</Label>
-            <NumberInput
-              id="nutrition-target-protein"
-              decimal
-              value={protein}
-              onChange={(event) => setProtein(event.target.value)}
-              placeholder="Optional"
-            />
+        )}
+
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold">Daily targets</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Choose an estimate above or enter your own targets.</p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nutrition-target-carbs">Carbs (g)</Label>
-            <NumberInput
-              id="nutrition-target-carbs"
-              decimal
-              value={carbs}
-              onChange={(event) => setCarbs(event.target.value)}
-              placeholder="Optional"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="nutrition-target-calories">Calories (kcal)</Label>
+              <NumberInput id="nutrition-target-calories" value={calories} onChange={(event) => { setCalories(event.target.value); setSelectedPlanId(null); }} placeholder="e.g. 2300" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nutrition-target-protein">Protein (g)</Label>
+              <NumberInput id="nutrition-target-protein" decimal value={protein} onChange={(event) => { setProtein(event.target.value); setSelectedPlanId(null); }} placeholder="Optional" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nutrition-target-carbs">Carbs (g)</Label>
+              <NumberInput id="nutrition-target-carbs" decimal value={carbs} onChange={(event) => { setCarbs(event.target.value); setSelectedPlanId(null); }} placeholder="Optional" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nutrition-target-fat">Fat (g)</Label>
+              <NumberInput id="nutrition-target-fat" decimal value={fat} onChange={(event) => { setFat(event.target.value); setSelectedPlanId(null); }} placeholder="Optional" />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nutrition-target-fat">Fat (g)</Label>
-            <NumberInput
-              id="nutrition-target-fat"
-              decimal
-              value={fat}
-              onChange={(event) => setFat(event.target.value)}
-              placeholder="Optional"
-            />
-          </div>
-        </div>
+        </section>
+
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          These are planning estimates, not medical advice. Real energy needs vary; monitor your trend and adjust gradually.
+        </p>
 
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button type="button" onClick={save}>Save targets</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-

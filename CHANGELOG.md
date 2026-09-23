@@ -13,6 +13,12 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Expanded Nutrition Targets with shared body-profile and current-weight inputs,
+  a goal timeframe, and selectable calorie, protein, carb, and fat estimates.
+- Added an in-app square food camera with a direct Photo Scan action above meal
+  importing, while preserving gallery upload as a fallback.
+- Added a tappable Monday–Sunday nutrition log strip beneath the selected date,
+  with checkmarks for days that contain food entries and empty circles otherwise.
 - Added an optional hidden owner-key flow on the Nutrition heading that grants
   an installation-bound unlimited app scan allowance without embedding the key
   in the client bundle or persisting it in browser storage.
@@ -72,6 +78,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Reworked food-barcode scanning for landscape phones with a full uncropped
+  16:9 camera preview, a wide one-dimensional barcode guide, stronger rotated
+  decoding, continuous-focus hints, and side-by-side landscape controls.
 - Kept the in-progress recipe open after selecting an ingredient by nesting the
   ingredient and photo pickers within the recipe sheet's modal hierarchy.
 - Reversed the photo-estimate editor presentation so editable nutrients reflect
@@ -109,6 +118,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Saved-meal details now allow per-item quantity edits with live nutrient
+  recalculation, optional template updates, and serving-aware logged amounts.
 - Recipe creation now defaults to saving without logging food, uses clearer
   full-batch serving language, and keeps optional immediate meal logging explicit.
 - Consolidated nutrition logging around Add Food: saved meals now appear first,

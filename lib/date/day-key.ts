@@ -18,21 +18,25 @@ export function dayKeyToDate(dayKey: string): Date {
   return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
+/** Returns Monday–Sunday local day keys for the calendar week containing `date`. */
+export function weekDayKeys(date: Date): string[] {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  // getDay(): 0=Sun..6=Sat. Days elapsed since Monday (Mon=0 … Sun=6).
+  const daysSinceMonday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - daysSinceMonday);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    return toDayKey(day);
+  });
+}
+
 /**
  * Returns the local `YYYY-MM-DD` keys for the current calendar week, starting on
  * Monday (ISO week). Used for "this week" counts so a workout from a previous
  * week never leaks in via a rolling 7-day window.
  */
 export function currentWeekDayKeys(now: Date = new Date()): Set<string> {
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  // getDay(): 0=Sun..6=Sat. Days elapsed since Monday (Mon=0 … Sun=6).
-  const daysSinceMonday = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - daysSinceMonday);
-  const keys = new Set<string>();
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    keys.add(toDayKey(d));
-  }
-  return keys;
+  return new Set(weekDayKeys(now));
 }

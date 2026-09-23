@@ -75,14 +75,6 @@ type MealBuilderItem = {
 
 type RecipeSaveDestination = "saved_only" | NutritionMeal;
 
-function quantityLabel(
-  item: NutritionSavedMealItem,
-  multiplier = 1
-): string {
-  if (!item.quantity) return "Amount not recorded";
-  return `${number(item.quantity.amount * multiplier)} ${item.quantity.unit}`;
-}
-
 function previousDayKey(dayKey: string): string {
   const date = dayKeyToDate(dayKey);
   date.setDate(date.getDate() - 1);
@@ -113,6 +105,7 @@ export function MealActionsSheet({
   const [destinationMeal, setDestinationMeal] = React.useState<NutritionMeal>(initialMeal);
   const [savedMeals, setSavedMeals] = React.useState<NutritionSavedMeal[]>([]);
   const [selectedSavedMeal, setSelectedSavedMeal] = React.useState<NutritionSavedMeal | null>(null);
+  const [selectedItemAmounts, setSelectedItemAmounts] = React.useState<string[]>([]);
   const [multiplier, setMultiplier] = React.useState(1);
   const [recipePortions, setRecipePortions] = React.useState("1");
   const [savingCurrent, setSavingCurrent] = React.useState(false);
@@ -141,10 +134,14 @@ export function MealActionsSheet({
     if (!open) return;
     setDestinationMeal(initialMeal);
     const loadedMeals = refreshSavedMeals();
-    setSelectedSavedMeal(
-      initialSavedMealId
-        ? loadedMeals.find((meal) => meal.id === initialSavedMealId) ?? null
-        : null
+    const initialSavedMeal = initialSavedMealId
+      ? loadedMeals.find((meal) => meal.id === initialSavedMealId) ?? null
+      : null;
+    setSelectedSavedMeal(initialSavedMeal);
+    setSelectedItemAmounts(
+      initialSavedMeal?.items.map((item) =>
+        item.quantity ? String(item.quantity.amount) : ""
+      ) ?? []
     );
     setMultiplier(1);
     setRecipePortions("1");
@@ -226,10 +223,56 @@ export function MealActionsSheet({
         : 0
       : multiplier;
 
+  const adjustedSelectedItems = React.useMemo(() => {
+    if (!selectedSavedMeal) return null;
+    const adjusted: NutritionSavedMealItem[] = [];
+    for (const [index, item] of selectedSavedMeal.items.entries()) {
+      if (!item.quantity) {
+        adjusted.push(item);
+        continue;
+      }
+      const amount = Number.parseFloat(selectedItemAmounts[index] ?? "");
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000) return null;
+      const snapshot = item.foodSnapshot;
+      const hasMatchingSnapshot = snapshot?.basisUnit === item.quantity.unit;
+      adjusted.push({
+        ...item,
+        quantity: { ...item.quantity, amount },
+        nutrients: nutrientsForQuantity(
+          hasMatchingSnapshot ? snapshot.nutrients : item.nutrients,
+          amount,
+          hasMatchingSnapshot ? snapshot.basisAmount : item.quantity.amount
+        ),
+      });
+    }
+    return adjusted;
+  }, [selectedItemAmounts, selectedSavedMeal]);
+
+  const selectedAmountsChanged = Boolean(
+    selectedSavedMeal?.items.some((item, index) => {
+      if (!item.quantity) return false;
+      const amount = Number.parseFloat(selectedItemAmounts[index] ?? "");
+      return Number.isFinite(amount) && amount !== item.quantity.amount;
+    })
+  );
+
   const selectSavedMeal = (meal: NutritionSavedMeal) => {
     setSelectedSavedMeal(meal);
+    setSelectedItemAmounts(
+      meal.items.map((item) => (item.quantity ? String(item.quantity.amount) : ""))
+    );
     setMultiplier(1);
     setRecipePortions("1");
+  };
+
+  const updateSelectedItemAmount = (index: number, amount: string) => {
+    setSelectedItemAmounts((current) =>
+      selectedSavedMeal?.items.map((item, itemIndex) =>
+        itemIndex === index
+          ? amount
+          : current[itemIndex] ?? (item.quantity ? String(item.quantity.amount) : "")
+      ) ?? current
+    );
   };
 
   const reportCopy = (result: NutritionCopyResult, label: string) => {
@@ -257,18 +300,45 @@ export function MealActionsSheet({
 
   const useSavedMeal = () => {
     if (!selectedSavedMeal) return;
+    if (!adjustedSelectedItems) {
+      toast.error("Every saved food quantity must be greater than zero.");
+      return;
+    }
     if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier <= 0) {
       toast.error("Enter how many recipe servings you ate.");
       return;
     }
     const result = copyNutritionItemsToDay(
-      selectedSavedMeal.items,
+      adjustedSelectedItems,
       dayKey,
       destinationMeal,
       effectiveMultiplier
     );
     reportCopy(result, selectedSavedMeal.name);
     if (result.saved && result.added > 0) onOpenChange(false);
+  };
+
+  const saveSelectedMealQuantityChanges = () => {
+    if (!selectedSavedMeal || !adjustedSelectedItems) {
+      toast.error("Every saved food quantity must be greater than zero.");
+      return;
+    }
+    const updated = saveMealFromItems(
+      selectedSavedMeal.name,
+      adjustedSelectedItems,
+      selectedSavedMeal.id,
+      { kind: selectedSavedMeal.kind, servings: selectedSavedMeal.servings }
+    );
+    if (!updated) {
+      toast.error("Couldn't update the saved meal quantities.");
+      return;
+    }
+    setSelectedSavedMeal(updated);
+    setSelectedItemAmounts(
+      updated.items.map((item) => (item.quantity ? String(item.quantity.amount) : ""))
+    );
+    refreshSavedMeals();
+    toast.success("Saved meal quantities updated");
   };
 
   const saveCurrentMeal = () => {
@@ -407,8 +477,8 @@ export function MealActionsSheet({
     if (result.saved && result.added > 0) onOpenChange(false);
   };
 
-  const selectedTotals = selectedSavedMeal
-    ? sumNutrients(selectedSavedMeal.items)
+  const selectedTotals = adjustedSelectedItems
+    ? sumNutrients(adjustedSelectedItems)
     : null;
   const builderTotals = sumNutrients(builtMealItems);
 
@@ -479,22 +549,62 @@ export function MealActionsSheet({
                     <div key={label} className="rounded-xl border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold tabular-nums">{value}</p></div>
                   ))}
                 </div>
-                <ul className="divide-y rounded-xl border px-3">
-                  {selectedSavedMeal.items.map((item, index) => (
-                    <li key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                      <span className="min-w-0">
-                        <span className="block truncate">{item.name}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {quantityLabel(item, effectiveMultiplier)}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-muted-foreground">{number(item.nutrients.caloriesKcal * effectiveMultiplier)} kcal</span>
-                    </li>
-                  ))}
-                </ul>
+                <section className="space-y-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {selectedSavedMeal.kind === "recipe" ? "Full-batch ingredient amounts" : "Saved food amounts"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Edits apply when you add this meal. Save them below to update the reusable meal too.
+                    </p>
+                  </div>
+                  <ul className="divide-y rounded-xl border px-3">
+                    {selectedSavedMeal.items.map((item, index) => {
+                      const adjustedItem = adjustedSelectedItems?.[index] ?? item;
+                      return (
+                        <li key={`${item.name}-${index}`} className="space-y-2 py-3 text-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="min-w-0 truncate font-medium">{item.name}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {number(adjustedItem.nutrients.caloriesKcal * effectiveMultiplier)} kcal
+                            </span>
+                          </div>
+                          {item.quantity ? (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <NumberInput
+                                  decimal
+                                  value={selectedItemAmounts[index] ?? ""}
+                                  onChange={(event) => updateSelectedItemAmount(index, event.target.value)}
+                                  aria-label={`${item.name} saved amount in ${item.quantity.unit}`}
+                                  className="h-9"
+                                />
+                                <span className="w-14 shrink-0 text-sm text-muted-foreground">
+                                  {item.quantity.unit}
+                                </span>
+                              </div>
+                              {effectiveMultiplier !== 1 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Adds {number((adjustedItem.quantity?.amount ?? 0) * effectiveMultiplier)} {item.quantity.unit} for the selected serving amount.
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Amount was not recorded for this item.</p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
               </div>
-              <SheetFooter>
-                <Button type="button" size="lg" onClick={useSavedMeal} disabled={effectiveMultiplier <= 0}>
+              <SheetFooter className="gap-2">
+                {selectedAmountsChanged && (
+                  <Button type="button" variant="outline" onClick={saveSelectedMealQuantityChanges} disabled={!adjustedSelectedItems}>
+                    Save quantity changes
+                  </Button>
+                )}
+                <Button type="button" size="lg" onClick={useSavedMeal} disabled={effectiveMultiplier <= 0 || !adjustedSelectedItems}>
                   {selectedSavedMeal.kind === "recipe"
                     ? `Add ${recipePortions || ""} serving${parsedRecipePortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`
                     : `Add ${multiplier}× to ${MEAL_LABELS[destinationMeal]}`}

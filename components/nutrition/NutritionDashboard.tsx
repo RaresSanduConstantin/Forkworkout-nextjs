@@ -5,6 +5,8 @@ import { format, isToday } from "date-fns";
 import {
   Apple,
   BookmarkPlus,
+  Camera,
+  Check,
   ChevronLeft,
   ChevronRight,
   Cookie,
@@ -50,7 +52,8 @@ import { FoodPhotoAnalysisSheet } from "./FoodPhotoAnalysisSheet";
 import { MealActionsSheet } from "./MealActionsSheet";
 import { MealShareDialog } from "./MealShareDialog";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
-import { dayKeyToDate, toDayKey } from "@/lib/date/day-key";
+import { dayKeyToDate, toDayKey, weekDayKeys } from "@/lib/date/day-key";
+import { cn } from "@/lib/utils";
 import {
   nutrientProgress,
   sumNutrients,
@@ -197,6 +200,14 @@ export function NutritionDashboard() {
   }, []);
 
   const selectedDate = dayKeyToDate(dayKey);
+  const visibleWeek = React.useMemo(
+    () => weekDayKeys(dayKeyToDate(dayKey)),
+    [dayKey]
+  );
+  const loggedDayKeys = React.useMemo(
+    () => new Set(entries.map((entry) => entry.dayKey)),
+    [entries]
+  );
   const dayEntries = React.useMemo(
     () => entries.filter((entry) => entry.dayKey === dayKey),
     [dayKey, entries]
@@ -376,24 +387,72 @@ export function NutritionDashboard() {
         }
       />
 
-      <div className="mb-4 flex items-center justify-between rounded-xl border bg-card p-2">
-        <Button type="button" variant="ghost" size="icon" onClick={() => moveDay(-1)} aria-label="Previous day">
-          <ChevronLeft className="size-5" />
-        </Button>
-        <button
-          type="button"
-          className="min-w-0 px-3 text-center"
-          onClick={() => setDayKey(toDayKey())}
-          aria-label="Return to today"
+      <div className="mb-4 rounded-xl border bg-card p-2">
+        <div className="flex items-center justify-between">
+          <Button type="button" variant="ghost" size="icon" onClick={() => moveDay(-1)} aria-label="Previous day">
+            <ChevronLeft className="size-5" />
+          </Button>
+          <button
+            type="button"
+            className="min-w-0 px-3 text-center"
+            onClick={() => setDayKey(toDayKey())}
+            aria-label="Return to today"
+          >
+            <p className="truncate text-sm font-semibold">
+              {isToday(selectedDate) ? "Today" : format(selectedDate, "EEEE")}
+            </p>
+            <p className="text-xs text-muted-foreground">{format(selectedDate, "MMMM d, yyyy")}</p>
+          </button>
+          <Button type="button" variant="ghost" size="icon" onClick={() => moveDay(1)} aria-label="Next day">
+            <ChevronRight className="size-5" />
+          </Button>
+        </div>
+
+        <div
+          className="mt-2 grid grid-cols-7 gap-1 border-t px-1 pt-2"
+          aria-label="Nutrition logs for this week"
         >
-          <p className="truncate text-sm font-semibold">
-            {isToday(selectedDate) ? "Today" : format(selectedDate, "EEEE")}
-          </p>
-          <p className="text-xs text-muted-foreground">{format(selectedDate, "MMMM d, yyyy")}</p>
-        </button>
-        <Button type="button" variant="ghost" size="icon" onClick={() => moveDay(1)} aria-label="Next day">
-          <ChevronRight className="size-5" />
-        </Button>
+          {visibleWeek.map((weekDayKey) => {
+            const date = dayKeyToDate(weekDayKey);
+            const hasLogs = loggedDayKeys.has(weekDayKey);
+            const isSelected = weekDayKey === dayKey;
+            return (
+              <button
+                key={weekDayKey}
+                type="button"
+                className={cn(
+                  "flex min-w-0 flex-col items-center gap-1 rounded-lg py-1 text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  isSelected && "bg-muted"
+                )}
+                onClick={() => setDayKey(weekDayKey)}
+                aria-label={`${format(date, "EEEE, MMMM d")}: ${hasLogs ? "food logged" : "no food logged"}`}
+                aria-current={isSelected ? "date" : undefined}
+              >
+                <span
+                  className={cn(
+                    "font-medium text-muted-foreground",
+                    isSelected && "text-foreground"
+                  )}
+                  aria-hidden="true"
+                >
+                  {format(date, "EEEEE")}
+                </span>
+                <span
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-full border-2 transition-colors",
+                    hasLogs
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-muted-foreground/35 text-muted-foreground",
+                    isSelected && "ring-2 ring-primary/30 ring-offset-2 ring-offset-card"
+                  )}
+                  aria-hidden="true"
+                >
+                  {hasLogs ? <Check className="size-4" strokeWidth={3} /> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <Card
@@ -522,6 +581,16 @@ export function NutritionDashboard() {
           >
             <Utensils className="size-4" />
             Add Meal
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="col-span-2 gap-2"
+            onClick={() => openFoodPhoto(defaultMeal())}
+          >
+            <Camera className="size-4" />
+            Photo Scan
           </Button>
           <Button
             type="button"

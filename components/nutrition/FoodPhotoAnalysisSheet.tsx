@@ -3,7 +3,6 @@
 import * as React from "react";
 import { format } from "date-fns";
 import {
-  Camera,
   ImagePlus,
   ImageUp,
   Loader2,
@@ -50,6 +49,7 @@ import type {
 } from "@/lib/nutrition/types";
 import { getAnonymousInstallationId } from "@/lib/storage/anonymous-installation";
 import { addNutritionEntries } from "@/lib/storage/nutrition-storage";
+import { FoodCameraPanel } from "./FoodCameraPanel";
 
 const MEAL_LABELS: Record<NutritionMeal, string> = {
   breakfast: "Breakfast",
@@ -155,7 +155,6 @@ export function FoodPhotoAnalysisSheet({
   const [usageLoading, setUsageLoading] = React.useState(false);
   const controllerRef = React.useRef<AbortController | null>(null);
   const usageControllerRef = React.useRef<AbortController | null>(null);
-  const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const galleryInputRef = React.useRef<HTMLInputElement>(null);
 
   const clearPreview = React.useCallback(() => {
@@ -200,6 +199,7 @@ export function FoodPhotoAnalysisSheet({
     if (open) {
       setMeal(initialMeal);
       reset();
+      setScannerDisabledReason(null);
       setUsage(null);
       void refreshUsage();
     } else {
@@ -217,16 +217,25 @@ export function FoodPhotoAnalysisSheet({
     [clearPreview]
   );
 
-  const chooseFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const next = event.target.files?.[0] ?? null;
-    event.target.value = "";
-    if (!next) return;
+  const selectFile = React.useCallback((next: File) => {
     clearPreview();
     setFile(next);
     setAnalysis(null);
     setDrafts([]);
     setError(null);
     setPreviewUrl(URL.createObjectURL(next));
+  }, [clearPreview]);
+
+  const chooseFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (next) selectFile(next);
+  };
+
+  const retakePhoto = () => {
+    clearPreview();
+    setFile(null);
+    setError(null);
   };
 
   const analyze = async () => {
@@ -450,33 +459,31 @@ export function FoodPhotoAnalysisSheet({
 
           {!analysis ? (
             <>
-              <div className="relative flex min-h-52 items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-muted/20 text-center">
-                {previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewUrl} alt="Selected food" className="max-h-72 w-full object-contain" />
-                ) : (
-                  <span className="space-y-2 p-6">
-                    <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Camera className="size-5" />
-                    </span>
-                    <span className="block text-sm font-semibold">Add a food photo</span>
-                    <span className="block text-xs text-muted-foreground">
-                      Take a new photo or choose one from your gallery
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => cameraInputRef.current?.click()}
+              {previewUrl ? (
+                <div className="relative aspect-square overflow-hidden rounded-2xl border bg-zinc-950">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={previewUrl} alt="Selected food" className="size-full object-contain" />
+                </div>
+              ) : (
+                <FoodCameraPanel
+                  active={open && scannerDisabledReason === null}
                   disabled={analyzing || scannerDisabledReason !== null}
-                >
-                  <Camera className="size-4" />
-                  Take photo
-                </Button>
+                  onCaptured={selectFile}
+                />
+              )}
+
+              <div className={previewUrl ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
+                {previewUrl && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={retakePhoto}
+                    disabled={analyzing || scannerDisabledReason !== null}
+                  >
+                    <RotateCcw className="size-4" />
+                    Retake photo
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -488,15 +495,6 @@ export function FoodPhotoAnalysisSheet({
                 </Button>
               </div>
 
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                capture="environment"
-                className="hidden"
-                onChange={chooseFile}
-                disabled={analyzing || scannerDisabledReason !== null}
-              />
               <input
                 ref={galleryInputRef}
                 type="file"

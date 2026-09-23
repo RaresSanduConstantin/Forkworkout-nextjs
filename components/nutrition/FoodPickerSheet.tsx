@@ -646,7 +646,7 @@ export function FoodPickerSheet({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="bottom"
-          className="mx-auto h-[92dvh] max-w-xl overflow-hidden rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+          className={`mx-auto h-[92dvh] max-w-xl overflow-hidden rounded-t-2xl pb-[env(safe-area-inset-bottom)] ${view === "barcode" ? "landscape:max-w-4xl" : ""}`}
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           {view === "browse" && (
