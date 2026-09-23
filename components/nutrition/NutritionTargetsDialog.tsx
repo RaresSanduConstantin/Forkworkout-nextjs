@@ -346,7 +346,7 @@ export function NutritionTargetsDialog({
                 <Sparkles className="size-4 text-primary" /> Choose an estimate
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Calories use your estimated daily energy needs. Macros are editable starting points.
+                Compare three standard approaches with a plan based on your selected timeframe. Macros are editable starting points.
               </p>
             </div>
             <div className="grid gap-2">
@@ -365,7 +365,9 @@ export function NutritionTargetsDialog({
                     <span>
                       <span className="block text-sm font-semibold">{plan.label}</span>
                       <span className="block text-xs text-muted-foreground">
-                        {plan.description}{plan.limited ? " · adjusted to a conservative range" : ""}
+                        {plan.description}
+                        {plan.limited ? " · limited by the supported calorie range" : ""}
+                        {!plan.limited && plan.caution ? " · more aggressive than the standard options" : ""}
                       </span>
                     </span>
                     <span className="shrink-0 text-base font-bold tabular-nums">{plan.caloriesKcal} kcal</span>

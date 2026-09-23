@@ -1,7 +1,7 @@
 import type { NutritionTargets } from "@/lib/nutrition/types";
 
 export type NutritionGoalPlan = {
-  id: "gentle" | "goal" | "focused" | "maintain";
+  id: "gentle" | "goal" | "focused" | "timeline" | "maintain";
   label: string;
   description: string;
   caloriesKcal: number;
@@ -10,6 +10,7 @@ export type NutritionGoalPlan = {
   fatG: number;
   estimatedWeeks: number | null;
   limited: boolean;
+  caution: boolean;
 };
 
 type NutritionGoalPlanInput = {
@@ -51,9 +52,10 @@ function macrosForCalories(
 }
 
 /**
- * Produces conservative calorie and macro starting points for a chosen weight
- * timeline. Estimates are bounded so an aggressive date cannot create an
- * extreme deficit or surplus; the UI identifies when that bound was applied.
+ * Produces three stable calorie and macro starting points plus one plan based
+ * on the user's chosen timeline. Estimates are bounded so an aggressive date
+ * cannot create an extreme deficit or surplus; the UI identifies when that
+ * bound was applied.
  */
 export function nutritionGoalPlans({
   bmr,
@@ -82,41 +84,69 @@ export function nutritionGoalPlans({
         ...macrosForCalories(caloriesKcal, currentWeightKg, goalWeightKg),
         estimatedWeeks: null,
         limited: false,
+        caution: false,
       },
     ];
   }
 
+  const isWeightLoss = weightChangeKg < 0;
   const requestedDailyAdjustment = (weightChangeKg * 7_700) / (timeframeWeeks * 7);
-  const choices = [
-    { id: "gentle" as const, label: "Gentle", factor: 0.75, lossLimit: -350, gainLimit: 250 },
-    { id: "goal" as const, label: "Goal pace", factor: 1, lossLimit: -550, gainLimit: 400 },
-    { id: "focused" as const, label: "Focused", factor: 1.25, lossLimit: -750, gainLimit: 500 },
+  const choices: Array<{
+    id: "gentle" | "goal" | "focused" | "timeline";
+    label: string;
+    adjustment: number;
+    description?: string;
+  }> = [
+    {
+      id: "gentle",
+      label: "Gentle",
+      adjustment: isWeightLoss ? -250 : 200,
+    },
+    {
+      id: "goal",
+      label: "Recommended",
+      adjustment: isWeightLoss ? -500 : 350,
+    },
+    {
+      id: "focused",
+      label: "Focused",
+      adjustment: isWeightLoss ? -750 : 500,
+    },
+    {
+      id: "timeline",
+      label: `Your ${timeframeWeeks}-week goal`,
+      adjustment: requestedDailyAdjustment,
+      description: `Based on the ${timeframeWeeks}-week timeframe you selected`,
+    },
   ];
 
-  return choices.map(({ id, label, factor, lossLimit, gainLimit }) => {
-    const rawAdjustment = requestedDailyAdjustment * factor;
-    const boundedAdjustment = clamp(rawAdjustment, lossLimit, gainLimit);
+  return choices.map(({ id, label, adjustment, description }) => {
+    const isTimeline = id === "timeline";
+    const boundedAdjustment = isTimeline
+      ? adjustment
+      : clamp(adjustment, -750, 500);
     const rawCalories = tdee + boundedAdjustment;
-    const caloriesKcal = roundToTen(clamp(rawCalories, Math.max(1_200, bmr), 6_000));
+    const calorieFloor = isTimeline ? 1_200 : Math.max(1_200, bmr);
+    const caloriesKcal = roundToTen(clamp(rawCalories, calorieFloor, 6_000));
     const effectiveAdjustment = caloriesKcal - tdee;
     const estimatedWeeks =
       effectiveAdjustment !== 0 && Math.sign(effectiveAdjustment) === Math.sign(weightChangeKg)
         ? Math.max(1, Math.ceil(Math.abs((weightChangeKg * 7_700) / (effectiveAdjustment * 7))))
         : null;
-    const limited =
-      Math.abs(rawAdjustment - boundedAdjustment) > 1 ||
-      Math.abs(rawCalories - caloriesKcal) > 15;
+    const limited = Math.abs(rawCalories - caloriesKcal) > 15;
+    const caution = isTimeline && (adjustment < -750 || adjustment > 500);
 
     return {
       id,
       label,
-      description: estimatedWeeks
+      description: description ?? (estimatedWeeks
         ? `About ${estimatedWeeks} ${estimatedWeeks === 1 ? "week" : "weeks"}`
-        : "Starting estimate",
+        : "Starting estimate"),
       caloriesKcal,
       ...macrosForCalories(caloriesKcal, currentWeightKg, goalWeightKg),
       estimatedWeeks,
       limited,
+      caution,
     };
   });
 }

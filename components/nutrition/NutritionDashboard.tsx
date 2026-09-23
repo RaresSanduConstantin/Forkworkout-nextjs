@@ -845,7 +845,7 @@ export function NutritionDashboard() {
                   <ul className="divide-y">
                     {mealEntries.map((entry) => (
                       <li key={entry.id} className="flex items-center gap-2 py-3 first:pt-0 last:pb-0">
-                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openEntryEditor(entry)}>
+                        <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">{entry.name}</p>
                           <p className="truncate text-xs text-muted-foreground">
                             P {number(entry.nutrients.proteinG)}g · C {number(entry.nutrients.carbsG)}g · F {number(entry.nutrients.fatG)}g
@@ -861,7 +861,7 @@ export function NutritionDashboard() {
                               ? ` · ${Math.round(entry.confidence * 100)}% confidence`
                               : ""}
                           </p>
-                        </button>
+                        </div>
                         <span className="shrink-0 text-sm font-semibold tabular-nums">{number(entry.nutrients.caloriesKcal)} kcal</span>
                         <Popover
                           open={entryActionsId === entry.id}

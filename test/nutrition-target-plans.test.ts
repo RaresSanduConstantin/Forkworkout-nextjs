@@ -15,7 +15,12 @@ describe("nutritionGoalPlans", () => {
       timeframeWeeks: 12,
     });
 
-    expect(plans.map((plan) => plan.id)).toEqual(["gentle", "goal", "focused"]);
+    expect(plans.map((plan) => plan.id)).toEqual([
+      "gentle",
+      "goal",
+      "focused",
+      "timeline",
+    ]);
     expect(plans[0].caloriesKcal).toBeGreaterThan(plans[1].caloriesKcal);
     expect(plans[1].caloriesKcal).toBeGreaterThan(plans[2].caloriesKcal);
     for (const plan of plans) {
@@ -35,9 +40,42 @@ describe("nutritionGoalPlans", () => {
       timeframeWeeks: 4,
     });
 
-    expect(plans.every((plan) => plan.caloriesKcal >= 1_800)).toBe(true);
+    expect(plans.slice(0, 3).every((plan) => plan.caloriesKcal >= 1_800)).toBe(true);
     expect(plans.some((plan) => plan.limited)).toBe(true);
-    expect(new Set(plans.map((plan) => plan.caloriesKcal)).size).toBe(3);
+    expect(new Set(plans.map((plan) => plan.caloriesKcal)).size).toBeGreaterThanOrEqual(3);
+    expect(plans.at(-1)).toEqual(
+      expect.objectContaining({
+        id: "timeline",
+        label: "Your 4-week goal",
+        caloriesKcal: 1_200,
+        limited: true,
+        caution: true,
+      })
+    );
+  });
+
+  it("keeps the three defaults stable and adds the selected timeframe", () => {
+    const input = {
+      bmr: 1_650,
+      tdee: 2_400,
+      currentWeightKg: 84,
+      goalWeightKg: 80,
+    };
+    const eightWeeks = nutritionGoalPlans({ ...input, timeframeWeeks: 8 });
+    const twelveWeeks = nutritionGoalPlans({ ...input, timeframeWeeks: 12 });
+
+    expect(eightWeeks.slice(0, 3).map((plan) => plan.caloriesKcal)).toEqual(
+      twelveWeeks.slice(0, 3).map((plan) => plan.caloriesKcal)
+    );
+    expect(eightWeeks[3]).toEqual(
+      expect.objectContaining({ id: "timeline", label: "Your 8-week goal" })
+    );
+    expect(twelveWeeks[3]).toEqual(
+      expect.objectContaining({ id: "timeline", label: "Your 12-week goal" })
+    );
+    expect(eightWeeks[3].caloriesKcal).toBe(1_850);
+    expect(twelveWeeks[3].caloriesKcal).toBe(2_030);
+    expect(eightWeeks[3].caloriesKcal).not.toBe(eightWeeks[2].caloriesKcal);
   });
 
   it("returns a maintenance plan when current and goal weight match", () => {

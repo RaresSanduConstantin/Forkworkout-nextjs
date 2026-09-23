@@ -97,6 +97,11 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Prevented a selected goal timeframe from silently collapsing to the same
+  calories as the Focused estimate; personalized plans now use their calculated
+  pace above the supported calorie floor and identify unusually aggressive goals.
+- Removed the duplicate edit action from nutrition food rows so dismissing an
+  open three-dot menu cannot accidentally launch the food editor underneath it.
 - Prevented portrait barcode previews from cropping their left and right edges
   by using the camera's natural aspect ratio inside a taller contained viewport.
 - Moved food-camera guidance below the preview and added flashlight controls on
@@ -141,6 +146,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Kept Gentle, Recommended, and Focused nutrition estimates stable while adding
+  a fourth calorie and macro option calculated from the selected goal timeframe.
 - Added subtle category-specific color tints to the breakfast, lunch, dinner,
   and snacks cards so daily food logs are easier to scan at a glance.
 - Moved the 7-day and 30-day nutrition progress summary below the meal logging
