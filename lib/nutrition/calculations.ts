@@ -29,6 +29,15 @@ export function sumNutrients(
       sum.proteinG += nutrients.proteinG;
       sum.carbsG += nutrients.carbsG;
       sum.fatG += nutrients.fatG;
+      if (nutrients.fibreG !== undefined) {
+        sum.fibreG = (sum.fibreG ?? 0) + nutrients.fibreG;
+      }
+      if (nutrients.sugarG !== undefined) {
+        sum.sugarG = (sum.sugarG ?? 0) + nutrients.sugarG;
+      }
+      if (nutrients.sodiumMg !== undefined) {
+        sum.sodiumMg = (sum.sodiumMg ?? 0) + nutrients.sodiumMg;
+      }
       return sum;
     },
     { ...EMPTY_NUTRIENTS }
@@ -38,6 +47,9 @@ export function sumNutrients(
     proteinG: round(total.proteinG),
     carbsG: round(total.carbsG),
     fatG: round(total.fatG),
+    fibreG: total.fibreG === undefined ? undefined : round(total.fibreG),
+    sugarG: total.sugarG === undefined ? undefined : round(total.sugarG),
+    sodiumMg: total.sodiumMg === undefined ? undefined : round(total.sodiumMg, 0),
   };
 }
 

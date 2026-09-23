@@ -26,6 +26,12 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -520,6 +526,38 @@ export function NutritionDashboard() {
         <MacroCard label="Carbs" consumed={totals.carbsG} target={targets?.carbsG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-amber-500" />
         <MacroCard label="Fat" consumed={totals.fatG} target={targets?.fatG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-sky-500" />
       </div>
+
+      <Accordion type="single" collapsible className="mt-2 rounded-xl border bg-card px-3">
+        <AccordionItem value="more-nutrients" className="border-0">
+          <AccordionTrigger className="py-2.5 text-xs hover:no-underline">
+            <span>
+              More nutrients
+              <span className="ml-2 font-normal text-muted-foreground">
+                Fiber · Sugar · Sodium
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-3">
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                ["Fiber", totals.fibreG, "g"],
+                ["Sugar", totals.sugarG, "g"],
+                ["Sodium", totals.sodiumMg, "mg"],
+              ] as const).map(([label, value, unit]) => (
+                <div key={label} className="rounded-lg bg-muted/35 p-2.5">
+                  <p className="text-[11px] text-muted-foreground">{label}</p>
+                  <p className="mt-0.5 text-sm font-semibold tabular-nums">
+                    {value === undefined ? "—" : `${number(value)} ${unit}`}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+              Detailed totals include only foods whose source provides these values, so they may be incomplete.
+            </p>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <button
         type="button"

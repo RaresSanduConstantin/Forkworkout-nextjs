@@ -80,6 +80,18 @@ describe("nutrition calculations", () => {
     ).toEqual({ caloriesKcal: 200.3, proteinG: 7.3, carbsG: 25.3, fatG: 7.3 });
   });
 
+  it("sums optional nutrients while preserving unavailable values", () => {
+    expect(
+      sumNutrients([
+        { ...quickAdd.nutrients, fibreG: 4.25, sugarG: 2, sodiumMg: 101.6 },
+        { ...quickAdd.nutrients, fibreG: 1.25, sodiumMg: 50.2 },
+      ])
+    ).toEqual(
+      expect.objectContaining({ fibreG: 5.5, sugarG: 2, sodiumMg: 152 })
+    );
+    expect(sumNutrients([quickAdd.nutrients]).fibreG).toBeUndefined();
+  });
+
   it("scales per-100g nutrition without deriving calories from macros", () => {
     expect(
       nutrientsForQuantity(
@@ -412,13 +424,22 @@ describe("nutrition storage", () => {
           quantity: { amount: 600, unit: "g" },
           nutrients: { caloriesKcal: 1200, proteinG: 120, carbsG: 0, fatG: 72 },
         },
+        {
+          name: "Tomato sauce",
+          source: "builtin",
+          quantity: { amount: 400, unit: "g" },
+          nutrients: { caloriesKcal: 120, proteinG: 6, carbsG: 24, fatG: 1 },
+        },
       ],
       recipe!.id,
       { kind: recipe!.kind, servings: recipe!.servings }
     );
-    expect(updated).toMatchObject({ kind: "recipe", servings: 3 });
+    expect(updated).toMatchObject({ id: recipe!.id, kind: "recipe", servings: 3 });
+    expect(updated?.createdAt).toBe(recipe?.createdAt);
+    expect(updated?.items).toHaveLength(2);
     expect(getNutritionSavedMeals()[0]?.items[0].quantity?.amount).toBe(600);
     expect(getNutritionSavedMeals()[0]?.items[0].nutrients.caloriesKcal).toBe(1200);
+    expect(getNutritionSavedMeals()[0]?.items[1].name).toBe("Tomato sauce");
   });
 
   it("copies a complete previous day while preserving meals and skipping duplicates", () => {

@@ -15,6 +15,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 - Expanded Nutrition Targets with shared body-profile and current-weight inputs,
   a goal timeframe, and selectable calorie, protein, carb, and fat estimates.
+- Added saved-recipe editing so ingredients can be added through food search,
+  barcode scan, or photo scan, adjusted, removed, and saved back to the recipe.
+- Added an expandable daily nutrient summary for fiber, sugar, and sodium,
+  including clear unavailable and potentially incomplete data states.
 - Added an in-app square food camera with a direct Photo Scan action above meal
   importing, while preserving gallery upload as a fallback.
 - Added a tappable Monday–Sunday nutrition log strip beneath the selected date,
@@ -78,6 +82,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Prevented portrait barcode previews from cropping their left and right edges
+  by using the camera's natural aspect ratio inside a taller contained viewport.
+- Moved food-camera guidance below the preview and added flashlight controls on
+  devices whose rear camera exposes torch support.
 - Reworked food-barcode scanning for landscape phones with a full uncropped
   16:9 camera preview, a wide one-dimensional barcode guide, stronger rotated
   decoding, continuous-focus hints, and side-by-side landscape controls.

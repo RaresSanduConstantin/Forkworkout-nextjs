@@ -111,9 +111,6 @@ export function BarcodeScannerPanel({
           {
             video: {
               facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              aspectRatio: { ideal: 16 / 9 },
               advanced: [
                 { focusMode: "continuous" } as MediaTrackConstraintSet,
               ],
@@ -185,15 +182,16 @@ export function BarcodeScannerPanel({
 
   return (
     <div className="grid gap-3 landscape:grid-cols-[minmax(0,1.45fr)_minmax(15rem,1fr)] landscape:items-start">
-      <div className="relative aspect-video min-h-44 overflow-hidden rounded-xl border bg-zinc-950">
+      <div className="relative aspect-[3/4] overflow-hidden rounded-xl border bg-zinc-950 sm:aspect-video">
         <video
           ref={videoRef}
           muted
           playsInline
           aria-label="Camera preview for scanning a food barcode"
-          className="size-full object-contain"
+          className="absolute inset-0 size-full object-contain"
+          style={{ objectFit: "contain" }}
         />
-        <div className="pointer-events-none absolute inset-x-[5%] top-1/2 h-[42%] -translate-y-1/2 rounded-xl border-2 border-white/90 bg-black/5 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]">
+        <div className="pointer-events-none absolute inset-x-[3%] top-1/2 h-[35%] -translate-y-1/2 rounded-xl border-2 border-white/90 bg-black/5 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]">
           <span className="absolute inset-x-4 top-1/2 h-px -translate-y-1/2 bg-red-400/90 shadow-[0_0_6px_rgba(248,113,113,0.8)]" />
         </div>
 
@@ -234,7 +232,7 @@ export function BarcodeScannerPanel({
 
       <div className="space-y-3">
         <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          Barcodes can be scanned anywhere in the camera image. In landscape, keep the whole label visible instead of filling the frame.
+          The full camera frame stays visible in portrait and landscape. Keep the entire barcode inside the preview; the guide is optional.
         </p>
 
         {(scanError || lookupError) && (

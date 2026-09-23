@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ChefHat,
   Copy,
+  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -42,6 +43,8 @@ import { nutrientsForQuantity, sumNutrients } from "@/lib/nutrition/calculations
 import type {
   NutritionEntry,
   NutritionMeal,
+  NutritionNutrients,
+  NutritionQuantity,
   NutritionSavedMeal,
   NutritionSavedMealItem,
 } from "@/lib/nutrition/types";
@@ -71,6 +74,9 @@ type MealBuilderItem = {
   id: string;
   item: NutritionSavedMealItem;
   amount: string;
+  basisAmount: number;
+  basisUnit: NutritionQuantity["unit"];
+  basisNutrients: NutritionNutrients;
 };
 
 type RecipeSaveDestination = "saved_only" | NutritionMeal;
@@ -79,6 +85,29 @@ function previousDayKey(dayKey: string): string {
   const date = dayKeyToDate(dayKey);
   date.setDate(date.getDate() - 1);
   return toDayKey(date);
+}
+
+function toMealBuilderItem(item: NutritionSavedMealItem): MealBuilderItem {
+  const quantity = item.quantity;
+  const snapshot = item.foodSnapshot;
+  const useSnapshot = Boolean(
+    quantity && snapshot && snapshot.basisUnit === quantity.unit
+  );
+  const amount = quantity?.amount ?? 1;
+  const basisUnit = useSnapshot
+    ? snapshot!.basisUnit
+    : quantity?.unit ?? "serving";
+
+  return {
+    id: crypto.randomUUID(),
+    item: quantity
+      ? item
+      : { ...item, quantity: { amount: 1, unit: "serving" } },
+    amount: String(amount),
+    basisAmount: useSnapshot ? snapshot!.basisAmount : amount,
+    basisUnit,
+    basisNutrients: useSnapshot ? snapshot!.nutrients : item.nutrients,
+  };
 }
 
 export function MealActionsSheet({
@@ -121,6 +150,7 @@ export function MealActionsSheet({
   const [recipeSaveDestination, setRecipeSaveDestination] =
     React.useState<RecipeSaveDestination>("saved_only");
   const [builderItems, setBuilderItems] = React.useState<MealBuilderItem[]>([]);
+  const [editingRecipeId, setEditingRecipeId] = React.useState<string | null>(null);
   const [ingredientPickerOpen, setIngredientPickerOpen] = React.useState(false);
   const [ingredientPhotoOpen, setIngredientPhotoOpen] = React.useState(false);
 
@@ -159,6 +189,7 @@ export function MealActionsSheet({
     setBuilderServings("2");
     setRecipeSaveDestination("saved_only");
     setBuilderItems([]);
+    setEditingRecipeId(null);
     setIngredientPickerOpen(false);
     setIngredientPhotoOpen(false);
   }, [
@@ -175,17 +206,11 @@ export function MealActionsSheet({
   const builtMealItems = React.useMemo(
     () =>
       builderItems
-        .map(({ item, amount }): NutritionSavedMealItem | null => {
+        .map(({ item, amount, basisAmount, basisUnit, basisNutrients }): NutritionSavedMealItem | null => {
           const parsedAmount = Number.parseFloat(amount);
           if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 100_000) {
             return null;
           }
-          const snapshot = item.foodSnapshot;
-          const originalAmount = item.quantity?.amount;
-          const basisAmount = snapshot?.basisAmount ?? originalAmount;
-          const basisUnit = snapshot?.basisUnit ?? item.quantity?.unit;
-          const basisNutrients = snapshot?.nutrients ?? item.nutrients;
-          if (!basisAmount || (basisUnit !== "g" && basisUnit !== "ml")) return null;
           return {
             ...item,
             quantity: { amount: parsedAmount, unit: basisUnit },
@@ -263,6 +288,40 @@ export function MealActionsSheet({
     );
     setMultiplier(1);
     setRecipePortions("1");
+  };
+
+  const resetRecipeBuilder = () => {
+    setBuilderName("");
+    setBuilderServings("2");
+    setRecipeSaveDestination("saved_only");
+    setBuilderItems([]);
+    setEditingRecipeId(null);
+  };
+
+  const beginCreatingRecipe = () => {
+    resetRecipeBuilder();
+    setTab("create");
+  };
+
+  const beginEditingRecipe = (
+    meal: NutritionSavedMeal,
+    items: NutritionSavedMealItem[] = meal.items
+  ) => {
+    if (meal.kind !== "recipe") return;
+    setBuilderName(meal.name);
+    setBuilderServings(String(meal.servings ?? 1));
+    setRecipeSaveDestination("saved_only");
+    setBuilderItems(items.map(toMealBuilderItem));
+    setEditingRecipeId(meal.id);
+    setSelectedSavedMeal(null);
+    setTab("create");
+  };
+
+  const cancelRecipeEdit = () => {
+    const original = savedMeals.find((meal) => meal.id === editingRecipeId);
+    resetRecipeBuilder();
+    setTab("meals");
+    if (original) selectSavedMeal(original);
   };
 
   const updateSelectedItemAmount = (index: number, amount: string) => {
@@ -386,7 +445,7 @@ export function MealActionsSheet({
     }
     setBuilderItems((current) => [
       ...current,
-      { id: crypto.randomUUID(), item, amount: String(amount) },
+      toMealBuilderItem(item),
     ]);
   };
 
@@ -418,7 +477,7 @@ export function MealActionsSheet({
       toast.error("Enter the total number of servings in the full recipe.");
       return;
     }
-    const saved = saveMealFromItems(builderName, builtMealItems, undefined, {
+    const saved = saveMealFromItems(builderName, builtMealItems, editingRecipeId ?? undefined, {
       kind: "recipe",
       servings,
     });
@@ -427,8 +486,16 @@ export function MealActionsSheet({
       return;
     }
     refreshSavedMeals();
+    const wasEditing = editingRecipeId !== null;
     setBuilderName("");
     setBuilderItems([]);
+    setEditingRecipeId(null);
+    if (wasEditing) {
+      setTab("meals");
+      selectSavedMeal(saved);
+      toast.success(`${saved.name} updated`);
+      return;
+    }
     if (recipeSaveDestination === "saved_only") {
       onOpenChange(false);
       toast.success(`${saved.name} saved for later`);
@@ -599,6 +666,17 @@ export function MealActionsSheet({
                 </section>
               </div>
               <SheetFooter className="gap-2">
+                {selectedSavedMeal.kind === "recipe" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => beginEditingRecipe(selectedSavedMeal, adjustedSelectedItems ?? selectedSavedMeal.items)}
+                    disabled={!adjustedSelectedItems}
+                  >
+                    <Pencil className="size-4" />
+                    Edit recipe ingredients
+                  </Button>
+                )}
                 {selectedAmountsChanged && (
                   <Button type="button" variant="outline" onClick={saveSelectedMealQuantityChanges} disabled={!adjustedSelectedItems}>
                     Save quantity changes
@@ -655,7 +733,7 @@ export function MealActionsSheet({
                   <Button type="button" variant="outline" className="w-full justify-start" disabled={!currentMealEntries.length} onClick={beginSavingCurrent}>
                     <BookmarkPlus className="size-4" /> Save current {MEAL_LABELS[destinationMeal].toLowerCase()}
                   </Button>
-                  <Button type="button" variant="secondary" className="w-full justify-start" onClick={() => setTab("create")}>
+                  <Button type="button" variant="secondary" className="w-full justify-start" onClick={beginCreatingRecipe}>
                     <ChefHat className="size-4" /> Create a recipe
                   </Button>
 
@@ -685,10 +763,21 @@ export function MealActionsSheet({
                   <div className="rounded-xl border bg-muted/25 p-3">
                     <div className="flex items-start gap-3">
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><ChefHat className="size-4" /></span>
-                      <div>
-                        <p className="text-sm font-medium">Build the full cooked batch</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">Add every ingredient you used and divide the full batch into servings. Saving it does not have to log anything today.</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">
+                          {editingRecipeId ? "Edit the full cooked batch" : "Build the full cooked batch"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {editingRecipeId
+                            ? "Add, remove, or adjust ingredients, then update the saved recipe."
+                            : "Add every ingredient you used and divide the full batch into servings. Saving it does not have to log anything today."}
+                        </p>
                       </div>
+                      {editingRecipeId && (
+                        <Button type="button" variant="ghost" size="sm" onClick={cancelRecipeEdit}>
+                          Cancel
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -702,16 +791,18 @@ export function MealActionsSheet({
                       <NumberInput id="builder-servings" decimal value={builderServings} onChange={(event) => setBuilderServings(event.target.value)} />
                       <p className="text-xs text-muted-foreground">For a recipe shared by two people, enter 2. You can log 1.5 servings later if you ate more.</p>
                     </div>
-                    <div className="col-span-2 space-y-1.5">
-                      <Label htmlFor="builder-destination">After saving</Label>
-                      <Select value={recipeSaveDestination} onValueChange={(value) => setRecipeSaveDestination(value as RecipeSaveDestination)}>
-                        <SelectTrigger id="builder-destination" className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="saved_only">Save recipe only</SelectItem>
-                          {(Object.entries(MEAL_LABELS) as [NutritionMeal, string][]).map(([value, label]) => <SelectItem key={value} value={value}>Add 1 serving to {label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {!editingRecipeId && (
+                      <div className="col-span-2 space-y-1.5">
+                        <Label htmlFor="builder-destination">After saving</Label>
+                        <Select value={recipeSaveDestination} onValueChange={(value) => setRecipeSaveDestination(value as RecipeSaveDestination)}>
+                          <SelectTrigger id="builder-destination" className="w-full"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="saved_only">Save recipe only</SelectItem>
+                            {(Object.entries(MEAL_LABELS) as [NutritionMeal, string][]).map(([value, label]) => <SelectItem key={value} value={value}>Add 1 serving to {label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
 
                   <section className="space-y-2">
@@ -729,12 +820,9 @@ export function MealActionsSheet({
                       </p>
                     ) : (
                       <ul className="divide-y rounded-xl border px-3">
-                        {builderItems.map(({ id, item, amount }) => {
+                        {builderItems.map(({ id, item, amount, basisAmount, basisUnit, basisNutrients }) => {
                           const parsedAmount = Number.parseFloat(amount);
-                          const snapshot = item.foodSnapshot;
-                          const basisAmount = snapshot?.basisAmount ?? item.quantity?.amount ?? 1;
-                          const basisNutrients = snapshot?.nutrients ?? item.nutrients;
-                          const unit = snapshot?.basisUnit ?? item.quantity?.unit ?? "g";
+                          const unit = basisUnit;
                           const nutrients = nutrientsForQuantity(basisNutrients, Number.isFinite(parsedAmount) ? parsedAmount : 0, basisAmount);
                           return (
                             <li key={id} className="space-y-2 py-3">
@@ -784,7 +872,11 @@ export function MealActionsSheet({
                     disabled={!builderName.trim() || builderItems.length === 0}
                     onClick={saveBuiltMeal}
                   >
-                    {recipeSaveDestination === "saved_only" ? "Save recipe" : "Save recipe & add 1 serving"}
+                    {editingRecipeId
+                      ? "Update recipe"
+                      : recipeSaveDestination === "saved_only"
+                        ? "Save recipe"
+                        : "Save recipe & add 1 serving"}
                   </Button>
                 </TabsContent>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Camera, Loader2, RefreshCw } from "lucide-react";
+import { Camera, Flashlight, Loader2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -29,9 +29,12 @@ export function FoodCameraPanel({
 }) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
+  const trackRef = React.useRef<MediaStreamTrack | null>(null);
   const [attempt, setAttempt] = React.useState(0);
   const [status, setStatus] = React.useState<CameraStatus>("starting");
   const [error, setError] = React.useState<string | null>(null);
+  const [flashAvailable, setFlashAvailable] = React.useState(false);
+  const [flashOn, setFlashOn] = React.useState(false);
 
   React.useEffect(() => {
     if (!active) return;
@@ -40,6 +43,8 @@ export function FoodCameraPanel({
 
     setStatus("starting");
     setError(null);
+    setFlashAvailable(false);
+    setFlashOn(false);
 
     const start = async () => {
       try {
@@ -59,16 +64,31 @@ export function FoodCameraPanel({
           return;
         }
         streamRef.current = stream;
+        const track = stream.getVideoTracks()[0] ?? null;
+        trackRef.current = track;
+        try {
+          if (track?.getCapabilities) {
+            const capabilities = track.getCapabilities() as MediaTrackCapabilities & {
+              torch?: boolean;
+            };
+            setFlashAvailable(Boolean(capabilities.torch));
+          }
+        } catch {
+          setFlashAvailable(false);
+        }
         videoElement.srcObject = stream;
         await videoElement.play();
         if (!disposed) setStatus("ready");
       } catch (reason) {
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
+        trackRef.current = null;
         if (videoElement) videoElement.srcObject = null;
         if (!disposed) {
           setStatus("error");
           setError(cameraErrorMessage(reason));
+          setFlashAvailable(false);
+          setFlashOn(false);
         }
       }
     };
@@ -78,6 +98,7 @@ export function FoodCameraPanel({
       disposed = true;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      trackRef.current = null;
       if (videoElement) videoElement.srcObject = null;
     };
   }, [active, attempt]);
@@ -118,6 +139,24 @@ export function FoodCameraPanel({
     }
   };
 
+  const toggleFlash = async () => {
+    const track = trackRef.current;
+    if (!track || !flashAvailable) return;
+    try {
+      const next = !flashOn;
+      await track.applyConstraints({
+        advanced: [
+          { torch: next } as MediaTrackConstraintSet & { torch: boolean },
+        ],
+      });
+      setFlashOn(next);
+    } catch {
+      setFlashAvailable(false);
+      setFlashOn(false);
+      setError("The flashlight is not available for this camera.");
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="relative aspect-square overflow-hidden rounded-2xl border bg-zinc-950">
@@ -155,31 +194,43 @@ export function FoodCameraPanel({
           </div>
         )}
 
-        {status === "ready" && (
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md bg-black/65 px-3 py-2 text-center text-xs text-white backdrop-blur-sm">
-            Keep the full meal inside the square
-          </div>
-        )}
       </div>
+
+      <p className="rounded-lg border bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">
+        Keep the full meal inside the square.
+      </p>
 
       {error && status !== "error" && (
         <p className="text-center text-sm text-destructive" role="alert">{error}</p>
       )}
 
-      <Button
-        type="button"
-        className="w-full"
-        size="lg"
-        onClick={() => void capture()}
-        disabled={disabled || status !== "ready"}
-      >
-        {status === "capturing" ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Camera className="size-4" />
+      <div className={flashAvailable ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
+        <Button
+          type="button"
+          size="lg"
+          onClick={() => void capture()}
+          disabled={disabled || status !== "ready"}
+        >
+          {status === "capturing" ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Camera className="size-4" />
+          )}
+          {status === "capturing" ? "Capturing…" : "Take photo"}
+        </Button>
+        {flashAvailable && (
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            onClick={() => void toggleFlash()}
+            disabled={disabled || status !== "ready"}
+          >
+            <Flashlight className="size-4" />
+            {flashOn ? "Flash off" : "Flash on"}
+          </Button>
         )}
-        {status === "capturing" ? "Capturing…" : "Take photo"}
-      </Button>
+      </div>
     </div>
   );
 }
