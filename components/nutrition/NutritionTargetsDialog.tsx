@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Calculator, Scale, Sparkles } from "lucide-react";
+import { Calculator, Dumbbell, Scale, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,13 @@ export function NutritionTargetsDialog({
   const [protein, setProtein] = React.useState("");
   const [carbs, setCarbs] = React.useState("");
   const [fat, setFat] = React.useState("");
+  const [fibre, setFibre] = React.useState("");
+  const [sodium, setSodium] = React.useState("");
+  const [differentTrainingTargets, setDifferentTrainingTargets] = React.useState(false);
+  const [trainingCalories, setTrainingCalories] = React.useState("");
+  const [trainingProtein, setTrainingProtein] = React.useState("");
+  const [trainingCarbs, setTrainingCarbs] = React.useState("");
+  const [trainingFat, setTrainingFat] = React.useState("");
   const [weight, setWeight] = React.useState("");
   const [initialWeight, setInitialWeight] = React.useState<number | undefined>();
   const [goalWeight, setGoalWeight] = React.useState("");
@@ -82,6 +89,13 @@ export function NutritionTargetsDialog({
     setProtein(targets ? String(targets.proteinG) : "");
     setCarbs(targets ? String(targets.carbsG) : "");
     setFat(targets ? String(targets.fatG) : "");
+    setFibre(targets?.fibreG !== undefined ? String(targets.fibreG) : "");
+    setSodium(targets?.sodiumMg !== undefined ? String(targets.sodiumMg) : "");
+    setDifferentTrainingTargets(Boolean(targets?.trainingDay));
+    setTrainingCalories(targets?.trainingDay ? String(targets.trainingDay.caloriesKcal) : "");
+    setTrainingProtein(targets?.trainingDay ? String(targets.trainingDay.proteinG) : "");
+    setTrainingCarbs(targets?.trainingDay ? String(targets.trainingDay.carbsG) : "");
+    setTrainingFat(targets?.trainingDay ? String(targets.trainingDay.fatG) : "");
     setWeight(currentWeight !== undefined ? String(currentWeight) : "");
     setInitialWeight(currentWeight);
     setGoalWeight(profile.goalWeightKg !== undefined ? String(profile.goalWeightKg) : "");
@@ -127,7 +141,28 @@ export function NutritionTargetsDialog({
     setProtein(String(plan.proteinG));
     setCarbs(String(plan.carbsG));
     setFat(String(plan.fatG));
+    if (differentTrainingTargets) {
+      setTrainingCalories(String(plan.caloriesKcal + 200));
+      setTrainingProtein(String(plan.proteinG));
+      setTrainingCarbs(String(plan.carbsG + 50));
+      setTrainingFat(String(plan.fatG));
+    }
     setSelectedPlanId(plan.id);
+  };
+
+  const toggleTrainingTargets = () => {
+    setDifferentTrainingTargets((current) => {
+      const next = !current;
+      if (next && !trainingCalories) {
+        const baseCalories = parsed(calories) ?? 0;
+        const baseCarbs = parsed(carbs) ?? 0;
+        setTrainingCalories(baseCalories ? String(Math.round(baseCalories + 200)) : "");
+        setTrainingProtein(protein);
+        setTrainingCarbs(baseCarbs ? String(Math.round(baseCarbs + 50)) : carbs);
+        setTrainingFat(fat);
+      }
+      return next;
+    });
   };
 
   const save = () => {
@@ -136,6 +171,16 @@ export function NutritionTargetsDialog({
       proteinG: protein.trim() ? Number.parseFloat(protein) : 0,
       carbsG: carbs.trim() ? Number.parseFloat(carbs) : 0,
       fatG: fat.trim() ? Number.parseFloat(fat) : 0,
+      fibreG: fibre.trim() ? Number.parseFloat(fibre) : undefined,
+      sodiumMg: sodium.trim() ? Number.parseFloat(sodium) : undefined,
+      trainingDay: differentTrainingTargets
+        ? {
+            caloriesKcal: Number.parseFloat(trainingCalories),
+            proteinG: trainingProtein.trim() ? Number.parseFloat(trainingProtein) : 0,
+            carbsG: trainingCarbs.trim() ? Number.parseFloat(trainingCarbs) : 0,
+            fatG: trainingFat.trim() ? Number.parseFloat(trainingFat) : 0,
+          }
+        : undefined,
     };
     if (!Number.isFinite(values.caloriesKcal) || values.caloriesKcal <= 0) {
       toast.error("Enter a daily calorie target greater than zero.");
@@ -143,6 +188,27 @@ export function NutritionTargetsDialog({
     }
     if ([values.proteinG, values.carbsG, values.fatG].some((value) => !Number.isFinite(value) || value < 0)) {
       toast.error("Macro targets cannot be negative.");
+      return;
+    }
+    if (
+      [values.fibreG, values.sodiumMg].some(
+        (value) => value !== undefined && (!Number.isFinite(value) || value < 0)
+      )
+    ) {
+      toast.error("Fiber and sodium targets cannot be negative.");
+      return;
+    }
+    if (
+      values.trainingDay &&
+      (!Number.isFinite(values.trainingDay.caloriesKcal) ||
+        values.trainingDay.caloriesKcal <= 0 ||
+        [
+          values.trainingDay.proteinG,
+          values.trainingDay.carbsG,
+          values.trainingDay.fatG,
+        ].some((value) => !Number.isFinite(value) || value < 0))
+    ) {
+      toast.error("Enter valid training-day calories and macros.");
       return;
     }
 
@@ -325,7 +391,7 @@ export function NutritionTargetsDialog({
 
         <section className="space-y-3">
           <div>
-            <h3 className="text-sm font-semibold">Daily targets</h3>
+            <h3 className="text-sm font-semibold">Default and rest-day targets</h3>
             <p className="mt-1 text-xs text-muted-foreground">Choose an estimate above or enter your own targets.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -345,7 +411,51 @@ export function NutritionTargetsDialog({
               <Label htmlFor="nutrition-target-fat">Fat (g)</Label>
               <NumberInput id="nutrition-target-fat" decimal value={fat} onChange={(event) => { setFat(event.target.value); setSelectedPlanId(null); }} placeholder="Optional" />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nutrition-target-fibre">Fiber (g)</Label>
+              <NumberInput id="nutrition-target-fibre" decimal value={fibre} onChange={(event) => setFibre(event.target.value)} placeholder="Optional" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nutrition-target-sodium">Sodium (mg)</Label>
+              <NumberInput id="nutrition-target-sodium" decimal value={sodium} onChange={(event) => setSodium(event.target.value)} placeholder="Optional" />
+            </div>
           </div>
+        </section>
+
+        <section className="space-y-3 rounded-xl border bg-muted/20 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Dumbbell className="size-4 text-primary" /> Training-day targets
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Automatically used on days containing a completed workout.
+              </p>
+            </div>
+            <Button type="button" size="sm" variant={differentTrainingTargets ? "default" : "outline"} aria-pressed={differentTrainingTargets} onClick={toggleTrainingTargets}>
+              {differentTrainingTargets ? "Enabled" : "Enable"}
+            </Button>
+          </div>
+          {differentTrainingTargets && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="training-target-calories">Training calories (kcal)</Label>
+                <NumberInput id="training-target-calories" decimal value={trainingCalories} onChange={(event) => setTrainingCalories(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="training-target-protein">Protein (g)</Label>
+                <NumberInput id="training-target-protein" decimal value={trainingProtein} onChange={(event) => setTrainingProtein(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="training-target-carbs">Carbs (g)</Label>
+                <NumberInput id="training-target-carbs" decimal value={trainingCarbs} onChange={(event) => setTrainingCarbs(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="training-target-fat">Fat (g)</Label>
+                <NumberInput id="training-target-fat" decimal value={trainingFat} onChange={(event) => setTrainingFat(event.target.value)} />
+              </div>
+            </div>
+          )}
         </section>
 
         <p className="text-xs leading-relaxed text-muted-foreground">

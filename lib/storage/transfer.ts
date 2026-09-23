@@ -39,6 +39,7 @@ import type {
   NutritionFood,
   NutritionFoodPreference,
   NutritionSavedMeal,
+  NutritionTargetHistoryEntry,
   NutritionTargets,
 } from "@/lib/nutrition/types";
 import { isValidGtin } from "@/lib/nutrition/barcodes";
@@ -46,11 +47,13 @@ import {
   getNutritionDayAdjustments,
   getNutritionEntries,
   getNutritionTargets,
+  getNutritionTargetHistory,
   normalizeNutritionDayAdjustment,
   normalizeNutritionEntry,
   saveNutritionDayAdjustments,
   saveNutritionEntries,
   saveNutritionTargets,
+  saveNutritionTargetHistory,
 } from "./nutrition-storage";
 import {
   getCustomNutritionFoods,
@@ -92,6 +95,7 @@ export type ExportBundle = {
   homeEquipment?: HomeEquipment;
   nutritionEntries?: NutritionEntry[];
   nutritionTargets?: NutritionTargets;
+  nutritionTargetHistory?: NutritionTargetHistoryEntry[];
   nutritionDayAdjustments?: NutritionDayAdjustment[];
   customNutritionFoods?: NutritionFood[];
   nutritionFoodPreferences?: NutritionFoodPreference[];
@@ -121,6 +125,7 @@ export function buildExport(): ExportBundle {
     homeEquipment: getHomeEquipment(),
     nutritionEntries: getNutritionEntries(),
     nutritionTargets: getNutritionTargets() ?? undefined,
+    nutritionTargetHistory: getNutritionTargetHistory(),
     nutritionDayAdjustments: getNutritionDayAdjustments(),
     customNutritionFoods: getCustomNutritionFoods(),
     nutritionFoodPreferences: getNutritionFoodPreferences(),
@@ -496,7 +501,21 @@ export function mergeImport(
     typeof bundle.nutritionTargets === "object" &&
     (options.restoreSettings || getNutritionTargets() === null)
   ) {
-    nutritionTargetsRestored = saveNutritionTargets(bundle.nutritionTargets) !== null;
+    nutritionTargetsRestored =
+      saveNutritionTargets(
+        bundle.nutritionTargets,
+        Array.isArray(bundle.nutritionTargetHistory) &&
+          bundle.nutritionTargetHistory.length > 0
+          ? undefined
+          : { effectiveFrom: "1970-01-01" }
+      ) !== null;
+  }
+  if (
+    nutritionTargetsRestored &&
+    Array.isArray(bundle.nutritionTargetHistory) &&
+    bundle.nutritionTargetHistory.length > 0
+  ) {
+    saveNutritionTargetHistory(bundle.nutritionTargetHistory);
   }
 
   // Restore home equipment only when this device has none set yet, so an import

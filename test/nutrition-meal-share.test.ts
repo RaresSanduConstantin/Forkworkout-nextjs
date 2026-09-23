@@ -54,6 +54,18 @@ describe("nutrition meal sharing", () => {
     expect(decodeNutritionMeal(reference!.encoded)?.meal.items).toHaveLength(2);
   });
 
+  it("preserves recipe servings and cooked yield when sharing a recipe", () => {
+    const encoded = encodeNutritionMeal("Pasta pot", items, undefined, 8_000, {
+      kind: "recipe",
+      servings: 4,
+      yieldGrams: 1800,
+    });
+
+    expect(decodeNutritionMeal(encoded!)?.meal).toEqual(
+      expect.objectContaining({ kind: "recipe", servings: 4, yieldGrams: 1800 })
+    );
+  });
+
   it("imports shared meals with a new id and a unique local name", () => {
     const decoded = decodeNutritionMeal(encodeNutritionMeal("Breakfast", items)!)!;
     const first = importNutritionSavedMeal(decoded.meal);

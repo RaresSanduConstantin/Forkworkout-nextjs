@@ -80,6 +80,7 @@ type MealBuilderItem = {
 };
 
 type RecipeSaveDestination = "saved_only" | NutritionMeal;
+type RecipeLogMode = "servings" | "grams";
 
 function previousDayKey(dayKey: string): string {
   const date = dayKeyToDate(dayKey);
@@ -137,6 +138,8 @@ export function MealActionsSheet({
   const [selectedItemAmounts, setSelectedItemAmounts] = React.useState<string[]>([]);
   const [mealPortions, setMealPortions] = React.useState("1");
   const [recipePortions, setRecipePortions] = React.useState("1");
+  const [recipeGrams, setRecipeGrams] = React.useState("");
+  const [recipeLogMode, setRecipeLogMode] = React.useState<RecipeLogMode>("servings");
   const [savingCurrent, setSavingCurrent] = React.useState(false);
   const [savedMealName, setSavedMealName] = React.useState("");
   const [selectedCurrentEntryIds, setSelectedCurrentEntryIds] = React.useState<Set<string>>(
@@ -147,6 +150,7 @@ export function MealActionsSheet({
   const [tab, setTab] = React.useState("meals");
   const [builderName, setBuilderName] = React.useState("");
   const [builderServings, setBuilderServings] = React.useState("2");
+  const [builderYieldGrams, setBuilderYieldGrams] = React.useState("");
   const [recipeSaveDestination, setRecipeSaveDestination] =
     React.useState<RecipeSaveDestination>("saved_only");
   const [builderItems, setBuilderItems] = React.useState<MealBuilderItem[]>([]);
@@ -175,6 +179,8 @@ export function MealActionsSheet({
     );
     setMealPortions("1");
     setRecipePortions("1");
+    setRecipeGrams("");
+    setRecipeLogMode("servings");
     setTab(startRecipe ? "create" : "meals");
     setSavingCurrent(startSaving);
     setSavedMealName("");
@@ -187,6 +193,7 @@ export function MealActionsSheet({
     );
     setBuilderName("");
     setBuilderServings("2");
+    setBuilderYieldGrams("");
     setRecipeSaveDestination("saved_only");
     setBuilderItems([]);
     setEditingRecipeId(null);
@@ -241,12 +248,17 @@ export function MealActionsSheet({
     .slice(0, 6);
   const recentFullDays = priorDayKeys.slice(0, 8);
   const parsedRecipePortions = Number.parseFloat(recipePortions);
+  const parsedRecipeGrams = Number.parseFloat(recipeGrams);
   const parsedMealPortions = Number.parseFloat(mealPortions);
   const effectiveMultiplier =
     selectedSavedMeal?.kind === "recipe" && selectedSavedMeal.servings
-      ? Number.isFinite(parsedRecipePortions) && parsedRecipePortions > 0
-        ? parsedRecipePortions / selectedSavedMeal.servings
-        : 0
+      ? recipeLogMode === "grams" && selectedSavedMeal.yieldGrams
+        ? Number.isFinite(parsedRecipeGrams) && parsedRecipeGrams > 0
+          ? parsedRecipeGrams / selectedSavedMeal.yieldGrams
+          : 0
+        : Number.isFinite(parsedRecipePortions) && parsedRecipePortions > 0
+          ? parsedRecipePortions / selectedSavedMeal.servings
+          : 0
       : Number.isFinite(parsedMealPortions) && parsedMealPortions > 0 && parsedMealPortions <= 100
         ? parsedMealPortions
         : 0;
@@ -291,11 +303,14 @@ export function MealActionsSheet({
     );
     setMealPortions("1");
     setRecipePortions("1");
+    setRecipeGrams("");
+    setRecipeLogMode("servings");
   };
 
   const resetRecipeBuilder = () => {
     setBuilderName("");
     setBuilderServings("2");
+    setBuilderYieldGrams("");
     setRecipeSaveDestination("saved_only");
     setBuilderItems([]);
     setEditingRecipeId(null);
@@ -313,6 +328,7 @@ export function MealActionsSheet({
     if (meal.kind !== "recipe") return;
     setBuilderName(meal.name);
     setBuilderServings(String(meal.servings ?? 1));
+    setBuilderYieldGrams(meal.yieldGrams ? String(meal.yieldGrams) : "");
     setRecipeSaveDestination("saved_only");
     setBuilderItems(items.map(toMealBuilderItem));
     setEditingRecipeId(meal.id);
@@ -369,7 +385,9 @@ export function MealActionsSheet({
     if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier <= 0) {
       toast.error(
         selectedSavedMeal.kind === "recipe"
-          ? "Enter how many recipe servings you ate."
+          ? recipeLogMode === "grams"
+            ? "Enter how many grams of the cooked recipe you ate."
+            : "Enter how many recipe servings you ate."
           : "Enter how many portions you want to add."
       );
       return;
@@ -394,7 +412,11 @@ export function MealActionsSheet({
       selectedSavedMeal.name,
       adjustedSelectedItems,
       selectedSavedMeal.id,
-      { kind: selectedSavedMeal.kind, servings: selectedSavedMeal.servings }
+      {
+        kind: selectedSavedMeal.kind,
+        servings: selectedSavedMeal.servings,
+        yieldGrams: selectedSavedMeal.yieldGrams,
+      }
     );
     if (!updated) {
       toast.error("Couldn't update the saved meal quantities.");
@@ -485,9 +507,20 @@ export function MealActionsSheet({
       toast.error("Enter the total number of servings in the full recipe.");
       return;
     }
+    const yieldGrams = builderYieldGrams.trim()
+      ? Number.parseFloat(builderYieldGrams)
+      : undefined;
+    if (
+      yieldGrams !== undefined &&
+      (!Number.isFinite(yieldGrams) || yieldGrams <= 0 || yieldGrams > 1_000_000)
+    ) {
+      toast.error("Enter a final cooked weight greater than zero.");
+      return;
+    }
     const saved = saveMealFromItems(builderName, builtMealItems, editingRecipeId ?? undefined, {
       kind: "recipe",
       servings,
+      yieldGrams,
     });
     if (!saved) {
       toast.error("Use a unique meal name and check the food amounts.");
@@ -497,6 +530,7 @@ export function MealActionsSheet({
     const wasEditing = editingRecipeId !== null;
     setBuilderName("");
     setBuilderItems([]);
+    setBuilderYieldGrams("");
     setEditingRecipeId(null);
     if (wasEditing) {
       setTab("meals");
@@ -556,6 +590,15 @@ export function MealActionsSheet({
     ? sumNutrients(adjustedSelectedItems)
     : null;
   const builderTotals = sumNutrients(builtMealItems);
+  const parsedBuilderYield = Number.parseFloat(builderYieldGrams);
+  const builderPer100 =
+    Number.isFinite(parsedBuilderYield) && parsedBuilderYield > 0
+      ? nutrientsForQuantity(builderTotals, 100, parsedBuilderYield)
+      : null;
+  const selectedPer100 =
+    selectedTotals && selectedSavedMeal?.yieldGrams
+      ? nutrientsForQuantity(selectedTotals, 100, selectedSavedMeal.yieldGrams)
+      : null;
 
   return (
     <>
@@ -577,6 +620,9 @@ export function MealActionsSheet({
                 <SheetTitle>{selectedSavedMeal.name}</SheetTitle>
                 <SheetDescription>
                   {selectedSavedMeal.items.length} ingredient{selectedSavedMeal.items.length === 1 ? "" : "s"} · {number(selectedTotals?.caloriesKcal ?? 0)} kcal for the full {selectedSavedMeal.kind === "recipe" ? "recipe" : "meal"}
+                  {selectedSavedMeal.kind === "recipe" && selectedSavedMeal.yieldGrams
+                    ? ` · ${number(selectedSavedMeal.yieldGrams)} g cooked`
+                    : ""}
                 </SheetDescription>
               </SheetHeader>
               <div className="flex-1 space-y-5 overflow-y-auto px-4">
@@ -590,17 +636,34 @@ export function MealActionsSheet({
                   </Select>
                 </div>
                 {selectedSavedMeal.kind === "recipe" && selectedSavedMeal.servings ? (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="recipe-portions">Servings eaten</Label>
-                    <NumberInput
-                      id="recipe-portions"
-                      decimal
-                      value={recipePortions}
-                      onChange={(event) => setRecipePortions(event.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The full recipe is divided into {number(selectedSavedMeal.servings)} servings. You can enter a decimal such as 1.5.
-                    </p>
+                  <div className="space-y-3">
+                    {selectedSavedMeal.yieldGrams && (
+                      <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
+                        <Button type="button" size="sm" variant={recipeLogMode === "servings" ? "default" : "ghost"} onClick={() => setRecipeLogMode("servings")}>
+                          By servings
+                        </Button>
+                        <Button type="button" size="sm" variant={recipeLogMode === "grams" ? "default" : "ghost"} onClick={() => setRecipeLogMode("grams")}>
+                          By cooked weight
+                        </Button>
+                      </div>
+                    )}
+                    {recipeLogMode === "grams" && selectedSavedMeal.yieldGrams ? (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="recipe-grams">Cooked amount eaten (g)</Label>
+                        <NumberInput id="recipe-grams" decimal value={recipeGrams} onChange={(event) => setRecipeGrams(event.target.value)} placeholder="e.g. 420" />
+                        <p className="text-xs text-muted-foreground">
+                          Calculated from the full cooked yield of {number(selectedSavedMeal.yieldGrams)} g.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="recipe-portions">Servings eaten</Label>
+                        <NumberInput id="recipe-portions" decimal value={recipePortions} onChange={(event) => setRecipePortions(event.target.value)} />
+                        <p className="text-xs text-muted-foreground">
+                          The full recipe is divided into {number(selectedSavedMeal.servings)} servings. You can enter a decimal such as 1.5.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -631,6 +694,14 @@ export function MealActionsSheet({
                     <div key={label} className="rounded-xl border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold tabular-nums">{value}</p></div>
                   ))}
                 </div>
+                {selectedPer100 && (
+                  <div className="rounded-xl border bg-muted/30 p-3 text-sm">
+                    <p className="font-medium">Cooked recipe per 100 g</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {number(selectedPer100.caloriesKcal)} kcal · P {number(selectedPer100.proteinG)}g · C {number(selectedPer100.carbsG)}g · F {number(selectedPer100.fatG)}g
+                    </p>
+                  </div>
+                )}
                 <section className="space-y-2">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -699,7 +770,9 @@ export function MealActionsSheet({
                 )}
                 <Button type="button" size="lg" onClick={useSavedMeal} disabled={effectiveMultiplier <= 0 || !adjustedSelectedItems}>
                   {selectedSavedMeal.kind === "recipe"
-                    ? `Add ${recipePortions || ""} serving${parsedRecipePortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`
+                    ? recipeLogMode === "grams" && selectedSavedMeal.yieldGrams
+                      ? `Add ${recipeGrams || ""} g to ${MEAL_LABELS[destinationMeal]}`
+                      : `Add ${recipePortions || ""} serving${parsedRecipePortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`
                     : `Add ${mealPortions || ""} portion${parsedMealPortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`}
                 </Button>
               </SheetFooter>
@@ -758,7 +831,7 @@ export function MealActionsSheet({
                       <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">No saved meals yet.</p>
                     ) : savedMeals.map((meal) => {
                       const totals = sumNutrients(meal.items);
-                      return <div key={meal.id} className="flex items-center gap-2 rounded-xl border p-2"><button type="button" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left hover:bg-muted" onClick={() => selectSavedMeal(meal)}><span className="block truncate text-sm font-medium">{meal.name}</span><span className="block text-xs text-muted-foreground">{meal.kind === "recipe" && meal.servings ? `${number(meal.servings)} servings · ${meal.items.length} ingredients · ${number(totals.caloriesKcal)} kcal full batch` : `${meal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}</span></button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingDelete(meal)} aria-label={`Delete ${meal.name}`}><Trash2 className="size-4" /></Button></div>;
+                      return <div key={meal.id} className="flex items-center gap-2 rounded-xl border p-2"><button type="button" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left hover:bg-muted" onClick={() => selectSavedMeal(meal)}><span className="block truncate text-sm font-medium">{meal.name}</span><span className="block text-xs text-muted-foreground">{meal.kind === "recipe" && meal.servings ? `${number(meal.servings)} servings${meal.yieldGrams ? ` · ${number(meal.yieldGrams)} g cooked` : ""} · ${meal.items.length} ingredients · ${number(totals.caloriesKcal)} kcal full batch` : `${meal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}</span></button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingDelete(meal)} aria-label={`Delete ${meal.name}`}><Trash2 className="size-4" /></Button></div>;
                     })}
                   </section>
 
@@ -805,6 +878,16 @@ export function MealActionsSheet({
                       <Label htmlFor="builder-servings">Servings in full batch</Label>
                       <NumberInput id="builder-servings" decimal value={builderServings} onChange={(event) => setBuilderServings(event.target.value)} />
                       <p className="text-xs text-muted-foreground">For a recipe shared by two people, enter 2. You can log 1.5 servings later if you ate more.</p>
+                    </div>
+                    <div className="col-span-2 space-y-1.5">
+                      <Label htmlFor="builder-yield">Final cooked weight (g, optional)</Label>
+                      <NumberInput id="builder-yield" decimal value={builderYieldGrams} onChange={(event) => setBuilderYieldGrams(event.target.value)} placeholder="e.g. 1650" />
+                      <p className="text-xs text-muted-foreground">Weigh the finished batch after cooking to also log this recipe by grams eaten.</p>
+                      {builderPer100 && builderItems.length > 0 && (
+                        <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-foreground">
+                          Per 100 g: {number(builderPer100.caloriesKcal)} kcal · P {number(builderPer100.proteinG)}g · C {number(builderPer100.carbsG)}g · F {number(builderPer100.fatG)}g
+                        </p>
+                      )}
                     </div>
                     {!editingRecipeId && (
                       <div className="col-span-2 space-y-1.5">

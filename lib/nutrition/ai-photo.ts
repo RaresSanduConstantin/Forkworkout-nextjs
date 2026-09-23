@@ -1,4 +1,5 @@
 import type { NutritionNutrients } from "@/lib/nutrition/types";
+import { sumNutrients } from "@/lib/nutrition/calculations";
 
 export const AI_PHOTO_SUPPORTED_TYPES = [
   "image/jpeg",
@@ -10,6 +11,7 @@ export const AI_PHOTO_CLIENT_MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 export const AI_PHOTO_CLIENT_MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export type AIPhotoConfidence = "low" | "medium" | "high";
+export type AIPhotoMode = "food" | "label";
 
 export type AIPhotoFood = {
   name: string;
@@ -118,6 +120,11 @@ function boundedNumber(value: unknown, max: number): number | null {
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= max ? parsed : null;
 }
 
+function optionalBoundedNumber(value: unknown, max: number): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  return boundedNumber(value, max) ?? undefined;
+}
+
 function round(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -147,6 +154,9 @@ export function normalizeAIPhotoAnalysis(raw: unknown): AIPhotoAnalysis | null {
     const proteinG = boundedNumber(nutrientSource.proteinG, 10_000);
     const carbsG = boundedNumber(nutrientSource.carbsG, 10_000);
     const fatG = boundedNumber(nutrientSource.fatG, 10_000);
+    const fibreG = optionalBoundedNumber(nutrientSource.fibreG, 10_000);
+    const sugarG = optionalBoundedNumber(nutrientSource.sugarG, 10_000);
+    const sodiumMg = optionalBoundedNumber(nutrientSource.sodiumMg, 1_000_000);
     const confidence = boundedNumber(food.confidence, 1);
     if (
       !name ||
@@ -167,6 +177,9 @@ export function normalizeAIPhotoAnalysis(raw: unknown): AIPhotoAnalysis | null {
         proteinG: round(proteinG),
         carbsG: round(carbsG),
         fatG: round(fatG),
+        ...(fibreG === undefined ? {} : { fibreG: round(fibreG) }),
+        ...(sugarG === undefined ? {} : { sugarG: round(sugarG) }),
+        ...(sodiumMg === undefined ? {} : { sodiumMg: Math.round(sodiumMg) }),
       },
       confidence,
     });
@@ -177,17 +190,18 @@ export function normalizeAIPhotoAnalysis(raw: unknown): AIPhotoAnalysis | null {
     return null;
   }
 
+  const summed = sumNutrients(foods.map((food) => food.nutrients));
   return {
     foods,
-    total: foods.reduce<NutritionNutrients>(
-      (total, food) => ({
-        caloriesKcal: round(total.caloriesKcal + food.nutrients.caloriesKcal),
-        proteinG: round(total.proteinG + food.nutrients.proteinG),
-        carbsG: round(total.carbsG + food.nutrients.carbsG),
-        fatG: round(total.fatG + food.nutrients.fatG),
-      }),
-      { caloriesKcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }
-    ),
+    total: {
+      caloriesKcal: summed.caloriesKcal,
+      proteinG: summed.proteinG,
+      carbsG: summed.carbsG,
+      fatG: summed.fatG,
+      ...(summed.fibreG === undefined ? {} : { fibreG: summed.fibreG }),
+      ...(summed.sugarG === undefined ? {} : { sugarG: summed.sugarG }),
+      ...(summed.sodiumMg === undefined ? {} : { sodiumMg: summed.sodiumMg }),
+    },
     confidence,
   };
 }
@@ -245,15 +259,18 @@ export async function analyzeFoodPhoto({
   weightGrams,
   anonymousDeviceId,
   signal,
+  analysisMode = "food",
 }: {
   image: Blob;
   weightGrams?: number;
   anonymousDeviceId: string;
   signal?: AbortSignal;
+  analysisMode?: AIPhotoMode;
 }): Promise<AIPhotoAnalysis> {
   const form = new FormData();
   form.append("image", image, "food-photo.jpg");
   form.append("anonymousDeviceId", anonymousDeviceId);
+  form.append("analysisMode", analysisMode);
   if (weightGrams !== undefined) form.append("weightGrams", String(weightGrams));
 
   const response = await fetch("/api/nutrition/analyze-photo", {

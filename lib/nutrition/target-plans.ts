@@ -1,3 +1,5 @@
+import type { NutritionTargets } from "@/lib/nutrition/types";
+
 export type NutritionGoalPlan = {
   id: "gentle" | "goal" | "focused" | "maintain";
   label: string;
@@ -22,6 +24,17 @@ const round = (value: number) => Math.round(value);
 const roundToTen = (value: number) => Math.round(value / 10) * 10;
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
+
+export function resolveNutritionTargetsForDay(
+  targets: NutritionTargets | null,
+  isTrainingDay: boolean
+): NutritionTargets | null {
+  if (!targets || !isTrainingDay || !targets.trainingDay) return targets;
+  return {
+    ...targets,
+    ...targets.trainingDay,
+  };
+}
 
 function macrosForCalories(
   caloriesKcal: number,

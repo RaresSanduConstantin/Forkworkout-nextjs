@@ -21,16 +21,19 @@ function request({
   ip = `192.0.2.${Math.floor(Math.random() * 200) + 1}`,
   type = "image/jpeg",
   cookie,
+  analysisMode,
 }: {
   deviceId?: string;
   ip?: string;
   type?: string;
   cookie?: string;
+  analysisMode?: "food" | "label";
 } = {}) {
   const form = new FormData();
   form.append("image", new Blob(["image-bytes"], { type }), "meal.jpg");
   form.append("anonymousDeviceId", deviceId);
   form.append("weightGrams", "350");
+  if (analysisMode) form.append("analysisMode", analysisMode);
   return new Request("http://localhost/api/nutrition/analyze-photo", {
     method: "POST",
     headers: {
@@ -224,6 +227,59 @@ describe("AI photo nutrition API", () => {
     expect(outbound.store).toBe(false);
     expect(outbound.input[0].content[1].image_url).toMatch(/^data:image\/jpeg;base64,/);
     expect(outbound.text.format).toMatchObject({ type: "json_schema", strict: true });
+  });
+
+  it("reads a nutrition label with detailed nutrients through the protected photo route", async () => {
+    enableScanner();
+    const upstream = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              content: [
+                {
+                  type: "output_text",
+                  text: JSON.stringify({
+                    foods: [
+                      {
+                        name: "Protein bar",
+                        estimatedWeightGrams: 60,
+                        caloriesKcal: 220,
+                        proteinG: 20,
+                        carbsG: 24,
+                        fatG: 7,
+                        fibreG: 6,
+                        sugarG: 4,
+                        sodiumMg: 180,
+                        confidence: 0.97,
+                      },
+                    ],
+                    total: { caloriesKcal: 220, proteinG: 20, carbsG: 24, fatG: 7 },
+                    confidence: "high",
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const response = await POST(request({ analysisMode: "label" }));
+    await expect(response.json()).resolves.toMatchObject({
+      analysis: {
+        foods: [
+          expect.objectContaining({
+            name: "Protein bar",
+            nutrients: expect.objectContaining({ fibreG: 6, sodiumMg: 180 }),
+          }),
+        ],
+      },
+    });
+    const outbound = JSON.parse(String(upstream.mock.calls[0][1]?.body));
+    expect(outbound.instructions).toContain("nutrition label");
+    expect(outbound.text.format.name).toBe("forkworkout_nutrition_label");
   });
 
   it("maps an exhausted API credit balance separately from a monthly spend limit", async () => {

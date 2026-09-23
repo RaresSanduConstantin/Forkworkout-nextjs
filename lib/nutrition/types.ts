@@ -72,6 +72,8 @@ export type NutritionEntry = {
   nutrients: NutritionNutrients;
   quantity?: NutritionQuantity;
   foodSnapshot?: NutritionFoodSnapshot;
+  /** Confidence retained for AI-derived entries, from 0 to 1. */
+  confidence?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -81,7 +83,20 @@ export type NutritionTargets = {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  fibreG?: number;
+  sodiumMg?: number;
+  trainingDay?: {
+    caloriesKcal: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+  };
   updatedAt: string;
+};
+
+/** Daily targets that became active on a local calendar day. */
+export type NutritionTargetHistoryEntry = NutritionTargets & {
+  effectiveFrom: string;
 };
 
 /** A deliberate, day-specific choice to add recorded exercise to the food budget. */
@@ -93,7 +108,7 @@ export type NutritionDayAdjustment = {
 
 export type NutritionSavedMealItem = Pick<
   NutritionEntry,
-  "name" | "source" | "nutrients" | "quantity" | "foodSnapshot"
+  "name" | "source" | "nutrients" | "quantity" | "foodSnapshot" | "confidence"
 >;
 
 export type NutritionSavedMeal = {
@@ -103,6 +118,8 @@ export type NutritionSavedMeal = {
   /** Recipes store a complete cooked batch and the number of portions it makes. */
   kind?: "recipe";
   servings?: number;
+  /** Optional final cooked batch weight, used to log a recipe by grams eaten. */
+  yieldGrams?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -115,6 +132,7 @@ export type NutritionEntryInput = {
   nutrients: NutritionNutrients;
   quantity?: NutritionQuantity;
   foodSnapshot?: NutritionFoodSnapshot;
+  confidence?: number;
 };
 
 export type StoredNutritionEntries = {
@@ -123,8 +141,9 @@ export type StoredNutritionEntries = {
 };
 
 export type StoredNutritionTargets = {
-  version: 1;
+  version: 1 | 2;
   data: NutritionTargets | null;
+  history?: NutritionTargetHistoryEntry[];
 };
 
 export type StoredNutritionDayAdjustments = {

@@ -13,6 +13,19 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added optional training-day calorie and macro targets that activate on days
+  with completed workouts, plus editable daily fiber and sodium targets.
+- Added nutrition-label photo scanning through the existing protected AI scan
+  route, with a document-shaped camera, editable detailed nutrients, source
+  labeling, and retained confidence values.
+- Added 7-day and 30-day nutrition progress summaries with logged-day averages,
+  calorie-range consistency, protein-target consistency, and body-weight change.
+- Added optional final cooked weight to recipes so portions can be logged by
+  either servings or the grams of cooked food eaten.
+- Added effective-dated nutrition target history so changing a goal preserves
+  the calorie and macro targets that applied to earlier food logs.
+- Added visible consumed quantities plus compact edit, duplicate, move, and
+  delete actions to each daily nutrition entry.
 - Expanded Nutrition Targets with shared body-profile and current-weight inputs,
   a goal timeframe, and selectable calorie, protein, carb, and fat estimates.
 - Added saved-recipe editing so ingredients can be added through food search,
@@ -128,6 +141,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Added subtle category-specific color tints to the breakfast, lunch, dinner,
+  and snacks cards so daily food logs are easier to scan at a glance.
+- Moved the 7-day and 30-day nutrition progress summary below the meal logging
+  categories so daily food entry stays immediately accessible.
 - Saved-meal details now allow per-item quantity edits with live nutrient
   recalculation, optional template updates, and serving-aware logged amounts.
 - Recipe creation now defaults to saving without logging food, uses clearer

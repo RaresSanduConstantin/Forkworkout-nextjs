@@ -9,7 +9,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Cookie,
+  Ellipsis,
   Flame,
   KeyRound,
   Loader2,
@@ -58,6 +60,7 @@ import { FoodPhotoAnalysisSheet } from "./FoodPhotoAnalysisSheet";
 import { MealActionsSheet } from "./MealActionsSheet";
 import { MealShareDialog } from "./MealShareDialog";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
+import { NutritionProgressCard } from "./NutritionProgressCard";
 import { dayKeyToDate, toDayKey, weekDayKeys } from "@/lib/date/day-key";
 import { cn } from "@/lib/utils";
 import {
@@ -65,13 +68,16 @@ import {
   sumNutrients,
   workoutCaloriesForDay,
 } from "@/lib/nutrition/calculations";
+import { resolveNutritionTargetsForDay } from "@/lib/nutrition/target-plans";
 import {
   NUTRITION_MEALS,
   type NutritionEntry,
   type NutritionMeal,
   type NutritionSavedMeal,
+  type NutritionTargetHistoryEntry,
   type NutritionTargets,
 } from "@/lib/nutrition/types";
+import type { BodyMetricEntry, CompletedWorkout } from "@/lib/types";
 import {
   decodeNutritionMeal,
   type DecodedNutritionMealShare,
@@ -81,27 +87,71 @@ import { unlockAIPhotoScanning } from "@/lib/nutrition/ai-photo";
 import { getAnonymousInstallationId } from "@/lib/storage/anonymous-installation";
 import { extractSharedImport } from "@/lib/storage/share-link";
 import { getCompletedWorkouts } from "@/lib/storage/history-storage";
+import { getBodyMetrics } from "@/lib/storage/body-storage";
 import {
   deleteNutritionEntry,
+  addNutritionEntry,
   getNutritionDayAdjustments,
   getNutritionEntries,
   getNutritionTargets,
+  getNutritionTargetHistory,
   setNutritionWorkoutCaloriesIncluded,
+  updateNutritionEntry,
 } from "@/lib/storage/nutrition-storage";
 import { importNutritionSavedMeal } from "@/lib/storage/nutrition-meal-storage";
 
 const MEAL_META: Record<
   NutritionMeal,
-  { label: string; icon: React.ComponentType<{ className?: string }> }
+  {
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    surfaceClassName: string;
+    iconClassName: string;
+    hoverClassName: string;
+  }
 > = {
-  breakfast: { label: "Breakfast", icon: Sun },
-  lunch: { label: "Lunch", icon: Utensils },
-  dinner: { label: "Dinner", icon: Moon },
-  snacks: { label: "Snacks", icon: Cookie },
+  breakfast: {
+    label: "Breakfast",
+    icon: Sun,
+    surfaceClassName: "border-amber-500/20 bg-amber-500/5",
+    iconClassName: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    hoverClassName: "hover:bg-amber-500/10 active:bg-amber-500/15",
+  },
+  lunch: {
+    label: "Lunch",
+    icon: Utensils,
+    surfaceClassName: "border-emerald-500/20 bg-emerald-500/5",
+    iconClassName: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    hoverClassName: "hover:bg-emerald-500/10 active:bg-emerald-500/15",
+  },
+  dinner: {
+    label: "Dinner",
+    icon: Moon,
+    surfaceClassName: "border-indigo-500/20 bg-indigo-500/5",
+    iconClassName: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
+    hoverClassName: "hover:bg-indigo-500/10 active:bg-indigo-500/15",
+  },
+  snacks: {
+    label: "Snacks",
+    icon: Cookie,
+    surfaceClassName: "border-rose-500/20 bg-rose-500/5",
+    iconClassName: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
+    hoverClassName: "hover:bg-rose-500/10 active:bg-rose-500/15",
+  },
 };
 
 const number = (value: number) =>
   new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(value);
+
+const SOURCE_LABELS: Record<NutritionEntry["source"], string> = {
+  quick_add: "Manual",
+  builtin: "Offline catalog",
+  usda: "USDA",
+  custom: "Custom food",
+  barcode: "Barcode",
+  label_ocr: "Nutrition label",
+  meal_photo: "AI meal estimate",
+};
 
 function defaultMeal(): NutritionMeal {
   const hour = new Date().getHours();
@@ -146,6 +196,9 @@ export function NutritionDashboard() {
   const [dayKey, setDayKey] = React.useState(() => toDayKey());
   const [entries, setEntries] = React.useState<NutritionEntry[]>([]);
   const [targets, setTargets] = React.useState<NutritionTargets | null>(null);
+  const [targetHistory, setTargetHistory] = React.useState<NutritionTargetHistoryEntry[]>([]);
+  const [bodyMetrics, setBodyMetrics] = React.useState<BodyMetricEntry[]>([]);
+  const [completedWorkouts, setCompletedWorkouts] = React.useState<CompletedWorkout[]>([]);
   const [workoutAdjustmentDays, setWorkoutAdjustmentDays] = React.useState<string[]>([]);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
   const [foodPickerOpen, setFoodPickerOpen] = React.useState(false);
@@ -162,6 +215,7 @@ export function NutritionDashboard() {
   const [editingEntry, setEditingEntry] = React.useState<NutritionEntry | null>(null);
   const [editingFoodEntry, setEditingFoodEntry] = React.useState<NutritionEntry | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<NutritionEntry | null>(null);
+  const [entryActionsId, setEntryActionsId] = React.useState<string | null>(null);
   const [mealShareTarget, setMealShareTarget] = React.useState<{
     name: string;
     entries: NutritionEntry[];
@@ -175,6 +229,9 @@ export function NutritionDashboard() {
   const refresh = React.useCallback(() => {
     setEntries(getNutritionEntries());
     setTargets(getNutritionTargets());
+    setTargetHistory(getNutritionTargetHistory());
+    setBodyMetrics(getBodyMetrics());
+    setCompletedWorkouts(getCompletedWorkouts());
     setWorkoutAdjustmentDays(
       getNutritionDayAdjustments().map((adjustment) => adjustment.dayKey)
     );
@@ -219,9 +276,34 @@ export function NutritionDashboard() {
     [dayKey, entries]
   );
   const totals = React.useMemo(() => sumNutrients(dayEntries), [dayEntries]);
+  const selectedBaseTargets = React.useMemo(() => {
+    if (targetHistory.length === 0) return targets;
+    return [...targetHistory]
+      .reverse()
+      .find((entry) => entry.effectiveFrom <= dayKey) ?? null;
+  }, [dayKey, targetHistory, targets]);
+  const trainingDayKeys = React.useMemo(
+    () =>
+      new Set(
+        completedWorkouts
+          .map((workout) => {
+            if (workout.dayKey) return workout.dayKey;
+            const date = new Date(workout.date);
+            return Number.isFinite(date.getTime()) ? toDayKey(date) : "";
+          })
+          .filter(Boolean)
+      ),
+    [completedWorkouts]
+  );
+  const isTrainingDay = trainingDayKeys.has(dayKey);
+  const usesTrainingTarget = Boolean(isTrainingDay && selectedBaseTargets?.trainingDay);
+  const selectedTargets = resolveNutritionTargetsForDay(
+    selectedBaseTargets,
+    isTrainingDay
+  );
   const workoutCalories = React.useMemo(
-    () => workoutCaloriesForDay(getCompletedWorkouts(), dayKey),
-    [dayKey]
+    () => workoutCaloriesForDay(completedWorkouts, dayKey),
+    [completedWorkouts, dayKey]
   );
   const workoutCaloriesIncluded = workoutAdjustmentDays.includes(dayKey);
   const netCalories = totals.caloriesKcal - workoutCalories;
@@ -287,6 +369,47 @@ export function NutritionDashboard() {
     toast.success("Nutrition entry removed");
   };
 
+  const duplicateEntry = (entry: NutritionEntry) => {
+    const duplicated = addNutritionEntry({
+      dayKey: entry.dayKey,
+      meal: entry.meal,
+      name: entry.name,
+      source: entry.source,
+      nutrients: entry.nutrients,
+      quantity: entry.quantity,
+      foodSnapshot: entry.foodSnapshot,
+      confidence: entry.confidence,
+    });
+    if (!duplicated) {
+      toast.error("Couldn't duplicate that food.");
+      return;
+    }
+    setEntryActionsId(null);
+    refresh();
+    toast.success(`${entry.name} duplicated`);
+  };
+
+  const moveEntry = (entry: NutritionEntry, meal: NutritionMeal) => {
+    if (entry.meal === meal) return;
+    const moved = updateNutritionEntry(entry.id, {
+      dayKey: entry.dayKey,
+      meal,
+      name: entry.name,
+      source: entry.source,
+      nutrients: entry.nutrients,
+      quantity: entry.quantity,
+      foodSnapshot: entry.foodSnapshot,
+      confidence: entry.confidence,
+    });
+    if (!moved) {
+      toast.error("Couldn't move that food.");
+      return;
+    }
+    setEntryActionsId(null);
+    refresh();
+    toast.success(`Moved to ${MEAL_META[meal].label.toLowerCase()}`);
+  };
+
   const confirmMealImport = () => {
     if (!pendingMealImport) return;
     const imported = importNutritionSavedMeal(pendingMealImport.meal);
@@ -300,9 +423,9 @@ export function NutritionDashboard() {
     });
   };
 
-  const calorieTarget = targets?.caloriesKcal;
+  const calorieTarget = selectedTargets?.caloriesKcal;
   const effectiveCalorieTarget = calorieTarget
-    ? calorieTarget + (workoutCaloriesIncluded ? workoutCalories : 0)
+    ? calorieTarget + (workoutCaloriesIncluded && !usesTrainingTarget ? workoutCalories : 0)
     : undefined;
   const remaining = effectiveCalorieTarget
     ? effectiveCalorieTarget - totals.caloriesKcal
@@ -497,6 +620,11 @@ export function NutritionDashboard() {
                       ? "Daily calorie target reached"
                       : `Target reached · ${number(Math.abs(remaining))} kcal over`}
               </p>
+              {usesTrainingTarget && (
+                <p className="mt-1 text-xs font-medium text-primary">
+                  Training-day target active
+                </p>
+              )}
             </div>
             <span
               className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-all duration-500 ${
@@ -522,9 +650,9 @@ export function NutritionDashboard() {
       </Card>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <MacroCard label="Protein" consumed={totals.proteinG} target={targets?.proteinG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-rose-500" />
-        <MacroCard label="Carbs" consumed={totals.carbsG} target={targets?.carbsG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-amber-500" />
-        <MacroCard label="Fat" consumed={totals.fatG} target={targets?.fatG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-sky-500" />
+        <MacroCard label="Protein" consumed={totals.proteinG} target={selectedTargets?.proteinG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-rose-500" />
+        <MacroCard label="Carbs" consumed={totals.carbsG} target={selectedTargets?.carbsG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-amber-500" />
+        <MacroCard label="Fat" consumed={totals.fatG} target={selectedTargets?.fatG} indicatorClassName="[&_[data-slot=progress-indicator]]:bg-sky-500" />
       </div>
 
       <Accordion type="single" collapsible className="mt-2 rounded-xl border bg-card px-3">
@@ -540,15 +668,24 @@ export function NutritionDashboard() {
           <AccordionContent className="pb-3">
             <div className="grid grid-cols-3 gap-2">
               {([
-                ["Fiber", totals.fibreG, "g"],
-                ["Sugar", totals.sugarG, "g"],
-                ["Sodium", totals.sodiumMg, "mg"],
-              ] as const).map(([label, value, unit]) => (
+                ["Fiber", totals.fibreG, "g", selectedTargets?.fibreG],
+                ["Sugar", totals.sugarG, "g", undefined],
+                ["Sodium", totals.sodiumMg, "mg", selectedTargets?.sodiumMg],
+              ] as const).map(([label, value, unit, target]) => (
                 <div key={label} className="rounded-lg bg-muted/35 p-2.5">
                   <p className="text-[11px] text-muted-foreground">{label}</p>
                   <p className="mt-0.5 text-sm font-semibold tabular-nums">
-                    {value === undefined ? "—" : `${number(value)} ${unit}`}
+                    {value === undefined
+                      ? "—"
+                      : `${number(value)}${target ? ` / ${number(target)}` : ""} ${unit}`}
                   </p>
+                  {value !== undefined && target !== undefined && (
+                    <Progress
+                      value={nutrientProgress(value, target)}
+                      className="mt-2 h-1"
+                      aria-label={`${label}: ${number(value)} of ${number(target)} ${unit}`}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -563,7 +700,7 @@ export function NutritionDashboard() {
         type="button"
         className="mt-3 flex w-full items-center gap-3 rounded-xl border bg-muted/25 p-3 text-left transition-colors enabled:hover:bg-muted/50 enabled:active:bg-muted disabled:cursor-default"
         onClick={() => setWorkoutAdjustmentOpen(true)}
-        disabled={workoutCalories <= 0 && !workoutCaloriesIncluded}
+        disabled={usesTrainingTarget || (workoutCalories <= 0 && !workoutCaloriesIncluded)}
         aria-label={
           workoutCaloriesIncluded
             ? "Remove workout calories from today's allowance"
@@ -578,7 +715,9 @@ export function NutritionDashboard() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">Workout calories</p>
           <p className="text-xs text-muted-foreground">
-            {workoutCaloriesIncluded
+            {usesTrainingTarget
+              ? `${number(workoutCalories)} kcal recorded · already reflected by your training-day target`
+              : workoutCaloriesIncluded
               ? `${number(workoutCalories)} kcal added to today's allowance · tap to undo`
               : workoutCalories > 0
                 ? `${number(workoutCalories)} kcal recorded · ${number(netCalories)} kcal net · tap to adjust`
@@ -650,15 +789,26 @@ export function NutritionDashboard() {
           const mealEntries = dayEntries.filter((entry) => entry.meal === meal);
           const mealTotals = sumNutrients(mealEntries);
           return (
-            <Card key={meal} className="gap-0 overflow-hidden py-0">
+            <Card
+              key={meal}
+              className={cn("gap-0 overflow-hidden py-0", meta.surfaceClassName)}
+            >
               {mealEntries.length === 0 ? (
                 <button
                   type="button"
-                  className="group flex w-full items-center gap-3 p-3.5 text-left transition-colors hover:bg-muted/50 active:bg-muted"
+                  className={cn(
+                    "group flex w-full items-center gap-3 p-3.5 text-left transition-colors",
+                    meta.hoverClassName
+                  )}
                   onClick={() => openFoodPicker(meal)}
                   aria-label={`Add food to ${meta.label}`}
                 >
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-active:scale-95">
+                  <span
+                    className={cn(
+                      "flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-active:scale-95",
+                      meta.iconClassName
+                    )}
+                  >
                     <Icon className="size-4" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -675,7 +825,12 @@ export function NutritionDashboard() {
               ) : (
                 <>
                   <div className="flex items-center gap-3 p-4 pb-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <span
+                      className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                        meta.iconClassName
+                      )}
+                    >
                       <Icon className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -695,14 +850,48 @@ export function NutritionDashboard() {
                           <p className="truncate text-xs text-muted-foreground">
                             P {number(entry.nutrients.proteinG)}g · C {number(entry.nutrients.carbsG)}g · F {number(entry.nutrients.fatG)}g
                           </p>
+                          {entry.quantity && (
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              {number(entry.quantity.amount)} {entry.quantity.unit}
+                            </p>
+                          )}
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            {SOURCE_LABELS[entry.source]}
+                            {entry.confidence !== undefined
+                              ? ` · ${Math.round(entry.confidence * 100)}% confidence`
+                              : ""}
+                          </p>
                         </button>
                         <span className="shrink-0 text-sm font-semibold tabular-nums">{number(entry.nutrients.caloriesKcal)} kcal</span>
-                        <Button type="button" variant="ghost" size="icon-sm" onClick={() => openEntryEditor(entry)} aria-label={`Edit ${entry.name}`}>
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingDelete(entry)} aria-label={`Delete ${entry.name}`}>
-                          <Trash2 className="size-4" />
-                        </Button>
+                        <Popover
+                          open={entryActionsId === entry.id}
+                          onOpenChange={(nextOpen) => setEntryActionsId(nextOpen ? entry.id : null)}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Actions for ${entry.name}`}>
+                              <Ellipsis className="size-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" className="w-56 space-y-1 p-2">
+                            <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => { setEntryActionsId(null); openEntryEditor(entry); }}>
+                              <Pencil className="size-4" /> Edit amount
+                            </Button>
+                            <Button type="button" variant="ghost" className="w-full justify-start" onClick={() => duplicateEntry(entry)}>
+                              <Copy className="size-4" /> Duplicate
+                            </Button>
+                            <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Move to</p>
+                            <div className="grid grid-cols-2 gap-1">
+                              {NUTRITION_MEALS.filter((meal) => meal !== entry.meal).map((meal) => (
+                                <Button key={meal} type="button" size="sm" variant="ghost" className="justify-start px-2 text-xs" onClick={() => moveEntry(entry, meal)}>
+                                  {MEAL_META[meal].label}
+                                </Button>
+                              ))}
+                            </div>
+                            <Button type="button" variant="ghost" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => { setEntryActionsId(null); setPendingDelete(entry); }}>
+                              <Trash2 className="size-4" /> Delete
+                            </Button>
+                          </PopoverContent>
+                        </Popover>
                       </li>
                     ))}
                   </ul>
@@ -738,6 +927,15 @@ export function NutritionDashboard() {
           );
         })}
       </div>
+
+      <NutritionProgressCard
+        entries={entries}
+        endDayKey={dayKey}
+        targets={targets}
+        targetHistory={targetHistory}
+        bodyMetrics={bodyMetrics}
+        trainingDayKeys={trainingDayKeys}
+      />
 
       <QuickAddSheet
         open={quickAddOpen}
@@ -809,7 +1007,7 @@ export function NutritionDashboard() {
         open={targetsOpen}
         onOpenChange={setTargetsOpen}
         targets={targets}
-        onSaved={setTargets}
+        onSaved={() => refresh()}
       />
       <ConfirmDialog
         open={workoutAdjustmentOpen}

@@ -7,6 +7,7 @@ import {
   sumNutrients,
   workoutCaloriesForDay,
 } from "@/lib/nutrition/calculations";
+import { nutritionProgressSummary } from "@/lib/nutrition/progress";
 import { buildExport, mergeImport } from "@/lib/storage/transfer";
 import {
   addNutritionEntries,
@@ -16,6 +17,8 @@ import {
   getNutritionEntries,
   getNutritionEntriesForDay,
   getNutritionTargets,
+  getNutritionTargetHistory,
+  getNutritionTargetsForDay,
   saveNutritionTargets,
   setNutritionWorkoutCaloriesIncluded,
   updateNutritionEntry,
@@ -139,6 +142,42 @@ describe("nutrition calculations", () => {
       )
     ).toBe(350);
   });
+
+  it("calculates progress averages from logged days without treating missing days as zero", () => {
+    const entries = [
+      {
+        id: "one",
+        ...quickAdd,
+        nutrients: { caloriesKcal: 1800, proteinG: 140, carbsG: 180, fatG: 60 },
+        source: "quick_add" as const,
+        createdAt: "2026-09-20T08:00:00.000Z",
+        updatedAt: "2026-09-20T08:00:00.000Z",
+      },
+      {
+        id: "two",
+        ...quickAdd,
+        dayKey: "2026-09-22",
+        nutrients: { caloriesKcal: 2200, proteinG: 160, carbsG: 220, fatG: 70 },
+        source: "quick_add" as const,
+        createdAt: "2026-09-22T08:00:00.000Z",
+        updatedAt: "2026-09-22T08:00:00.000Z",
+      },
+    ];
+    const summary = nutritionProgressSummary(entries, "2026-09-23", 7, () => ({
+      caloriesKcal: 2000,
+      proteinG: 150,
+      carbsG: 200,
+      fatG: 65,
+      updatedAt: "2026-09-01T00:00:00.000Z",
+    }));
+
+    expect(summary.loggedDays).toBe(2);
+    expect(summary.average).toEqual(
+      expect.objectContaining({ caloriesKcal: 2000, proteinG: 150 })
+    );
+    expect(summary.calorieRangeDays).toBe(2);
+    expect(summary.proteinReachedDays).toBe(1);
+  });
 });
 
 describe("nutrition storage", () => {
@@ -235,14 +274,79 @@ describe("nutrition storage", () => {
 
   it("round-trips manual targets and rejects invalid targets", () => {
     expect(
-      saveNutritionTargets({ caloriesKcal: 2300, proteinG: 160, carbsG: 250, fatG: 70 })
-    ).toEqual(expect.objectContaining({ caloriesKcal: 2300, proteinG: 160 }));
+      saveNutritionTargets({
+        caloriesKcal: 2300,
+        proteinG: 160,
+        carbsG: 250,
+        fatG: 70,
+        fibreG: 30,
+        sodiumMg: 2300,
+        trainingDay: { caloriesKcal: 2500, proteinG: 165, carbsG: 300, fatG: 70 },
+      })
+    ).toEqual(
+      expect.objectContaining({
+        caloriesKcal: 2300,
+        proteinG: 160,
+        fibreG: 30,
+        sodiumMg: 2300,
+        trainingDay: expect.objectContaining({ caloriesKcal: 2500 }),
+      })
+    );
     expect(getNutritionTargets()).toEqual(
       expect.objectContaining({ caloriesKcal: 2300, proteinG: 160, carbsG: 250, fatG: 70 })
     );
     expect(
       saveNutritionTargets({ caloriesKcal: 0, proteinG: 160, carbsG: 250, fatG: 70 })
     ).toBeNull();
+  });
+
+  it("retains confidence for AI-derived nutrition entries", () => {
+    const saved = addNutritionEntry({
+      ...quickAdd,
+      source: "label_ocr",
+      confidence: 0.94,
+      quantity: { amount: 60, unit: "g" },
+    });
+
+    expect(saved?.confidence).toBe(0.94);
+    expect(getNutritionEntries()[0]?.confidence).toBe(0.94);
+  });
+
+  it("keeps effective-dated targets so old nutrition days retain their original goal", () => {
+    saveNutritionTargets(
+      { caloriesKcal: 2300, proteinG: 160, carbsG: 250, fatG: 70 },
+      { effectiveFrom: "2026-09-01" }
+    );
+    saveNutritionTargets(
+      { caloriesKcal: 2000, proteinG: 170, carbsG: 190, fatG: 65 },
+      { effectiveFrom: "2026-09-15" }
+    );
+
+    expect(getNutritionTargetHistory()).toHaveLength(2);
+    expect(getNutritionTargetsForDay("2026-09-10")?.caloriesKcal).toBe(2300);
+    expect(getNutritionTargetsForDay("2026-09-20")?.caloriesKcal).toBe(2000);
+  });
+
+  it("treats a target from an older backup as the baseline for imported past days", () => {
+    const legacyBundle = {
+      version: 1,
+      exportedAt: "2026-08-01T00:00:00.000Z",
+      workouts: [],
+      completedWorkouts: [],
+      bodyMetrics: [],
+      customExercises: [],
+      nutritionTargets: {
+        caloriesKcal: 2100,
+        proteinG: 150,
+        carbsG: 220,
+        fatG: 70,
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      },
+    };
+
+    mergeImport(JSON.stringify(legacyBundle), { restoreSettings: true });
+
+    expect(getNutritionTargetsForDay("2025-12-01")?.caloriesKcal).toBe(2100);
   });
 
   it("remembers and removes a per-day workout calorie adjustment", () => {
@@ -313,6 +417,7 @@ describe("nutrition storage", () => {
     expect(result.nutritionUsdaFoodsRestored).toBe(1);
     expect(getNutritionEntries()[0].id).toBe(created?.id);
     expect(getNutritionTargets()?.caloriesKcal).toBe(2200);
+    expect(getNutritionTargetHistory()).toHaveLength(1);
     expect(getNutritionDayAdjustments()[0]?.dayKey).toBe("2026-09-20");
     expect(getCustomNutritionFoods()[0]?.name).toBe("Backup food");
     expect(getNutritionSavedMeals()[0]?.name).toBe("Backup breakfast");
@@ -409,10 +514,10 @@ describe("nutrition storage", () => {
         },
       ],
       undefined,
-      { kind: "recipe", servings: 3 }
+      { kind: "recipe", servings: 3, yieldGrams: 1500 }
     );
 
-    expect(recipe).toMatchObject({ kind: "recipe", servings: 3 });
+    expect(recipe).toMatchObject({ kind: "recipe", servings: 3, yieldGrams: 1500 });
     expect(copyNutritionItemsToDay(recipe!.items, "2026-09-23", "lunch", 1 / 3)).toEqual({
       added: 1,
       skipped: 0,
@@ -438,14 +543,30 @@ describe("nutrition storage", () => {
         },
       ],
       recipe!.id,
-      { kind: recipe!.kind, servings: recipe!.servings }
+      {
+        kind: recipe!.kind,
+        servings: recipe!.servings,
+        yieldGrams: recipe!.yieldGrams,
+      }
     );
-    expect(updated).toMatchObject({ id: recipe!.id, kind: "recipe", servings: 3 });
+    expect(updated).toMatchObject({
+      id: recipe!.id,
+      kind: "recipe",
+      servings: 3,
+      yieldGrams: 1500,
+    });
     expect(updated?.createdAt).toBe(recipe?.createdAt);
     expect(updated?.items).toHaveLength(2);
     expect(getNutritionSavedMeals()[0]?.items[0].quantity?.amount).toBe(600);
     expect(getNutritionSavedMeals()[0]?.items[0].nutrients.caloriesKcal).toBe(1200);
     expect(getNutritionSavedMeals()[0]?.items[1].name).toBe("Tomato sauce");
+
+    expect(copyNutritionItemsToDay(recipe!.items, "2026-09-24", "dinner", 420 / 1500)).toEqual({
+      added: 1,
+      skipped: 0,
+      saved: true,
+    });
+    expect(getNutritionEntriesForDay("2026-09-24")[0]?.quantity?.amount).toBe(140);
   });
 
   it("copies a complete previous day while preserving meals and skipping duplicates", () => {

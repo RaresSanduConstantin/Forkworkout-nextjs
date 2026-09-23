@@ -45,6 +45,7 @@ function normalizeSavedMealItem(raw: unknown): NutritionSavedMealItem | null {
     nutrients: normalized.nutrients,
     quantity: normalized.quantity,
     foodSnapshot: normalized.foodSnapshot,
+    confidence: normalized.confidence,
   };
 }
 
@@ -72,7 +73,16 @@ export function normalizeNutritionSavedMeal(raw: unknown): NutritionSavedMeal | 
     rawServings <= 1_000
       ? rawServings
       : undefined;
-  return { id, name, items, kind, servings, createdAt, updatedAt };
+  const rawYieldGrams =
+    typeof value.yieldGrams === "number" ? value.yieldGrams : Number(value.yieldGrams);
+  const yieldGrams =
+    kind === "recipe" &&
+    Number.isFinite(rawYieldGrams) &&
+    rawYieldGrams > 0 &&
+    rawYieldGrams <= 1_000_000
+      ? rawYieldGrams
+      : undefined;
+  return { id, name, items, kind, servings, yieldGrams, createdAt, updatedAt };
 }
 
 export function getNutritionSavedMeals(): NutritionSavedMeal[] {
@@ -116,6 +126,7 @@ export function saveMealFromEntries(
       nutrients: entry.nutrients,
       quantity: entry.quantity,
       foodSnapshot: entry.foodSnapshot,
+      confidence: entry.confidence,
     })),
     id
   );
@@ -125,7 +136,7 @@ export function saveMealFromItems(
   name: string,
   items: NutritionSavedMealItem[],
   id?: string,
-  options?: { kind?: "recipe"; servings?: number }
+  options?: { kind?: "recipe"; servings?: number; yieldGrams?: number }
 ): NutritionSavedMeal | null {
   const trimmedName = name.trim().slice(0, 120);
   if (!trimmedName || items.length === 0) return null;
@@ -142,6 +153,7 @@ export function saveMealFromItems(
     items,
     kind: options?.kind,
     servings: options?.servings,
+    yieldGrams: options?.yieldGrams,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });

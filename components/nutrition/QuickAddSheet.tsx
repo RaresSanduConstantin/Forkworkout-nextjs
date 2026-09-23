@@ -66,23 +66,28 @@ export function QuickAddSheet({
   const [protein, setProtein] = React.useState("");
   const [carbs, setCarbs] = React.useState("");
   const [fat, setFat] = React.useState("");
+  const [fibre, setFibre] = React.useState("");
+  const [sugar, setSugar] = React.useState("");
+  const [sodium, setSodium] = React.useState("");
   const [weight, setWeight] = React.useState("");
   const [photoBasis, setPhotoBasis] = React.useState<NutritionNutrients | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
+    const scalableEstimate =
+      entry?.source === "meal_photo" || entry?.source === "label_ocr";
     const photoWeight =
-      entry?.source === "meal_photo" && entry.quantity?.unit === "g"
+      scalableEstimate && entry?.quantity?.unit === "g"
         ? entry.quantity.amount
         : undefined;
     const basis =
-      entry?.source === "meal_photo" && entry.foodSnapshot?.basisUnit === "g"
+      scalableEstimate && entry?.foodSnapshot?.basisUnit === "g"
         ? nutrientsForQuantity(
             entry.foodSnapshot.nutrients,
             100,
             entry.foodSnapshot.basisAmount
           )
-        : entry?.source === "meal_photo" && photoWeight
+        : scalableEstimate && photoWeight
           ? nutrientsForQuantity(entry.nutrients, 100, photoWeight)
           : null;
     setMeal(entry?.meal ?? initialMeal);
@@ -91,6 +96,9 @@ export function QuickAddSheet({
     setProtein(entry?.nutrients.proteinG ? String(entry.nutrients.proteinG) : "");
     setCarbs(entry?.nutrients.carbsG ? String(entry.nutrients.carbsG) : "");
     setFat(entry?.nutrients.fatG ? String(entry.nutrients.fatG) : "");
+    setFibre(entry?.nutrients.fibreG !== undefined ? String(entry.nutrients.fibreG) : "");
+    setSugar(entry?.nutrients.sugarG !== undefined ? String(entry.nutrients.sugarG) : "");
+    setSodium(entry?.nutrients.sodiumMg !== undefined ? String(entry.nutrients.sodiumMg) : "");
     setWeight(photoWeight ? String(photoWeight) : "");
     setPhotoBasis(basis);
   }, [entry, initialMeal, open]);
@@ -99,7 +107,7 @@ export function QuickAddSheet({
     setWeight(value);
     const nextWeight = Number.parseFloat(value);
     if (
-      entry?.source !== "meal_photo" ||
+      (entry?.source !== "meal_photo" && entry?.source !== "label_ocr") ||
       !photoBasis ||
       !Number.isFinite(nextWeight) ||
       nextWeight <= 0
@@ -109,45 +117,68 @@ export function QuickAddSheet({
     setProtein(String(adjusted.proteinG));
     setCarbs(String(adjusted.carbsG));
     setFat(String(adjusted.fatG));
+    setFibre(adjusted.fibreG === undefined ? "" : String(adjusted.fibreG));
+    setSugar(adjusted.sugarG === undefined ? "" : String(adjusted.sugarG));
+    setSodium(adjusted.sodiumMg === undefined ? "" : String(adjusted.sodiumMg));
   };
 
   const updatePhotoNutrient = (
-    field: "caloriesKcal" | "proteinG" | "carbsG" | "fatG",
+    field: keyof NutritionNutrients,
     value: string,
     updateInput: React.Dispatch<React.SetStateAction<string>>
   ) => {
     updateInput(value);
-    if (entry?.source !== "meal_photo") return;
+    if (entry?.source !== "meal_photo" && entry?.source !== "label_ocr") return;
     const currentWeight = Number.parseFloat(weight);
     const nextValue = Number.parseFloat(value);
-    if (!Number.isFinite(currentWeight) || currentWeight <= 0 || !Number.isFinite(nextValue)) {
+    const clearsOptional =
+      (field === "fibreG" || field === "sugarG" || field === "sodiumMg") &&
+      !value.trim();
+    if (
+      !Number.isFinite(currentWeight) ||
+      currentWeight <= 0 ||
+      (!Number.isFinite(nextValue) && !clearsOptional)
+    ) {
       return;
     }
     setPhotoBasis((current) =>
       current
-        ? { ...current, [field]: (nextValue * 100) / currentWeight }
+        ? Number.isFinite(nextValue)
+          ? { ...current, [field]: (nextValue * 100) / currentWeight }
+          : clearsOptional
+            ? { ...current, [field]: undefined }
+            : current
         : current
     );
   };
 
   const save = () => {
+    const optional = (value: string) =>
+      value.trim() ? Number.parseFloat(value) : undefined;
     const parsed = {
       caloriesKcal: Number.parseFloat(calories),
       proteinG: protein.trim() ? Number.parseFloat(protein) : 0,
       carbsG: carbs.trim() ? Number.parseFloat(carbs) : 0,
       fatG: fat.trim() ? Number.parseFloat(fat) : 0,
+      fibreG: optional(fibre),
+      sugarG: optional(sugar),
+      sodiumMg: optional(sodium),
     };
     if (!Number.isFinite(parsed.caloriesKcal) || parsed.caloriesKcal <= 0) {
       toast.error("Enter calories greater than zero.");
       return;
     }
-    if ([parsed.proteinG, parsed.carbsG, parsed.fatG].some((value) => !Number.isFinite(value) || value < 0)) {
+    if (
+      Object.values(parsed).some(
+        (value) => value !== undefined && (!Number.isFinite(value) || value < 0)
+      )
+    ) {
       toast.error("Macros cannot be negative.");
       return;
     }
     const parsedWeight = weight.trim() ? Number.parseFloat(weight) : undefined;
     if (
-      entry?.source === "meal_photo" &&
+      (entry?.source === "meal_photo" || entry?.source === "label_ocr") &&
       (parsedWeight === undefined || !Number.isFinite(parsedWeight) || parsedWeight <= 0)
     ) {
       toast.error("Enter a weight greater than zero.");
@@ -160,20 +191,21 @@ export function QuickAddSheet({
       source: entry?.source ?? ("quick_add" as const),
       nutrients: parsed,
       quantity:
-        entry?.source === "meal_photo" && parsedWeight !== undefined
+        (entry?.source === "meal_photo" || entry?.source === "label_ocr") && parsedWeight !== undefined
           ? { amount: parsedWeight, unit: "g" as const }
           : undefined,
       foodSnapshot:
-        entry?.source === "meal_photo"
+        entry && (entry.source === "meal_photo" || entry.source === "label_ocr")
           ? {
               foodId: entry.foodSnapshot?.foodId,
               name: name.trim() || entry.name,
               basisAmount: 100,
               basisUnit: "g" as const,
               nutrients: nutrientsForQuantity(parsed, 100, parsedWeight),
-              source: "meal_photo" as const,
+              source: entry.source,
             }
           : entry?.foodSnapshot,
+      confidence: entry?.confidence,
     };
     const saved = entry
       ? updateNutritionEntry(entry.id, input)
@@ -198,12 +230,14 @@ export function QuickAddSheet({
           <SheetTitle>
             {entry?.source === "meal_photo"
               ? "Edit photo estimate"
+              : entry?.source === "label_ocr"
+                ? "Edit nutrition label"
               : entry
                 ? "Edit quick entry"
                 : "Quick Add"}
           </SheetTitle>
           <SheetDescription>
-            {format(dayKeyToDate(dayKey), "EEEE, MMMM d")} · {entry?.source === "meal_photo"
+            {format(dayKeyToDate(dayKey), "EEEE, MMMM d")} · {entry?.source === "meal_photo" || entry?.source === "label_ocr"
               ? "nutrition is adjusted from a 100 g basis."
               : "enter calories and any macros you know."}
           </SheetDescription>
@@ -225,7 +259,7 @@ export function QuickAddSheet({
               </SelectContent>
             </Select>
           </div>
-          {entry?.source === "meal_photo" && (
+          {(entry?.source === "meal_photo" || entry?.source === "label_ocr") && (
             <div className="col-span-2 space-y-1.5">
               <Label htmlFor="quick-add-weight">Amount eaten (g)</Label>
               <NumberInput
@@ -289,7 +323,23 @@ export function QuickAddSheet({
               placeholder="Optional"
             />
           </div>
-          {entry?.source === "meal_photo" && photoBasis && (
+          {(entry?.source === "label_ocr" || fibre || sugar || sodium) && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="quick-add-fibre">Fiber (g)</Label>
+                <NumberInput id="quick-add-fibre" decimal value={fibre} onChange={(event) => updatePhotoNutrient("fibreG", event.target.value, setFibre)} placeholder="Optional" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="quick-add-sugar">Sugar (g)</Label>
+                <NumberInput id="quick-add-sugar" decimal value={sugar} onChange={(event) => updatePhotoNutrient("sugarG", event.target.value, setSugar)} placeholder="Optional" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="quick-add-sodium">Sodium (mg)</Label>
+                <NumberInput id="quick-add-sodium" decimal value={sodium} onChange={(event) => updatePhotoNutrient("sodiumMg", event.target.value, setSodium)} placeholder="Optional" />
+              </div>
+            </>
+          )}
+          {(entry?.source === "meal_photo" || entry?.source === "label_ocr") && photoBasis && (
             <div className="col-span-2 rounded-xl border bg-muted/30 p-3 text-sm">
               <p className="font-medium">Per 100 g reference</p>
               <p className="mt-1 text-xs text-muted-foreground">

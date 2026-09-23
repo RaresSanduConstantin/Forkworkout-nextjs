@@ -62,9 +62,9 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-foreground">Optional AI food-photo analysis</h2>
+          <h2 className="text-lg font-semibold text-foreground">Optional AI food and label analysis</h2>
           <p className="mt-2">
-            When you explicitly choose to analyze a food photo, ForkWorkout
+            When you explicitly choose to analyze a food photo or nutrition label, ForkWorkout
             resizes it on your device and sends the prepared image, plus an
             optional weight you entered, through ForkWorkout&apos;s server to
             OpenAI. The OpenAI API key stays on the server. A random anonymous
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
           <p className="mt-2">
             The photo and AI estimate are never added to your local diary
             automatically. You review and edit the estimated foods, weights,
-            calories and macros first; only the confirmed nutrition values are
+            calories, macros and available detailed nutrients first; only the confirmed nutrition values are
             stored on your device. Read OpenAI&apos;s{" "}
             <a
               href="https://openai.com/policies/privacy-policy/"

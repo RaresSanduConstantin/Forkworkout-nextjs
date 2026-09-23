@@ -91,6 +91,15 @@ export async function POST(request: Request) {
   const image = form.get("image");
   const anonymousDeviceId = form.get("anonymousDeviceId");
   const rawWeight = form.get("weightGrams");
+  const rawAnalysisMode = form.get("analysisMode");
+  const analysisMode = rawAnalysisMode === "label" ? "label" : "food";
+  if (
+    rawAnalysisMode !== null &&
+    rawAnalysisMode !== "food" &&
+    rawAnalysisMode !== "label"
+  ) {
+    return errorResponse("AI_ANALYSIS_FAILED", "Choose a valid photo analysis mode.", 400);
+  }
   if (!(image instanceof File) || image.size <= 0 || image.size > config.maxImageBytes) {
     return errorResponse("INVALID_IMAGE", "Choose an image within the upload limit.", 400);
   }
@@ -133,6 +142,7 @@ export async function POST(request: Request) {
       weightGrams,
       anonymousDeviceId,
       config,
+      analysisMode,
     });
     return NextResponse.json({ analysis }, { headers: noStoreHeaders });
   } catch (error) {
@@ -166,7 +176,9 @@ export async function POST(request: Request) {
     if (error instanceof OpenAIPhotoError && error.kind === "invalid") {
       return errorResponse(
         "INVALID_IMAGE",
-        "No food was detected. Try a clearer photo with the full portion visible.",
+        analysisMode === "label"
+          ? "No readable nutrition label was detected. Keep the complete label sharp and well lit."
+          : "No food was detected. Try a clearer photo with the full portion visible.",
         422
       );
     }

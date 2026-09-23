@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { nutritionGoalPlans } from "@/lib/nutrition/target-plans";
+import {
+  nutritionGoalPlans,
+  resolveNutritionTargetsForDay,
+} from "@/lib/nutrition/target-plans";
 
 describe("nutritionGoalPlans", () => {
   it("creates selectable calorie and macro estimates for a weight-loss timeline", () => {
@@ -49,5 +52,23 @@ describe("nutritionGoalPlans", () => {
     ).toEqual([
       expect.objectContaining({ id: "maintain", caloriesKcal: 2_200 }),
     ]);
+  });
+
+  it("uses optional training-day calories and macros only on workout days", () => {
+    const targets = {
+      caloriesKcal: 2100,
+      proteinG: 150,
+      carbsG: 220,
+      fatG: 70,
+      fibreG: 30,
+      sodiumMg: 2300,
+      trainingDay: { caloriesKcal: 2350, proteinG: 160, carbsG: 275, fatG: 70 },
+      updatedAt: "2026-09-23T00:00:00.000Z",
+    };
+
+    expect(resolveNutritionTargetsForDay(targets, false)?.caloriesKcal).toBe(2100);
+    expect(resolveNutritionTargetsForDay(targets, true)).toEqual(
+      expect.objectContaining({ caloriesKcal: 2350, carbsG: 275, fibreG: 30 })
+    );
   });
 });

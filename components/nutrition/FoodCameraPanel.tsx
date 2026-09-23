@@ -22,10 +22,14 @@ export function FoodCameraPanel({
   active,
   disabled,
   onCaptured,
+  guidance = "Keep the full meal inside the square.",
+  captureShape = "square",
 }: {
   active: boolean;
   disabled?: boolean;
   onCaptured: (file: File) => void;
+  guidance?: string;
+  captureShape?: "square" | "document";
 }) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
@@ -108,25 +112,32 @@ export function FoodCameraPanel({
     if (!video || status !== "ready" || !video.videoWidth || !video.videoHeight) return;
     setStatus("capturing");
     try {
-      const sourceSize = Math.min(video.videoWidth, video.videoHeight);
-      const sourceX = (video.videoWidth - sourceSize) / 2;
-      const sourceY = (video.videoHeight - sourceSize) / 2;
-      const outputSize = Math.min(1_280, sourceSize);
+      const sourceWidth =
+        captureShape === "document"
+          ? video.videoWidth
+          : Math.min(video.videoWidth, video.videoHeight);
+      const sourceHeight =
+        captureShape === "document"
+          ? video.videoHeight
+          : Math.min(video.videoWidth, video.videoHeight);
+      const sourceX = (video.videoWidth - sourceWidth) / 2;
+      const sourceY = (video.videoHeight - sourceHeight) / 2;
+      const scale = Math.min(1, 1_600 / Math.max(sourceWidth, sourceHeight));
       const canvas = document.createElement("canvas");
-      canvas.width = outputSize;
-      canvas.height = outputSize;
+      canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+      canvas.height = Math.max(1, Math.round(sourceHeight * scale));
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Photo capture is not supported by this browser.");
       context.drawImage(
         video,
         sourceX,
         sourceY,
-        sourceSize,
-        sourceSize,
+        sourceWidth,
+        sourceHeight,
         0,
         0,
-        outputSize,
-        outputSize
+        canvas.width,
+        canvas.height
       );
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, "image/jpeg", 0.9)
@@ -159,13 +170,13 @@ export function FoodCameraPanel({
 
   return (
     <div className="space-y-3">
-      <div className="relative aspect-square overflow-hidden rounded-2xl border bg-zinc-950">
+      <div className={captureShape === "document" ? "relative aspect-[3/4] overflow-hidden rounded-2xl border bg-zinc-950" : "relative aspect-square overflow-hidden rounded-2xl border bg-zinc-950"}>
         <video
           ref={videoRef}
           muted
           playsInline
           aria-label="Camera preview for taking a food photo"
-          className="size-full object-cover"
+          className={captureShape === "document" ? "size-full object-contain" : "size-full object-cover"}
         />
         <div className="pointer-events-none absolute inset-5 rounded-2xl border border-white/70" />
 
@@ -197,7 +208,7 @@ export function FoodCameraPanel({
       </div>
 
       <p className="rounded-lg border bg-muted/30 px-3 py-2 text-center text-xs text-muted-foreground">
-        Keep the full meal inside the square.
+        {guidance}
       </p>
 
       {error && status !== "error" && (

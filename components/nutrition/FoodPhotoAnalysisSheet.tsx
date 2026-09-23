@@ -7,6 +7,7 @@ import {
   ImageUp,
   Loader2,
   RotateCcw,
+  ScanText,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -33,13 +34,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { dayKeyToDate } from "@/lib/date/day-key";
-import { nutrientsForQuantity } from "@/lib/nutrition/calculations";
+import { nutrientsForQuantity, sumNutrients } from "@/lib/nutrition/calculations";
 import {
   AIPhotoAnalysisError,
   analyzeFoodPhoto,
   fetchAIPhotoUsage,
   prepareAIPhoto,
   type AIPhotoAnalysis,
+  type AIPhotoMode,
   type AIPhotoUsage,
 } from "@/lib/nutrition/ai-photo";
 import type {
@@ -65,12 +67,19 @@ type DraftFood = {
   protein: string;
   carbs: string;
   fat: string;
+  fibre: string;
+  sugar: string;
+  sodium: string;
   confidence: number;
   basisNutrients: NutritionNutrients;
 };
 
 function inputNumber(value: number): string {
   return String(Math.round(value * 10) / 10);
+}
+
+function optionalInputNumber(value: number | undefined): string {
+  return value === undefined ? "" : inputNumber(value);
 }
 
 function analysisDraft(analysis: AIPhotoAnalysis): DraftFood[] {
@@ -87,6 +96,9 @@ function analysisDraft(analysis: AIPhotoAnalysis): DraftFood[] {
       protein: inputNumber(food.nutrients.proteinG),
       carbs: inputNumber(food.nutrients.carbsG),
       fat: inputNumber(food.nutrients.fatG),
+      fibre: optionalInputNumber(food.nutrients.fibreG),
+      sugar: optionalInputNumber(food.nutrients.sugarG),
+      sodium: optionalInputNumber(food.nutrients.sodiumMg),
       confidence: food.confidence,
       basisNutrients,
     };
@@ -94,6 +106,8 @@ function analysisDraft(analysis: AIPhotoAnalysis): DraftFood[] {
 }
 
 function parseDraftFoods(drafts: DraftFood[]) {
+  const optional = (value: string) =>
+    value.trim() ? Number.parseFloat(value) : undefined;
   const parsed = drafts.map((draft) => ({
     name: draft.name.trim(),
     weight: Number.parseFloat(draft.weight),
@@ -102,13 +116,18 @@ function parseDraftFoods(drafts: DraftFood[]) {
       proteinG: Number.parseFloat(draft.protein),
       carbsG: Number.parseFloat(draft.carbs),
       fatG: Number.parseFloat(draft.fat),
+      fibreG: optional(draft.fibre),
+      sugarG: optional(draft.sugar),
+      sodiumMg: optional(draft.sodium),
     } satisfies NutritionNutrients,
   }));
   if (parsed.some((food) => !food.name)) return null;
   if (parsed.some((food) => !Number.isFinite(food.weight) || food.weight <= 0)) return null;
   if (
     parsed.some((food) =>
-      Object.values(food.nutrients).some((value) => !Number.isFinite(value) || value < 0)
+      Object.values(food.nutrients).some(
+        (value) => value !== undefined && (!Number.isFinite(value) || value < 0)
+      )
     )
   ) {
     return null;
@@ -145,6 +164,7 @@ export function FoodPhotoAnalysisSheet({
   const [file, setFile] = React.useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [knownWeight, setKnownWeight] = React.useState("");
+  const [analysisMode, setAnalysisMode] = React.useState<AIPhotoMode>("food");
   const [analysis, setAnalysis] = React.useState<AIPhotoAnalysis | null>(null);
   const [drafts, setDrafts] = React.useState<DraftFood[]>([]);
   const [error, setError] = React.useState<string | null>(null);
@@ -198,6 +218,7 @@ export function FoodPhotoAnalysisSheet({
   React.useEffect(() => {
     if (open) {
       setMeal(initialMeal);
+      setAnalysisMode("food");
       reset();
       setScannerDisabledReason(null);
       setUsage(null);
@@ -243,7 +264,10 @@ export function FoodPhotoAnalysisSheet({
       setError("Take or choose a food photo first.");
       return;
     }
-    const parsedWeight = knownWeight.trim() ? Number.parseFloat(knownWeight) : undefined;
+    const parsedWeight =
+      analysisMode === "food" && knownWeight.trim()
+        ? Number.parseFloat(knownWeight)
+        : undefined;
     if (
       parsedWeight !== undefined &&
       (!Number.isFinite(parsedWeight) || parsedWeight <= 0 || parsedWeight > 100_000)
@@ -267,6 +291,7 @@ export function FoodPhotoAnalysisSheet({
         weightGrams: parsedWeight,
         anonymousDeviceId,
         signal: controller.signal,
+        analysisMode,
       });
       setAnalysis(result);
       setDrafts(analysisDraft(result));
@@ -306,13 +331,19 @@ export function FoodPhotoAnalysisSheet({
             protein: inputNumber(scaled.proteinG),
             carbs: inputNumber(scaled.carbsG),
             fat: inputNumber(scaled.fatG),
+            fibre: optionalInputNumber(scaled.fibreG),
+            sugar: optionalInputNumber(scaled.sugarG),
+            sodium: optionalInputNumber(scaled.sodiumMg),
           };
         }
         if (
           field === "calories" ||
           field === "protein" ||
           field === "carbs" ||
-          field === "fat"
+          field === "fat" ||
+          field === "fibre" ||
+          field === "sugar" ||
+          field === "sodium"
         ) {
           const nextValue = Number.parseFloat(value);
           const currentWeight = Number.parseFloat(draft.weight);
@@ -321,6 +352,9 @@ export function FoodPhotoAnalysisSheet({
             protein: "proteinG",
             carbs: "carbsG",
             fat: "fatG",
+            fibre: "fibreG",
+            sugar: "sugarG",
+            sodium: "sodiumMg",
           }[field] as keyof NutritionNutrients;
           return {
             ...draft,
@@ -331,6 +365,8 @@ export function FoodPhotoAnalysisSheet({
                     ...draft.basisNutrients,
                     [nutrientKey]: (nextValue * 100) / currentWeight,
                   }
+                : (field === "fibre" || field === "sugar" || field === "sodium") && !value.trim()
+                  ? { ...draft.basisNutrients, [nutrientKey]: undefined }
                 : draft.basisNutrients,
           };
         }
@@ -346,17 +382,18 @@ export function FoodPhotoAnalysisSheet({
       return;
     }
     const items = parsed.map(
-      (food): NutritionSavedMealItem => ({
+      (food, index): NutritionSavedMealItem => ({
         name: food.name,
-        source: "meal_photo",
+        source: analysisMode === "label" ? "label_ocr" : "meal_photo",
         quantity: { amount: food.weight, unit: "g" },
         nutrients: food.nutrients,
+        confidence: drafts[index]?.confidence,
         foodSnapshot: {
           name: food.name,
           basisAmount: 100,
           basisUnit: "g",
           nutrients: nutrientsForQuantity(food.nutrients, 100, food.weight),
-          source: "meal_photo",
+          source: analysisMode === "label" ? "label_ocr" : "meal_photo",
         },
       })
     );
@@ -394,15 +431,7 @@ export function FoodPhotoAnalysisSheet({
 
   const totals = React.useMemo(() => {
     const parsed = parseDraftFoods(drafts);
-    return parsed?.reduce<NutritionNutrients>(
-      (total, food) => ({
-        caloriesKcal: total.caloriesKcal + food.nutrients.caloriesKcal,
-        proteinG: total.proteinG + food.nutrients.proteinG,
-        carbsG: total.carbsG + food.nutrients.carbsG,
-        fatG: total.fatG + food.nutrients.fatG,
-      }),
-      { caloriesKcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }
-    );
+    return parsed ? sumNutrients(parsed.map((food) => food.nutrients)) : null;
   }, [drafts]);
 
   return (
@@ -418,7 +447,13 @@ export function FoodPhotoAnalysisSheet({
               <Sparkles className="size-4" />
             </span>
             <div>
-              <SheetTitle>{mode === "ingredient" ? "Scan recipe ingredients" : "Analyze food photo"}</SheetTitle>
+              <SheetTitle>
+                {analysisMode === "label"
+                  ? "Scan nutrition label"
+                  : mode === "ingredient"
+                    ? "Scan recipe ingredients"
+                    : "Analyze food photo"}
+              </SheetTitle>
               <p className="text-xs text-muted-foreground">
                 AI estimate · you review before anything is saved
               </p>
@@ -457,6 +492,17 @@ export function FoodPhotoAnalysisSheet({
             )}
           </div>
 
+          {!analysis && (
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1" aria-label="Photo scan type">
+              <Button type="button" size="sm" variant={analysisMode === "food" ? "default" : "ghost"} onClick={() => setAnalysisMode("food")}>
+                <Sparkles className="size-4" /> Meal photo
+              </Button>
+              <Button type="button" size="sm" variant={analysisMode === "label" ? "default" : "ghost"} onClick={() => setAnalysisMode("label")}>
+                <ScanText className="size-4" /> Nutrition label
+              </Button>
+            </div>
+          )}
+
           {!analysis ? (
             <>
               {previewUrl ? (
@@ -469,6 +515,8 @@ export function FoodPhotoAnalysisSheet({
                   active={open && scannerDisabledReason === null}
                   disabled={analyzing || scannerDisabledReason !== null}
                   onCaptured={selectFile}
+                  guidance={analysisMode === "label" ? "Keep the complete nutrition label sharp and inside the frame." : undefined}
+                  captureShape={analysisMode === "label" ? "document" : "square"}
                 />
               )}
 
@@ -510,20 +558,26 @@ export function FoodPhotoAnalysisSheet({
                 </p>
               )}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="photo-known-weight">Known total weight (g, optional)</Label>
-                <NumberInput
-                  id="photo-known-weight"
-                  decimal
-                  value={knownWeight}
-                  onChange={(event) => setKnownWeight(event.target.value)}
-                  placeholder="e.g. 350"
-                  disabled={analyzing || scannerDisabledReason !== null}
-                />
-                <p className="text-xs text-muted-foreground">
-                  A measured weight helps improve portion estimates.
+              {analysisMode === "food" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="photo-known-weight">Known total weight (g, optional)</Label>
+                  <NumberInput
+                    id="photo-known-weight"
+                    decimal
+                    value={knownWeight}
+                    onChange={(event) => setKnownWeight(event.target.value)}
+                    placeholder="e.g. 350"
+                    disabled={analyzing || scannerDisabledReason !== null}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A measured weight helps improve portion estimates.
+                  </p>
+                </div>
+              ) : (
+                <p className="rounded-xl border bg-muted/25 p-3 text-xs text-muted-foreground">
+                  Photograph the serving size and nutrient table. You can correct every transcribed value before saving.
                 </p>
-              </div>
+              )}
 
               <div className="flex gap-2 rounded-xl border bg-muted/25 p-3 text-xs text-muted-foreground">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -537,7 +591,9 @@ export function FoodPhotoAnalysisSheet({
             <>
               <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/25 p-3">
                 <div>
-                  <p className="text-sm font-semibold">Review the estimate</p>
+                  <p className="text-sm font-semibold">
+                    {analysisMode === "label" ? "Review the label values" : "Review the estimate"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     AI can be wrong. Adjust every value you know.
                   </p>
@@ -604,6 +660,22 @@ export function FoodPhotoAnalysisSheet({
                         <Label htmlFor={`photo-fat-${index}`}>Fat (g)</Label>
                         <NumberInput id={`photo-fat-${index}`} decimal value={draft.fat} onChange={(event) => updateDraft(index, "fat", event.target.value)} />
                       </div>
+                      {analysisMode === "label" && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`photo-fibre-${index}`}>Fiber (g)</Label>
+                            <NumberInput id={`photo-fibre-${index}`} decimal value={draft.fibre} onChange={(event) => updateDraft(index, "fibre", event.target.value)} placeholder="Not listed" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`photo-sugar-${index}`}>Sugar (g)</Label>
+                            <NumberInput id={`photo-sugar-${index}`} decimal value={draft.sugar} onChange={(event) => updateDraft(index, "sugar", event.target.value)} placeholder="Not listed" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`photo-sodium-${index}`}>Sodium (mg)</Label>
+                            <NumberInput id={`photo-sodium-${index}`} decimal value={draft.sodium} onChange={(event) => updateDraft(index, "sodium", event.target.value)} placeholder="Not listed" />
+                          </div>
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -664,7 +736,7 @@ export function FoodPhotoAnalysisSheet({
                 ) : (
                   <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
                     <Sparkles className="size-4" aria-hidden />
-                    <span>Analyze photo</span>
+                    <span>{analysisMode === "label" ? "Read label" : "Analyze photo"}</span>
                   </span>
                 )}
               </Button>

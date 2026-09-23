@@ -6,6 +6,7 @@ import { Redis } from "@upstash/redis";
 import {
   normalizeAIPhotoAnalysis,
   type AIPhotoAnalysis,
+  type AIPhotoMode,
 } from "@/lib/nutrition/ai-photo";
 
 const DEFAULT_DEVICE_DAILY_LIMIT = 20;
@@ -365,6 +366,9 @@ const FOOD_ANALYSIS_SCHEMA = {
           proteinG: { type: "number", minimum: 0 },
           carbsG: { type: "number", minimum: 0 },
           fatG: { type: "number", minimum: 0 },
+          fibreG: { type: ["number", "null"], minimum: 0 },
+          sugarG: { type: ["number", "null"], minimum: 0 },
+          sodiumMg: { type: ["number", "null"], minimum: 0 },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
         required: [
@@ -374,6 +378,9 @@ const FOOD_ANALYSIS_SCHEMA = {
           "proteinG",
           "carbsG",
           "fatG",
+          "fibreG",
+          "sugarG",
+          "sodiumMg",
           "confidence",
         ],
         additionalProperties: false,
@@ -481,17 +488,20 @@ export async function requestOpenAIPhotoAnalysis({
   weightGrams,
   anonymousDeviceId,
   config,
+  analysisMode = "food",
 }: {
   image: Buffer;
   mimeType: string;
   weightGrams?: number;
   anonymousDeviceId: string;
   config: AIPhotoServerConfig;
+  analysisMode?: AIPhotoMode;
 }): Promise<AIPhotoAnalysis> {
   if (!config.apiKey) throw new OpenAIPhotoError("failed", "OpenAI is not configured.");
   const knownWeight = weightGrams
     ? `The user weighed the complete pictured portion at ${weightGrams} grams. Allocate that total across identified foods.`
     : "The user did not provide a weight. Estimate visible edible portion weights conservatively.";
+  const labelMode = analysisMode === "label";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25_000);
   try {
@@ -507,15 +517,18 @@ export async function requestOpenAIPhotoAnalysis({
         store: false,
         max_output_tokens: 1_200,
         safety_identifier: hash(anonymousDeviceId),
-        instructions:
-          "You estimate nutrition from food photos for a workout tracking app. Identify only visible foods. Return approximate consumed values for each pictured portion, not per-100g values. Be conservative and never claim medical precision. If the image does not clearly contain food, return an empty foods array.",
+        instructions: labelMode
+          ? "You accurately transcribe a photographed nutrition label for a workout tracking app. Return one food using the printed serving size and the nutrition values for that serving. If the label only provides values per 100 g, use 100 g as the serving. Use null for fiber, sugar, or sodium when the label does not provide that nutrient. Do not invent missing values. If no readable nutrition label is visible, return an empty foods array."
+          : "You estimate nutrition from food photos for a workout tracking app. Identify only visible foods. Return approximate consumed values for each pictured portion, not per-100g values. Be conservative and never claim medical precision. Use null for fiber, sugar, or sodium when they cannot be estimated. If the image does not clearly contain food, return an empty foods array.",
         input: [
           {
             role: "user",
             content: [
               {
                 type: "input_text",
-                text: `Analyze this food photo. ${knownWeight}`,
+                text: labelMode
+                  ? "Read this nutrition label. Use the visible product name when available; otherwise use a concise descriptive name."
+                  : `Analyze this food photo. ${knownWeight}`,
               },
               {
                 type: "input_image",
@@ -528,7 +541,9 @@ export async function requestOpenAIPhotoAnalysis({
         text: {
           format: {
             type: "json_schema",
-            name: "forkworkout_food_photo",
+            name: labelMode
+              ? "forkworkout_nutrition_label"
+              : "forkworkout_food_photo",
             strict: true,
             schema: FOOD_ANALYSIS_SCHEMA,
           },

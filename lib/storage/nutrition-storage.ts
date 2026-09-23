@@ -11,6 +11,7 @@ import {
   type NutritionNutrients,
   type NutritionQuantity,
   type NutritionSource,
+  type NutritionTargetHistoryEntry,
   type NutritionTargets,
   type StoredNutritionEntries,
   type StoredNutritionDayAdjustments,
@@ -171,6 +172,7 @@ export function normalizeNutritionEntry(raw: unknown): NutritionEntry | null {
     nutrients,
     quantity: normalizeQuantity(value.quantity),
     foodSnapshot: normalizeFoodSnapshot(value.foodSnapshot),
+    confidence: optionalBoundedNumber(value.confidence, 1),
     createdAt,
     updatedAt,
   };
@@ -270,7 +272,46 @@ export function normalizeNutritionTargets(raw: unknown): NutritionTargets | null
   ) {
     return null;
   }
-  return { caloriesKcal, proteinG, carbsG, fatG, updatedAt };
+  const trainingValue =
+    value.trainingDay && typeof value.trainingDay === "object"
+      ? (value.trainingDay as Record<string, unknown>)
+      : null;
+  const trainingCalories = trainingValue
+    ? boundedNumber(trainingValue.caloriesKcal, 20_000)
+    : null;
+  const trainingProtein = trainingValue
+    ? boundedNumber(trainingValue.proteinG, 2_000)
+    : null;
+  const trainingCarbs = trainingValue
+    ? boundedNumber(trainingValue.carbsG, 2_000)
+    : null;
+  const trainingFat = trainingValue
+    ? boundedNumber(trainingValue.fatG, 2_000)
+    : null;
+  const trainingDay =
+    trainingValue &&
+    trainingCalories !== null &&
+    trainingCalories > 0 &&
+    trainingProtein !== null &&
+    trainingCarbs !== null &&
+    trainingFat !== null
+      ? {
+          caloriesKcal: trainingCalories,
+          proteinG: trainingProtein,
+          carbsG: trainingCarbs,
+          fatG: trainingFat,
+        }
+      : undefined;
+  return {
+    caloriesKcal,
+    proteinG,
+    carbsG,
+    fatG,
+    fibreG: optionalBoundedNumber(value.fibreG, 2_000),
+    sodiumMg: optionalBoundedNumber(value.sodiumMg, 1_000_000),
+    trainingDay,
+    updatedAt,
+  };
 }
 
 export function getNutritionTargets(): NutritionTargets | null {
@@ -282,17 +323,95 @@ export function getNutritionTargets(): NutritionTargets | null {
   return normalizeNutritionTargets(raw);
 }
 
+export function normalizeNutritionTargetHistoryEntry(
+  raw: unknown
+): NutritionTargetHistoryEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  const targets = normalizeNutritionTargets(value);
+  const effectiveFrom = normalizeDayKey(value.effectiveFrom);
+  return targets && effectiveFrom ? { ...targets, effectiveFrom } : null;
+}
+
+export function getNutritionTargetHistory(): NutritionTargetHistoryEntry[] {
+  const stored = readJson<unknown>(STORAGE_KEYS.nutritionTargets, null);
+  if (!stored || typeof stored !== "object") return [];
+  const history = (stored as StoredNutritionTargets).history;
+  if (!Array.isArray(history)) return [];
+  const newestByDay = new Map<string, NutritionTargetHistoryEntry>();
+  for (const candidate of history) {
+    const entry = normalizeNutritionTargetHistoryEntry(candidate);
+    if (!entry) continue;
+    const existing = newestByDay.get(entry.effectiveFrom);
+    if (!existing || entry.updatedAt > existing.updatedAt) {
+      newestByDay.set(entry.effectiveFrom, entry);
+    }
+  }
+  return Array.from(newestByDay.values()).sort((left, right) =>
+    left.effectiveFrom.localeCompare(right.effectiveFrom)
+  );
+}
+
+export function getNutritionTargetsForDay(dayKey: string): NutritionTargets | null {
+  if (!normalizeDayKey(dayKey)) return null;
+  const history = getNutritionTargetHistory();
+  if (history.length === 0) return getNutritionTargets();
+  const active = [...history]
+    .reverse()
+    .find((entry) => entry.effectiveFrom <= dayKey);
+  if (!active) return null;
+  return normalizeNutritionTargets(active);
+}
+
+export function saveNutritionTargetHistory(
+  history: NutritionTargetHistoryEntry[]
+): boolean {
+  const current = getNutritionTargets();
+  const normalized = history
+    .map(normalizeNutritionTargetHistoryEntry)
+    .filter((entry): entry is NutritionTargetHistoryEntry => entry !== null);
+  const newestByDay = new Map<string, NutritionTargetHistoryEntry>();
+  for (const entry of normalized) {
+    const existing = newestByDay.get(entry.effectiveFrom);
+    if (!existing || entry.updatedAt > existing.updatedAt) {
+      newestByDay.set(entry.effectiveFrom, entry);
+    }
+  }
+  return writeJson<StoredNutritionTargets>(STORAGE_KEYS.nutritionTargets, {
+    version: 2,
+    data: current,
+    history: Array.from(newestByDay.values()).sort((left, right) =>
+      left.effectiveFrom.localeCompare(right.effectiveFrom)
+    ),
+  });
+}
+
 export function saveNutritionTargets(
-  targets: Omit<NutritionTargets, "updatedAt"> | NutritionTargets
+  targets: Omit<NutritionTargets, "updatedAt"> | NutritionTargets,
+  options?: { effectiveFrom?: string }
 ): NutritionTargets | null {
+  const effectiveFrom = options?.effectiveFrom ?? toDayKey();
+  if (!normalizeDayKey(effectiveFrom)) return null;
+  const previous = getNutritionTargets();
+  const existingHistory = getNutritionTargetHistory();
   const normalized = normalizeNutritionTargets({
     ...targets,
     updatedAt: new Date().toISOString(),
   });
   if (!normalized) return null;
+  const history = [...existingHistory];
+  if (previous && history.length === 0) {
+    history.push({ ...previous, effectiveFrom: "1970-01-01" });
+  }
+  const nextEntry = { ...normalized, effectiveFrom };
+  const nextHistory = [
+    ...history.filter((entry) => entry.effectiveFrom !== effectiveFrom),
+    nextEntry,
+  ].sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom));
   return writeJson<StoredNutritionTargets>(STORAGE_KEYS.nutritionTargets, {
-    version: 1,
+    version: 2,
     data: normalized,
+    history: nextHistory,
   })
     ? normalized
     : null;
