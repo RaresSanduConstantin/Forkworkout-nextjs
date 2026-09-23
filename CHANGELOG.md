@@ -13,6 +13,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added a Meal Ideas sheet beneath Photo Scan with free local matches from known
+  foods and saved recipes, optional structured AI combinations, verified
+  nutrition totals, foods-on-hand guidance, detailed preparation views, reusable
+  recipe or meal saving, local-match logging, and a separate daily allowance.
 - Added optional training-day calorie and macro targets that activate on days
   with completed workouts, plus editable daily fiber and sodium targets.
 - Added nutrition-label photo scanning through the existing protected AI scan
@@ -39,8 +43,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 - Added a tappable Monday–Sunday nutrition log strip beneath the selected date,
   with checkmarks for days that contain food entries and empty circles otherwise.
 - Added an optional hidden owner-key flow on the Nutrition heading that grants
-  an installation-bound unlimited app scan allowance without embedding the key
-  in the client bundle or persisting it in browser storage.
+  installation-bound unlimited photo scans and AI meal ideas without embedding
+  the key in the client bundle or persisting it in browser storage.
 - Added a direct Create recipe action to each meal's Add Food sheet, opening the
   recipe builder with that meal already selected.
 - Added a portion-aware recipe builder that stores the full cooked batch,
@@ -97,6 +101,7 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Restored the missing bottom border on the local nutrition matches accordion.
 - Prevented a selected goal timeframe from silently collapsing to the same
   calories as the Focused estimate; personalized plans now use their calculated
   pace above the supported calorie floor and identify unusually aggressive goals.
@@ -146,6 +151,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Collapsed local nutrition matches behind an expandable summary so AI meal
+  generation remains easier to reach on small screens.
 - Kept Gentle, Recommended, and Focused nutrition estimates stable while adding
   a fourth calorie and macro option calculated from the selected goal timeframe.
 - Added subtle category-specific color tints to the breakfast, lunch, dinner,

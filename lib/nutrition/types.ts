@@ -115,6 +115,10 @@ export type NutritionSavedMeal = {
   id: string;
   name: string;
   items: NutritionSavedMealItem[];
+  /** Optional context and preparation details, primarily used by generated recipes. */
+  description?: string;
+  instructions?: string[];
+  prepMinutes?: number;
   /** Recipes store a complete cooked batch and the number of portions it makes. */
   kind?: "recipe";
   servings?: number;

@@ -21,6 +21,7 @@ import {
   ScanLine,
   Settings2,
   Share2,
+  Sparkles,
   Sun,
   Trash2,
   Utensils,
@@ -58,6 +59,7 @@ import { QuickAddSheet } from "./QuickAddSheet";
 import { FoodPickerSheet } from "./FoodPickerSheet";
 import { FoodPhotoAnalysisSheet } from "./FoodPhotoAnalysisSheet";
 import { MealActionsSheet } from "./MealActionsSheet";
+import { MealRecommendationsSheet } from "./MealRecommendationsSheet";
 import { MealShareDialog } from "./MealShareDialog";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
 import { NutritionProgressCard } from "./NutritionProgressCard";
@@ -203,6 +205,7 @@ export function NutritionDashboard() {
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
   const [foodPickerOpen, setFoodPickerOpen] = React.useState(false);
   const [foodPhotoOpen, setFoodPhotoOpen] = React.useState(false);
+  const [recommendationsOpen, setRecommendationsOpen] = React.useState(false);
   const [mealActionsOpen, setMealActionsOpen] = React.useState(false);
   const [mealActionStartSaving, setMealActionStartSaving] = React.useState(false);
   const [mealActionStartRecipe, setMealActionStartRecipe] = React.useState(false);
@@ -463,9 +466,9 @@ export function NutritionDashboard() {
       await unlockAIPhotoScanning(ownerAccessKey, anonymousDeviceId);
       setOwnerAccessKey("");
       setOwnerAccessOpen(false);
-      toast.success("Unlimited AI scans unlocked on this device");
+      toast.success("Unlimited AI features unlocked on this device");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Owner scan access could not be unlocked.");
+      toast.error(error instanceof Error ? error.message : "Owner AI access could not be unlocked.");
     } finally {
       setOwnerAccessLoading(false);
     }
@@ -488,7 +491,7 @@ export function NutritionDashboard() {
             >
               <form className="space-y-3" onSubmit={unlockOwnerScans}>
                 <div className="flex items-center gap-2 text-sm font-medium">
-                  <KeyRound className="size-4" /> Owner scan access
+                  <KeyRound className="size-4" /> Owner AI access
                 </div>
                 <Input
                   type="password"
@@ -497,7 +500,7 @@ export function NutritionDashboard() {
                   placeholder="Access key"
                   autoComplete="off"
                   spellCheck={false}
-                  aria-label="Owner scan access key"
+                  aria-label="Owner AI access key"
                 />
                 <Button type="submit" size="sm" className="w-full" disabled={!ownerAccessKey.trim() || ownerAccessLoading}>
                   {ownerAccessLoading ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
@@ -774,6 +777,16 @@ export function NutritionDashboard() {
             size="lg"
             variant="outline"
             className="col-span-2 gap-2"
+            onClick={() => setRecommendationsOpen(true)}
+          >
+            <Sparkles className="size-4" />
+            Meal Ideas
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="col-span-2 gap-2"
             onClick={() => setImportShareOpen(true)}
           >
             <ScanLine className="size-4" />
@@ -935,6 +948,23 @@ export function NutritionDashboard() {
         targetHistory={targetHistory}
         bodyMetrics={bodyMetrics}
         trainingDayKeys={trainingDayKeys}
+      />
+
+      <MealRecommendationsSheet
+        open={recommendationsOpen}
+        onOpenChange={setRecommendationsOpen}
+        dayKey={dayKey}
+        initialMeal={defaultMeal()}
+        targets={
+          selectedTargets
+            ? {
+                ...selectedTargets,
+                caloriesKcal: effectiveCalorieTarget ?? selectedTargets.caloriesKcal,
+              }
+            : null
+        }
+        consumed={totals}
+        onSaved={refresh}
       />
 
       <QuickAddSheet

@@ -110,7 +110,7 @@ export async function unlockAIPhotoScanning(
     | null;
   if (!response.ok) {
     throw new Error(
-      typeof body?.message === "string" ? body.message : "Owner scan access could not be unlocked."
+      typeof body?.message === "string" ? body.message : "Owner AI access could not be unlocked."
     );
   }
 }

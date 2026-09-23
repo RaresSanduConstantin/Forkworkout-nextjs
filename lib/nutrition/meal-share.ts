@@ -22,6 +22,9 @@ type NutritionMealSharePayload = {
   kind?: "recipe";
   servings?: number;
   yieldGrams?: number;
+  description?: string;
+  instructions?: string[];
+  prepMinutes?: number;
 };
 
 export type DecodedNutritionMealShare = {
@@ -45,7 +48,10 @@ export function encodeNutritionMeal(
   items: NutritionSavedMealItem[],
   message?: string,
   maxEncodedLength = MAX_ENCODED_LENGTH,
-  recipe?: Pick<NutritionSavedMeal, "kind" | "servings" | "yieldGrams">
+  recipe?: Pick<
+    NutritionSavedMeal,
+    "kind" | "servings" | "yieldGrams" | "description" | "instructions" | "prepMinutes"
+  >
 ): string | null {
   const payload: NutritionMealSharePayload = {
     v: 1,
@@ -55,6 +61,9 @@ export function encodeNutritionMeal(
     kind: recipe?.kind,
     servings: recipe?.servings,
     yieldGrams: recipe?.yieldGrams,
+    description: recipe?.description,
+    instructions: recipe?.instructions,
+    prepMinutes: recipe?.prepMinutes,
   };
   const encoded = compressToEncodedURIComponent(JSON.stringify(payload));
   return encoded.length <= maxEncodedLength ? encoded : null;
@@ -80,6 +89,9 @@ export function decodeNutritionMeal(encoded: string): DecodedNutritionMealShare 
     kind: payload.kind,
     servings: payload.servings,
     yieldGrams: payload.yieldGrams,
+    description: payload.description,
+    instructions: payload.instructions,
+    prepMinutes: payload.prepMinutes,
     createdAt: now,
     updatedAt: now,
   });

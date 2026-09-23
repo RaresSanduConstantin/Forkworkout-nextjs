@@ -62,7 +62,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-foreground">Optional AI food and label analysis</h2>
+          <h2 className="text-lg font-semibold text-foreground">Optional AI nutrition features</h2>
           <p className="mt-2">
             When you explicitly choose to analyze a food photo or nutrition label, ForkWorkout
             resizes it on your device and sends the prepared image, plus an
@@ -73,6 +73,15 @@ export default function PrivacyPage() {
             from abuse. ForkWorkout requests that the model response is not
             stored, but OpenAI may retain limited API data under its own data
             controls and abuse-monitoring policies.
+          </p>
+          <p className="mt-2">
+            When you explicitly generate AI meal ideas, ForkWorkout sends the
+            calories and macros remaining for that day, your optional dietary
+            preference and foods-on-hand text, and a limited list of known foods,
+            saved meals, or recipes with their nutrition values. The model selects only from
+            those candidates, and ForkWorkout recalculates every displayed total
+            from the local food data. Your complete diary and body profile are
+            not sent with this request.
           </p>
           <p className="mt-2">
             The photo and AI estimate are never added to your local diary
@@ -93,7 +102,7 @@ export default function PrivacyPage() {
             The random installation identifier is kept separately from your
             workout and nutrition data, is not included in backups, and may
             remain when you use the in-app data reset so that resetting the app
-            cannot bypass usage limits. Clearing all site data in your browser
+            cannot bypass AI usage limits. Clearing all site data in your browser
             removes it.
           </p>
         </section>

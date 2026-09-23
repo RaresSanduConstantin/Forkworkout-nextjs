@@ -416,6 +416,9 @@ export function MealActionsSheet({
         kind: selectedSavedMeal.kind,
         servings: selectedSavedMeal.servings,
         yieldGrams: selectedSavedMeal.yieldGrams,
+        description: selectedSavedMeal.description,
+        instructions: selectedSavedMeal.instructions,
+        prepMinutes: selectedSavedMeal.prepMinutes,
       }
     );
     if (!updated) {
@@ -517,10 +520,14 @@ export function MealActionsSheet({
       toast.error("Enter a final cooked weight greater than zero.");
       return;
     }
+    const originalRecipe = savedMeals.find((meal) => meal.id === editingRecipeId);
     const saved = saveMealFromItems(builderName, builtMealItems, editingRecipeId ?? undefined, {
       kind: "recipe",
       servings,
       yieldGrams,
+      description: originalRecipe?.description,
+      instructions: originalRecipe?.instructions,
+      prepMinutes: originalRecipe?.prepMinutes,
     });
     if (!saved) {
       toast.error("Use a unique meal name and check the food amounts.");
@@ -701,6 +708,32 @@ export function MealActionsSheet({
                       {number(selectedPer100.caloriesKcal)} kcal · P {number(selectedPer100.proteinG)}g · C {number(selectedPer100.carbsG)}g · F {number(selectedPer100.fatG)}g
                     </p>
                   </div>
+                )}
+                {(selectedSavedMeal.description ||
+                  selectedSavedMeal.prepMinutes !== undefined ||
+                  selectedSavedMeal.instructions?.length) && (
+                  <section className="space-y-3 rounded-xl border bg-muted/20 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">Preparation</p>
+                      {selectedSavedMeal.prepMinutes !== undefined && (
+                        <span className="text-xs text-muted-foreground">
+                          {selectedSavedMeal.prepMinutes} min
+                        </span>
+                      )}
+                    </div>
+                    {selectedSavedMeal.description && (
+                      <p className="text-sm text-muted-foreground">
+                        {selectedSavedMeal.description}
+                      </p>
+                    )}
+                    {selectedSavedMeal.instructions?.length ? (
+                      <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
+                        {selectedSavedMeal.instructions.map((instruction, index) => (
+                          <li key={`${instruction}-${index}`}>{instruction}</li>
+                        ))}
+                      </ol>
+                    ) : null}
+                  </section>
                 )}
                 <section className="space-y-2">
                   <div>

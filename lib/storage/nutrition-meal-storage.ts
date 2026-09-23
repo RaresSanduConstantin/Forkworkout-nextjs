@@ -82,7 +82,39 @@ export function normalizeNutritionSavedMeal(raw: unknown): NutritionSavedMeal | 
     rawYieldGrams <= 1_000_000
       ? rawYieldGrams
       : undefined;
-  return { id, name, items, kind, servings, yieldGrams, createdAt, updatedAt };
+  const description =
+    typeof value.description === "string"
+      ? value.description.trim().slice(0, 500) || undefined
+      : undefined;
+  const instructions = Array.isArray(value.instructions)
+    ? value.instructions
+        .map((instruction) =>
+          typeof instruction === "string" ? instruction.trim().slice(0, 240) : ""
+        )
+        .filter(Boolean)
+        .slice(0, 20)
+    : undefined;
+  const rawPrepMinutes =
+    typeof value.prepMinutes === "number"
+      ? value.prepMinutes
+      : Number(value.prepMinutes);
+  const prepMinutes =
+    Number.isFinite(rawPrepMinutes) && rawPrepMinutes >= 0 && rawPrepMinutes <= 1_440
+      ? Math.round(rawPrepMinutes)
+      : undefined;
+  return {
+    id,
+    name,
+    items,
+    kind,
+    servings,
+    yieldGrams,
+    description,
+    instructions: instructions?.length ? instructions : undefined,
+    prepMinutes,
+    createdAt,
+    updatedAt,
+  };
 }
 
 export function getNutritionSavedMeals(): NutritionSavedMeal[] {
@@ -136,7 +168,14 @@ export function saveMealFromItems(
   name: string,
   items: NutritionSavedMealItem[],
   id?: string,
-  options?: { kind?: "recipe"; servings?: number; yieldGrams?: number }
+  options?: {
+    kind?: "recipe";
+    servings?: number;
+    yieldGrams?: number;
+    description?: string;
+    instructions?: string[];
+    prepMinutes?: number;
+  }
 ): NutritionSavedMeal | null {
   const trimmedName = name.trim().slice(0, 120);
   if (!trimmedName || items.length === 0) return null;
@@ -154,6 +193,9 @@ export function saveMealFromItems(
     kind: options?.kind,
     servings: options?.servings,
     yieldGrams: options?.yieldGrams,
+    description: options?.description,
+    instructions: options?.instructions,
+    prepMinutes: options?.prepMinutes,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });

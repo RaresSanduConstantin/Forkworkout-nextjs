@@ -107,19 +107,26 @@ commit the key. ForkWorkout sends explicit online food searches through
 `/api/nutrition/search` to both providers, then caches only the food selected by
 the user locally. Open Food Facts remains available when no USDA key is set.
 
-## AI food-photo analysis (optional)
+## AI nutrition features (optional)
 
 The Nutrition page can resize a food photo in the browser, send it through the
 server-only `/api/nutrition/analyze-photo` route, and show editable calorie and
 macro estimates. The estimate is never saved automatically: the user must
 review it and choose **Add** before it becomes a local nutrition entry.
+The Meal Ideas sheet can also combine known catalog foods, saved meals, and
+recipes around the calories and macros remaining for the selected day. Its
+nutrition totals are recalculated from the app's known food data rather than
+accepted from model output. Users can tell the model which foods they have,
+review ingredients, preparation steps, and time, then save an idea as a recipe
+or reusable meal without adding it directly to the current diary.
 
 1. Create a dedicated OpenAI project and API key, then configure a small hard
    monthly project spend limit in the OpenAI dashboard.
 2. Connect an Upstash Redis database (the same one used by optional short share
    links is supported) and set its REST URL and token.
 3. Copy the AI variables from `.env.example` into `.env.local` and Vercel.
-4. Set `AI_FOOD_SCANNER_ENABLED=true` and redeploy.
+4. Set `AI_FOOD_SCANNER_ENABLED=true` and redeploy. Meal ideas follow this
+   setting unless `AI_MEAL_RECOMMENDATIONS_ENABLED` is configured separately.
 
 The defaults allow 20 scans per anonymous installation per day and 20 per IP
 per hour, accept prepared images up to 4 MB, and use `gpt-4.1-mini`. All values
@@ -128,14 +135,17 @@ give either variable a `NEXT_PUBLIC_` prefix. Production fails closed when
 Redis is unavailable so a serverless deployment cannot silently bypass the
 application rate limits. Search, barcode, manual entry, and saved nutrition
 continue working when AI scanning is disabled or its budget is exhausted.
+Meal ideas default to five generated requests per installation per day and ten
+per IP per hour. Locally calculated food and saved-meal matches do not consume
+that allowance.
 
 For an owner device, optionally set `AI_SCAN_UNLIMITED_KEY` to a unique random
 value of at least 32 characters. Clicking the Nutrition heading reveals the
 owner-key field. A successful entry is exchanged for a signed, installation-
-bound HttpOnly cookie; the key is not embedded in the client bundle or saved
-in persistent browser storage. Unlock
-attempts are limited to five per IP per hour. This bypasses only ForkWorkout's
-daily device/IP limits—it never bypasses the OpenAI project billing or spend
+bound HttpOnly cookie scoped to the nutrition API; the key is not embedded in
+the client bundle or saved in persistent browser storage. Unlock attempts are
+limited to five per IP per hour. This bypasses only ForkWorkout's photo-scan and
+meal-idea device/IP limits—it never bypasses the OpenAI project billing or spend
 limit. Rotate the environment value to invalidate every existing owner cookie.
 
 ## Encrypted short share links (optional)

@@ -59,10 +59,20 @@ describe("nutrition meal sharing", () => {
       kind: "recipe",
       servings: 4,
       yieldGrams: 1800,
+      description: "A filling pasta dinner.",
+      instructions: ["Boil pasta.", "Combine with sauce."],
+      prepMinutes: 35,
     });
 
     expect(decodeNutritionMeal(encoded!)?.meal).toEqual(
-      expect.objectContaining({ kind: "recipe", servings: 4, yieldGrams: 1800 })
+      expect.objectContaining({
+        kind: "recipe",
+        servings: 4,
+        yieldGrams: 1800,
+        description: "A filling pasta dinner.",
+        instructions: ["Boil pasta.", "Combine with sauce."],
+        prepMinutes: 35,
+      })
     );
   });
 

@@ -514,10 +514,24 @@ describe("nutrition storage", () => {
         },
       ],
       undefined,
-      { kind: "recipe", servings: 3, yieldGrams: 1500 }
+      {
+        kind: "recipe",
+        servings: 3,
+        yieldGrams: 1500,
+        description: "A family pasta recipe.",
+        instructions: ["Cook the pasta.", "Simmer the sauce."],
+        prepMinutes: 45,
+      }
     );
 
-    expect(recipe).toMatchObject({ kind: "recipe", servings: 3, yieldGrams: 1500 });
+    expect(recipe).toMatchObject({
+      kind: "recipe",
+      servings: 3,
+      yieldGrams: 1500,
+      description: "A family pasta recipe.",
+      instructions: ["Cook the pasta.", "Simmer the sauce."],
+      prepMinutes: 45,
+    });
     expect(copyNutritionItemsToDay(recipe!.items, "2026-09-23", "lunch", 1 / 3)).toEqual({
       added: 1,
       skipped: 0,
@@ -547,6 +561,9 @@ describe("nutrition storage", () => {
         kind: recipe!.kind,
         servings: recipe!.servings,
         yieldGrams: recipe!.yieldGrams,
+        description: recipe!.description,
+        instructions: recipe!.instructions,
+        prepMinutes: recipe!.prepMinutes,
       }
     );
     expect(updated).toMatchObject({
@@ -554,6 +571,9 @@ describe("nutrition storage", () => {
       kind: "recipe",
       servings: 3,
       yieldGrams: 1500,
+      description: "A family pasta recipe.",
+      instructions: ["Cook the pasta.", "Simmer the sauce."],
+      prepMinutes: 45,
     });
     expect(updated?.createdAt).toBe(recipe?.createdAt);
     expect(updated?.items).toHaveLength(2);

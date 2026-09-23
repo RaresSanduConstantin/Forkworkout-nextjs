@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const config = getAIPhotoServerConfig();
   if (!config.unlimitedUnlockKey) {
     return NextResponse.json(
-      { message: "Owner scan access is not configured." },
+      { message: "Owner AI access is not configured." },
       { status: 404, headers: noStoreHeaders }
     );
   }
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   const token = createAIPhotoUnlimitedToken(anonymousDeviceId, config);
   if (!token) {
     return NextResponse.json(
-      { message: "Owner scan access is not configured." },
+      { message: "Owner AI access is not configured." },
       { status: 404, headers: noStoreHeaders }
     );
   }
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     httpOnly: true,
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
-    path: "/api/nutrition/analyze-photo",
+    path: "/api/nutrition",
     maxAge: AI_PHOTO_UNLIMITED_COOKIE_MAX_AGE,
   });
   return response;
