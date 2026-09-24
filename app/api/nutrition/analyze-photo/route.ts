@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { AI_PHOTO_SUPPORTED_TYPES } from "@/lib/nutrition/ai-photo";
+import {
+  AI_PHOTO_DETAILS_MAX_LENGTH,
+  AI_PHOTO_SUPPORTED_TYPES,
+} from "@/lib/nutrition/ai-photo";
 import {
   OpenAIPhotoError,
   checkAIPhotoRateLimit,
@@ -91,6 +94,7 @@ export async function POST(request: Request) {
   const image = form.get("image");
   const anonymousDeviceId = form.get("anonymousDeviceId");
   const rawWeight = form.get("weightGrams");
+  const rawDetails = form.get("details");
   const rawAnalysisMode = form.get("analysisMode");
   const analysisMode = rawAnalysisMode === "label" ? "label" : "food";
   if (
@@ -118,6 +122,21 @@ export async function POST(request: Request) {
     }
   }
 
+  let details: string | undefined;
+  if (rawDetails !== null) {
+    if (typeof rawDetails !== "string") {
+      return errorResponse("AI_ANALYSIS_FAILED", "Enter valid meal details.", 400);
+    }
+    details = rawDetails.trim() || undefined;
+    if (details && details.length > AI_PHOTO_DETAILS_MAX_LENGTH) {
+      return errorResponse(
+        "AI_ANALYSIS_FAILED",
+        `Keep meal details under ${AI_PHOTO_DETAILS_MAX_LENGTH} characters.`,
+        400
+      );
+    }
+  }
+
   try {
     const unlimited = hasAIPhotoUnlimitedAccess({ request, anonymousDeviceId, config });
     if (!unlimited) {
@@ -140,6 +159,7 @@ export async function POST(request: Request) {
       image: Buffer.from(await image.arrayBuffer()),
       mimeType: image.type,
       weightGrams,
+      details,
       anonymousDeviceId,
       config,
       analysisMode,

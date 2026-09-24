@@ -22,18 +22,21 @@ function request({
   type = "image/jpeg",
   cookie,
   analysisMode,
+  details,
 }: {
   deviceId?: string;
   ip?: string;
   type?: string;
   cookie?: string;
   analysisMode?: "food" | "label";
+  details?: string;
 } = {}) {
   const form = new FormData();
   form.append("image", new Blob(["image-bytes"], { type }), "meal.jpg");
   form.append("anonymousDeviceId", deviceId);
   form.append("weightGrams", "350");
   if (analysisMode) form.append("analysisMode", analysisMode);
+  if (details !== undefined) form.append("details", details);
   return new Request("http://localhost/api/nutrition/analyze-photo", {
     method: "POST",
     headers: {
@@ -102,6 +105,20 @@ describe("AI photo nutrition normalization", () => {
     const normalized = normalizeAIPhotoAnalysis(modelAnalysis);
     expect(normalized).not.toBeNull();
     expect(normalizeAIPhotoAnalysis(normalized)).toEqual(normalized);
+  });
+
+  it("keeps valid public sources and rejects unsafe source URLs", () => {
+    expect(
+      normalizeAIPhotoAnalysis({
+        ...modelAnalysis,
+        sources: [
+          { title: "Mr Laziz menu", url: "https://example.com/menu" },
+          { title: "Unsafe", url: "javascript:alert(1)" },
+        ],
+      })
+    ).toMatchObject({
+      sources: [{ title: "Mr Laziz menu", url: "https://example.com/menu" }],
+    });
   });
 
   it("rejects malformed or unsafe model values", () => {
@@ -225,8 +242,63 @@ describe("AI photo nutrition API", () => {
     });
     const outbound = JSON.parse(String(options?.body));
     expect(outbound.store).toBe(false);
+    expect(outbound.tools).toBeUndefined();
     expect(outbound.input[0].content[1].image_url).toMatch(/^data:image\/jpeg;base64,/);
     expect(outbound.text.format).toMatchObject({ type: "json_schema", strict: true });
+  });
+
+  it("uses optional meal details for conditional web lookup and returns sources", async () => {
+    enableScanner();
+    const upstream = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "web_search_call",
+              action: {
+                type: "search",
+                sources: [
+                  { title: "Mr Laziz menu", url: "https://example.com/mr-laziz-menu" },
+                ],
+              },
+            },
+            {
+              content: [{ type: "output_text", text: JSON.stringify(modelAnalysis) }],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const details =
+      "Chicken shawarma from Mr Laziz with chicken, fries, vegetables and harissa sauce";
+    const response = await POST(request({ details }));
+
+    await expect(response.json()).resolves.toMatchObject({
+      analysis: {
+        sources: [
+          { title: "Mr Laziz menu", url: "https://example.com/mr-laziz-menu" },
+        ],
+      },
+    });
+    const outbound = JSON.parse(String(upstream.mock.calls[0][1]?.body));
+    expect(outbound.input[0].content[0].text).toContain(details);
+    expect(outbound.instructions).toContain("untrusted data");
+    expect(outbound.tools).toEqual([{ type: "web_search", search_context_size: "low" }]);
+    expect(outbound.tool_choice).toBe("auto");
+    expect(outbound.include).toEqual(["web_search_call.action.sources"]);
+  });
+
+  it("rejects oversized meal details before contacting OpenAI", async () => {
+    enableScanner();
+    const upstream = vi.spyOn(globalThis, "fetch");
+
+    const response = await POST(request({ details: "x".repeat(601) }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "AI_ANALYSIS_FAILED" });
+    expect(upstream).not.toHaveBeenCalled();
   });
 
   it("reads a nutrition label with detailed nutrients through the protected photo route", async () => {

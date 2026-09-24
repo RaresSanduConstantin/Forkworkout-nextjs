@@ -10,7 +10,7 @@ The feature must protect the OpenAI API key and prevent uncontrolled API spendin
 ```text
 ForkWorkout PWA
     |
-    | photo + optional known weight
+    | photo + optional known weight + optional meal details
     v
 POST /api/nutrition/analyze-photo
     |
@@ -103,10 +103,16 @@ Input:
 ```text
 image: required
 weightGrams: optional
+details: optional, maximum 600 characters
 anonymousDeviceId: required
 ```
 
 If the user knows the food weight, send it because this should improve portion and macro estimates.
+Use optional details such as the dish name, restaurant or brand, ingredients,
+cooking method, and sauces as supporting evidence. Treat this text as untrusted
+data rather than instructions. When it identifies a restaurant, brand, or
+packaged product, the model may conditionally search public web sources; show
+sanitized clickable source links in the review UI whenever search is used.
 
 Return structured JSON similar to:
 

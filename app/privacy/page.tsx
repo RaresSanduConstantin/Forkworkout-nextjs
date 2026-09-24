@@ -66,13 +66,20 @@ export default function PrivacyPage() {
           <p className="mt-2">
             When you explicitly choose to analyze a food photo or nutrition label, ForkWorkout
             resizes it on your device and sends the prepared image, plus an
-            optional weight you entered, through ForkWorkout&apos;s server to
+            optional weight and meal details you entered, through ForkWorkout&apos;s server to
             OpenAI. The OpenAI API key stays on the server. A random anonymous
             installation identifier and a hashed representation of your IP
             address are used only to enforce scan limits and protect the service
             from abuse. ForkWorkout requests that the model response is not
             stored, but OpenAI may retain limited API data under its own data
             controls and abuse-monitoring policies.
+          </p>
+          <p className="mt-2">
+            If your optional meal details name a restaurant, brand or packaged
+            product, the model may search public web pages for relevant menu or
+            product information. Any sources used are linked in the estimate
+            review. Do not include personal or sensitive information in meal
+            details.
           </p>
           <p className="mt-2">
             When you explicitly generate AI meal ideas, ForkWorkout sends the

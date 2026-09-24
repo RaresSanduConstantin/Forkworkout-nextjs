@@ -9,6 +9,7 @@ export const AI_PHOTO_SUPPORTED_TYPES = [
 
 export const AI_PHOTO_CLIENT_MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 export const AI_PHOTO_CLIENT_MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+export const AI_PHOTO_DETAILS_MAX_LENGTH = 600;
 
 export type AIPhotoConfidence = "low" | "medium" | "high";
 export type AIPhotoMode = "food" | "label";
@@ -20,10 +21,16 @@ export type AIPhotoFood = {
   confidence: number;
 };
 
+export type AIPhotoSource = {
+  title: string;
+  url: string;
+};
+
 export type AIPhotoAnalysis = {
   foods: AIPhotoFood[];
   total: NutritionNutrients;
   confidence: AIPhotoConfidence;
+  sources?: AIPhotoSource[];
 };
 
 export type AIPhotoUsage = {
@@ -129,6 +136,32 @@ function round(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+function normalizeSources(raw: unknown): AIPhotoSource[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const sources: AIPhotoSource[] = [];
+  for (const candidate of raw) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const value = candidate as Record<string, unknown>;
+    if (typeof value.url !== "string") continue;
+    try {
+      const url = new URL(value.url);
+      if (url.protocol !== "https:" && url.protocol !== "http:") continue;
+      if (seen.has(url.href)) continue;
+      seen.add(url.href);
+      const title =
+        typeof value.title === "string" && value.title.trim()
+          ? value.title.trim().slice(0, 160)
+          : url.hostname.replace(/^www\./, "");
+      sources.push({ title, url: url.href });
+      if (sources.length === 5) break;
+    } catch {
+      // Ignore malformed source URLs from an untrusted API response.
+    }
+  }
+  return sources;
+}
+
 /** Validates untrusted model/API output and derives totals from the food rows. */
 export function normalizeAIPhotoAnalysis(raw: unknown): AIPhotoAnalysis | null {
   if (!raw || typeof raw !== "object") return null;
@@ -191,6 +224,7 @@ export function normalizeAIPhotoAnalysis(raw: unknown): AIPhotoAnalysis | null {
   }
 
   const summed = sumNutrients(foods.map((food) => food.nutrients));
+  const sources = normalizeSources(value.sources);
   return {
     foods,
     total: {
@@ -203,6 +237,7 @@ export function normalizeAIPhotoAnalysis(raw: unknown): AIPhotoAnalysis | null {
       ...(summed.sodiumMg === undefined ? {} : { sodiumMg: summed.sodiumMg }),
     },
     confidence,
+    ...(sources.length > 0 ? { sources } : {}),
   };
 }
 
@@ -257,12 +292,14 @@ export async function prepareAIPhoto(file: File): Promise<Blob> {
 export async function analyzeFoodPhoto({
   image,
   weightGrams,
+  details,
   anonymousDeviceId,
   signal,
   analysisMode = "food",
 }: {
   image: Blob;
   weightGrams?: number;
+  details?: string;
   anonymousDeviceId: string;
   signal?: AbortSignal;
   analysisMode?: AIPhotoMode;
@@ -272,6 +309,7 @@ export async function analyzeFoodPhoto({
   form.append("anonymousDeviceId", anonymousDeviceId);
   form.append("analysisMode", analysisMode);
   if (weightGrams !== undefined) form.append("weightGrams", String(weightGrams));
+  if (details) form.append("details", details.slice(0, AI_PHOTO_DETAILS_MAX_LENGTH));
 
   const response = await fetch("/api/nutrition/analyze-photo", {
     method: "POST",

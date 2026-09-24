@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added optional meal details before food photo capture so dish names,
+  restaurants, brands, ingredients, cooking methods, and sauces can improve AI
+  estimates, with conditional public-web lookup and visible source links.
 - Added a Meal Ideas sheet beneath Photo Scan with free local matches from known
   foods and saved recipes, optional structured AI combinations, verified
   nutrition totals, foods-on-hand guidance, detailed preparation views, reusable
@@ -151,6 +154,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Moved the optional known total weight above the food photo controls so users
+  can provide the strongest portion clue before taking or choosing a photo.
 - Collapsed local nutrition matches behind an expandable summary so AI meal
   generation remains easier to reach on small screens.
 - Kept Gentle, Recommended, and Focused nutrition estimates stable while adding

@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -37,6 +38,7 @@ import { dayKeyToDate } from "@/lib/date/day-key";
 import { nutrientsForQuantity, sumNutrients } from "@/lib/nutrition/calculations";
 import {
   AIPhotoAnalysisError,
+  AI_PHOTO_DETAILS_MAX_LENGTH,
   analyzeFoodPhoto,
   fetchAIPhotoUsage,
   prepareAIPhoto,
@@ -164,6 +166,7 @@ export function FoodPhotoAnalysisSheet({
   const [file, setFile] = React.useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [knownWeight, setKnownWeight] = React.useState("");
+  const [details, setDetails] = React.useState("");
   const [analysisMode, setAnalysisMode] = React.useState<AIPhotoMode>("food");
   const [analysis, setAnalysis] = React.useState<AIPhotoAnalysis | null>(null);
   const [drafts, setDrafts] = React.useState<DraftFood[]>([]);
@@ -189,6 +192,7 @@ export function FoodPhotoAnalysisSheet({
     clearPreview();
     setFile(null);
     setKnownWeight("");
+    setDetails("");
     setAnalysis(null);
     setDrafts([]);
     setError(null);
@@ -289,6 +293,7 @@ export function FoodPhotoAnalysisSheet({
       const result = await analyzeFoodPhoto({
         image,
         weightGrams: parsedWeight,
+        details: analysisMode === "food" ? details.trim() || undefined : undefined,
         anonymousDeviceId,
         signal: controller.signal,
         analysisMode,
@@ -505,6 +510,49 @@ export function FoodPhotoAnalysisSheet({
 
           {!analysis ? (
             <>
+              {analysisMode === "food" && (
+                <div className="space-y-4 rounded-2xl border bg-muted/25 p-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="photo-known-weight">
+                      Known total weight in grams (optional)
+                    </Label>
+                    <NumberInput
+                      id="photo-known-weight"
+                      decimal
+                      value={knownWeight}
+                      onChange={(event) => setKnownWeight(event.target.value)}
+                      placeholder="e.g. 500"
+                      disabled={analyzing || scannerDisabledReason !== null}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the weight of the whole pictured meal, not just one ingredient.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="photo-meal-details">Meal details (optional)</Label>
+                      <span className="text-[11px] tabular-nums text-muted-foreground">
+                        {details.length}/{AI_PHOTO_DETAILS_MAX_LENGTH}
+                      </span>
+                    </div>
+                    <Textarea
+                      id="photo-meal-details"
+                      value={details}
+                      onChange={(event) => setDetails(event.target.value)}
+                      maxLength={AI_PHOTO_DETAILS_MAX_LENGTH}
+                      rows={3}
+                      placeholder="e.g. Chicken shawarma from Mr Laziz with chicken, fries, vegetables and harissa sauce"
+                      disabled={analyzing || scannerDisabledReason !== null}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Add a dish name, restaurant or brand, ingredients, cooking method, and
+                      sauces. AI may check public web sources for named products.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {previewUrl ? (
                 <div className="relative aspect-square overflow-hidden rounded-2xl border bg-zinc-950">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -558,22 +606,7 @@ export function FoodPhotoAnalysisSheet({
                 </p>
               )}
 
-              {analysisMode === "food" ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="photo-known-weight">Known total weight (g, optional)</Label>
-                  <NumberInput
-                    id="photo-known-weight"
-                    decimal
-                    value={knownWeight}
-                    onChange={(event) => setKnownWeight(event.target.value)}
-                    placeholder="e.g. 350"
-                    disabled={analyzing || scannerDisabledReason !== null}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    A measured weight helps improve portion estimates.
-                  </p>
-                </div>
-              ) : (
+              {analysisMode === "label" && (
                 <p className="rounded-xl border bg-muted/25 p-3 text-xs text-muted-foreground">
                   Photograph the serving size and nutrient table. You can correct every transcribed value before saving.
                 </p>
@@ -602,6 +635,28 @@ export function FoodPhotoAnalysisSheet({
                   {analysis.confidence} confidence
                 </Badge>
               </div>
+
+              {analysis.sources && analysis.sources.length > 0 && (
+                <div className="rounded-xl border bg-muted/25 p-3">
+                  <p className="text-xs font-medium">Public sources checked</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {analysis.sources.map((source) => (
+                      <a
+                        key={source.url}
+                        href={source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border bg-background px-2.5 py-1 text-xs text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {source.title}
+                      </a>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Sources are supporting clues; review the estimate before saving.
+                  </p>
+                </div>
+              )}
 
               {mode === "log" && (
                 <div className="space-y-1.5">
