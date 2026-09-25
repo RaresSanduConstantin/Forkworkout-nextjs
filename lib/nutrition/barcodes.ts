@@ -171,25 +171,18 @@ export async function fetchOpenFoodFactsProduct(
 ): Promise<BarcodeProductDraft | null> {
   const normalized = normalizeBarcode(barcode);
   if (!isValidGtin(normalized)) throw new Error("Enter a valid EAN or UPC barcode.");
-  for (const candidate of barcodeLookupCandidates(normalized)) {
-    const response = await fetch(
-      `https://world.openfoodfacts.org/api/v3/product/${candidate}.json?fields=${OPEN_FOOD_FACTS_PRODUCT_FIELDS}`,
-      {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "X-User-Agent":
-            "ForkWorkout/0.1.0 (https://github.com/RaresSanduConstantin/Forkworkout-nextjs)",
-        },
-        signal,
-      }
-    );
-    if (response.status === 404) continue;
-    if (!response.ok) throw new Error("Open Food Facts is unavailable right now.");
-    const product = normalizeOpenFoodFactsProduct(await response.json(), candidate);
-    if (product) return product;
-  }
-  return null;
+  const response = await fetch(
+    `/api/nutrition/barcode?code=${encodeURIComponent(normalized)}`,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal,
+    }
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Open Food Facts is unavailable right now.");
+  return normalizeOpenFoodFactsProduct(await response.json(), normalized);
 }
 
 export function barcodeDraftToFood(

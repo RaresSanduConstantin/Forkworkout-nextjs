@@ -33,6 +33,13 @@ const withPWA = withPWAInit({
     disableDevLogs: true,
     runtimeCaching: [
       {
+        // Barcode responses are cached at the server/CDN layer. The installed
+        // PWA must still reach that layer so a stale miss cannot hide a product.
+        urlPattern: /\/api\/nutrition\/barcode(?:\?.*)?$/,
+        handler: "NetworkOnly",
+        method: "GET",
+      },
+      {
         urlPattern: /\/api\/shares(?:\/.*)?$/,
         handler: "NetworkOnly",
         method: "GET",

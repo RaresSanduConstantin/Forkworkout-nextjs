@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   nutrientProgress,
@@ -32,6 +32,7 @@ import {
 import {
   barcodeDraftToFood,
   barcodeLookupCandidates,
+  fetchOpenFoodFactsProduct,
   isValidGtin,
   normalizeBarcode,
   normalizeOpenFoodFactsProduct,
@@ -742,6 +743,39 @@ describe("nutrition barcodes", () => {
         fatG: 4.5,
         sodiumMg: 80,
       })
+    );
+  });
+
+  it("looks up barcodes through the same-origin nutrition API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          product: {
+            code: "4056489232872",
+            product_name: "Cacao",
+            brands: "Belbake",
+            nutrition_data_per: "100g",
+            nutriments: {
+              "energy-kcal_100g": 389,
+              proteins_100g: 23.3,
+              carbohydrates_100g: 14,
+              fat_100g: 21,
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    await expect(fetchOpenFoodFactsProduct("4056489232872")).resolves.toMatchObject({
+      barcode: "4056489232872",
+      name: "Cacao",
+      brand: "Belbake",
+      caloriesKcal: 389,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/nutrition/barcode?code=4056489232872",
+      expect.objectContaining({ method: "GET", cache: "no-store" })
     );
   });
 
