@@ -115,6 +115,8 @@ export type NutritionSavedMeal = {
   id: string;
   name: string;
   items: NutritionSavedMealItem[];
+  /** Device-local preference used to keep frequently reused meals first. */
+  favourite?: boolean;
   /** Optional context and preparation details, primarily used by generated recipes. */
   description?: string;
   instructions?: string[];

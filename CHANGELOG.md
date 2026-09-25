@@ -13,6 +13,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added persistent stars for saved meals and recipes, with favourites shown
+  first in quick suggestions and the full saved-meal list.
 - Added optional meal details before food photo capture so dish names,
   restaurants, brands, ingredients, cooking methods, and sauces can improve AI
   estimates, with conditional public-web lookup and visible source links.
@@ -106,7 +108,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 - Routed mobile barcode product lookups through ForkWorkout's same-origin API,
   preventing browser, installed-PWA, and carrier-network request failures from
-  making products already present in Open Food Facts appear unavailable.
+  making products already present in Open Food Facts appear unavailable. The
+  scanner now requests a high-detail continuous-focus camera feed, offers
+  refocusing where supported, and shows the detected code in the manual field.
 - Restored the missing bottom border on the local nutrition matches accordion.
 - Prevented a selected goal timeframe from silently collapsing to the same
   calories as the Focused estimate; personalized plans now use their calculated

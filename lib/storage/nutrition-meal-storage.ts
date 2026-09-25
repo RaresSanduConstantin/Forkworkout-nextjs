@@ -106,6 +106,7 @@ export function normalizeNutritionSavedMeal(raw: unknown): NutritionSavedMeal | 
     id,
     name,
     items,
+    favourite: value.favourite === true ? true : undefined,
     kind,
     servings,
     yieldGrams,
@@ -130,7 +131,11 @@ export function getNutritionSavedMeals(): NutritionSavedMeal[] {
   return raw
     .map(normalizeNutritionSavedMeal)
     .filter((meal): meal is NutritionSavedMeal => meal !== null)
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    .sort(
+      (left, right) =>
+        Number(Boolean(right.favourite)) - Number(Boolean(left.favourite)) ||
+        right.updatedAt.localeCompare(left.updatedAt)
+    );
 }
 
 export function saveNutritionSavedMeals(meals: NutritionSavedMeal[]): boolean {
@@ -190,6 +195,7 @@ export function saveMealFromItems(
     id: existing?.id ?? id ?? uuidv4(),
     name: trimmedName,
     items,
+    favourite: existing?.favourite,
     kind: options?.kind,
     servings: options?.servings,
     yieldGrams: options?.yieldGrams,
@@ -212,6 +218,22 @@ export function deleteNutritionSavedMeal(id: string): boolean {
   return next.length !== meals.length && saveNutritionSavedMeals(next);
 }
 
+export function setNutritionSavedMealFavourite(
+  id: string,
+  favourite: boolean
+): NutritionSavedMeal | null {
+  const meals = getNutritionSavedMeals();
+  const existing = meals.find((meal) => meal.id === id);
+  if (!existing) return null;
+  const updated = normalizeNutritionSavedMeal({
+    ...existing,
+    favourite: favourite || undefined,
+  });
+  if (!updated) return null;
+  const next = meals.map((meal) => (meal.id === id ? updated : meal));
+  return saveNutritionSavedMeals(next) ? updated : null;
+}
+
 /** Imports a shared meal with a fresh id and a non-conflicting local name. */
 export function importNutritionSavedMeal(
   candidate: NutritionSavedMeal
@@ -232,6 +254,7 @@ export function importNutritionSavedMeal(
     ...normalized,
     id: uuidv4(),
     name,
+    favourite: undefined,
     createdAt: now,
     updatedAt: now,
   });

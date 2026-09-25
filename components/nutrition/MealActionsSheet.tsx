@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Star,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -55,6 +56,7 @@ import {
   getNutritionSavedMeals,
   saveMealFromEntries,
   saveMealFromItems,
+  setNutritionSavedMealFavourite,
   type NutritionCopyResult,
 } from "@/lib/storage/nutrition-meal-storage";
 
@@ -584,6 +586,18 @@ export function MealActionsSheet({
     toast.success("Saved meal deleted");
   };
 
+  const toggleSavedMealFavourite = (meal: NutritionSavedMeal) => {
+    const updated = setNutritionSavedMealFavourite(meal.id, !meal.favourite);
+    if (!updated) {
+      toast.error("Couldn't update saved meal favourites.");
+      return;
+    }
+    const meals = refreshSavedMeals();
+    if (selectedSavedMeal?.id === updated.id) {
+      setSelectedSavedMeal(meals.find((candidate) => candidate.id === updated.id) ?? updated);
+    }
+  };
+
   const confirmFullDayCopy = () => {
     if (!pendingDayCopy) return;
     const sourceEntries = entries.filter((entry) => entry.dayKey === pendingDayCopy);
@@ -864,7 +878,53 @@ export function MealActionsSheet({
                       <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">No saved meals yet.</p>
                     ) : savedMeals.map((meal) => {
                       const totals = sumNutrients(meal.items);
-                      return <div key={meal.id} className="flex items-center gap-2 rounded-xl border p-2"><button type="button" className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left hover:bg-muted" onClick={() => selectSavedMeal(meal)}><span className="block truncate text-sm font-medium">{meal.name}</span><span className="block text-xs text-muted-foreground">{meal.kind === "recipe" && meal.servings ? `${number(meal.servings)} servings${meal.yieldGrams ? ` · ${number(meal.yieldGrams)} g cooked` : ""} · ${meal.items.length} ingredients · ${number(totals.caloriesKcal)} kcal full batch` : `${meal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}</span></button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingDelete(meal)} aria-label={`Delete ${meal.name}`}><Trash2 className="size-4" /></Button></div>;
+                      return (
+                        <div key={meal.id} className="flex items-center gap-1 rounded-xl border p-2">
+                          <button
+                            type="button"
+                            className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left hover:bg-muted"
+                            onClick={() => selectSavedMeal(meal)}
+                          >
+                            <span className="block truncate text-sm font-medium">{meal.name}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {meal.kind === "recipe" && meal.servings
+                                ? `${number(meal.servings)} servings${meal.yieldGrams ? ` · ${number(meal.yieldGrams)} g cooked` : ""} · ${meal.items.length} ingredients · ${number(totals.caloriesKcal)} kcal full batch`
+                                : `${meal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}
+                            </span>
+                          </button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-lg"
+                            className="size-11"
+                            onClick={() => toggleSavedMealFavourite(meal)}
+                            aria-label={
+                              meal.favourite
+                                ? `Remove ${meal.name} from favourites`
+                                : `Add ${meal.name} to favourites`
+                            }
+                            aria-pressed={Boolean(meal.favourite)}
+                          >
+                            <Star
+                              className={`size-4 ${
+                                meal.favourite
+                                  ? "fill-amber-400 text-amber-500"
+                                  : "text-muted-foreground"
+                              }`}
+                            />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => setPendingDelete(meal)}
+                            aria-label={`Delete ${meal.name}`}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      );
                     })}
                   </section>
 

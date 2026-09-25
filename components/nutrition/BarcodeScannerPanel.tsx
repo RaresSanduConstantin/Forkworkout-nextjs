@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Camera,
   Flashlight,
+  Focus,
   ImageUp,
   Keyboard,
   Loader2,
@@ -16,6 +17,38 @@ import { Input } from "@/components/ui/input";
 import { isValidGtin, normalizeBarcode } from "@/lib/nutrition/barcodes";
 
 type ScannerStatus = "starting" | "scanning" | "found" | "error";
+
+type BarcodeCameraCapabilities = MediaTrackCapabilities & {
+  focusMode?: string[];
+};
+
+type BarcodeCameraConstraintSet = MediaTrackConstraintSet & {
+  focusMode?: string;
+};
+
+function supportedFocusModes(track: MediaStreamTrack): string[] {
+  try {
+    const capabilities = track.getCapabilities() as BarcodeCameraCapabilities;
+    return capabilities.focusMode ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function applyFocusMode(
+  track: MediaStreamTrack,
+  mode: "continuous" | "single-shot"
+): Promise<boolean> {
+  if (!supportedFocusModes(track).includes(mode)) return false;
+  try {
+    await track.applyConstraints({
+      advanced: [{ focusMode: mode } as BarcodeCameraConstraintSet],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function cameraErrorMessage(reason: unknown): string {
   const name = reason instanceof DOMException ? reason.name : "";
@@ -60,6 +93,7 @@ export function BarcodeScannerPanel({
   onDetected: (barcode: string) => void;
 }) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const videoTrackRef = React.useRef<MediaStreamTrack | null>(null);
   const controlsRef = React.useRef<import("@zxing/browser").IScannerControls | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const onDetectedRef = React.useRef(onDetected);
@@ -70,6 +104,7 @@ export function BarcodeScannerPanel({
   const [scanError, setScanError] = React.useState<string | null>(null);
   const [flashAvailable, setFlashAvailable] = React.useState(false);
   const [flashOn, setFlashOn] = React.useState(false);
+  const [refocusAvailable, setRefocusAvailable] = React.useState(false);
   const [manualCode, setManualCode] = React.useState("");
 
   React.useEffect(() => {
@@ -82,6 +117,7 @@ export function BarcodeScannerPanel({
       setScanError("That doesn't look like a valid EAN or UPC barcode.");
       return false;
     }
+    setManualCode(barcode);
     if (handledRef.current) return true;
     handledRef.current = true;
     setStatus("found");
@@ -102,6 +138,7 @@ export function BarcodeScannerPanel({
     setScanError(null);
     setFlashAvailable(false);
     setFlashOn(false);
+    setRefocusAvailable(false);
 
     const start = async () => {
       try {
@@ -111,6 +148,9 @@ export function BarcodeScannerPanel({
           {
             video: {
               facingMode: { ideal: "environment" },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+              frameRate: { ideal: 30, max: 30 },
               advanced: [
                 { focusMode: "continuous" } as MediaTrackConstraintSet,
               ],
@@ -127,6 +167,15 @@ export function BarcodeScannerPanel({
           return;
         }
         controlsRef.current = controls;
+        const stream = videoRef.current.srcObject;
+        const videoTrack =
+          stream instanceof MediaStream ? stream.getVideoTracks()[0] : undefined;
+        videoTrackRef.current = videoTrack ?? null;
+        const focusModes = videoTrack ? supportedFocusModes(videoTrack) : [];
+        setRefocusAvailable(
+          focusModes.includes("single-shot") || focusModes.includes("continuous")
+        );
+        if (videoTrack) await applyFocusMode(videoTrack, "continuous");
         setFlashAvailable(typeof controls.switchTorch === "function");
         setStatus("scanning");
       } catch (reason) {
@@ -141,6 +190,7 @@ export function BarcodeScannerPanel({
     return () => {
       disposed = true;
       controlsRef.current = null;
+      videoTrackRef.current = null;
       controls?.stop();
     };
   }, [acceptCode, active, attempt]);
@@ -156,6 +206,13 @@ export function BarcodeScannerPanel({
       setFlashAvailable(false);
       setFlashOn(false);
     }
+  };
+
+  const refocusCamera = async () => {
+    const videoTrack = videoTrackRef.current;
+    if (!videoTrack) return;
+    const focused = await applyFocusMode(videoTrack, "single-shot");
+    if (!focused) await applyFocusMode(videoTrack, "continuous");
   };
 
   const scanImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,6 +251,19 @@ export function BarcodeScannerPanel({
         <div className="pointer-events-none absolute inset-x-[3%] top-1/2 h-[35%] -translate-y-1/2 rounded-xl border-2 border-white/90 bg-black/5 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]">
           <span className="absolute inset-x-4 top-1/2 h-px -translate-y-1/2 bg-red-400/90 shadow-[0_0_6px_rgba(248,113,113,0.8)]" />
         </div>
+
+        {status === "scanning" && refocusAvailable && !lookupLoading && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="absolute right-3 top-3 bg-black/65 text-white hover:bg-black/80"
+            onClick={() => void refocusCamera()}
+          >
+            <Focus className="size-4" />
+            Refocus
+          </Button>
+        )}
 
         {(status === "starting" || status === "error" || lookupLoading) && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/90 p-6 text-center text-white">
@@ -268,6 +338,7 @@ export function BarcodeScannerPanel({
               onChange={(event) => setManualCode(event.target.value)}
               className="pl-9 tabular-nums"
               placeholder="Enter barcode number"
+              aria-label="Detected or manually entered barcode"
               inputMode="numeric"
               autoComplete="off"
               disabled={lookupLoading}

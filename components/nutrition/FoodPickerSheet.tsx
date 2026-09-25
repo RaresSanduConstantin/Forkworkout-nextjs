@@ -75,7 +75,10 @@ import {
   upsertCustomNutritionFood,
 } from "@/lib/storage/nutrition-food-storage";
 import { addNutritionEntry, updateNutritionEntry } from "@/lib/storage/nutrition-storage";
-import { getNutritionSavedMeals } from "@/lib/storage/nutrition-meal-storage";
+import {
+  getNutritionSavedMeals,
+  setNutritionSavedMealFavourite,
+} from "@/lib/storage/nutrition-meal-storage";
 
 const MEAL_LABELS: Record<NutritionMeal, string> = {
   breakfast: "Breakfast",
@@ -488,6 +491,14 @@ export function FoodPickerSheet({
     setPreferences(getNutritionFoodPreferences());
   };
 
+  const toggleSavedMealFavourite = (savedMeal: NutritionSavedMeal) => {
+    if (!setNutritionSavedMealFavourite(savedMeal.id, !savedMeal.favourite)) {
+      toast.error("Couldn't update saved meal favourites.");
+      return;
+    }
+    setSavedMeals(getNutritionSavedMeals());
+  };
+
   const parsedQuantity = Number.parseFloat(quantity);
   const calculated = selectedFood
     ? nutrientsForQuantity(
@@ -669,21 +680,46 @@ export function FoodPickerSheet({
                       {savedMeals.map((savedMeal) => {
                         const totals = sumNutrients(savedMeal.items);
                         return (
-                          <button
+                          <div
                             key={savedMeal.id}
-                            type="button"
-                            className="min-w-[9.5rem] max-w-[12rem] rounded-xl border bg-card p-3 text-left transition hover:bg-muted/50"
-                            onClick={() => onSavedMeal(savedMeal, meal)}
+                            className="relative min-w-[9.5rem] max-w-[12rem] shrink-0 rounded-xl border bg-card"
                           >
-                            <span className="block truncate text-sm font-medium">
-                              {savedMeal.name}
-                            </span>
-                            <span className="mt-1 block text-xs text-muted-foreground">
-                              {savedMeal.kind === "recipe" && savedMeal.servings
-                                ? `${number(savedMeal.servings)} servings · ${number(totals.caloriesKcal / savedMeal.servings)} kcal each`
-                                : `${savedMeal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}
-                            </span>
-                          </button>
+                            <button
+                              type="button"
+                              className="size-full rounded-xl p-3 pr-12 text-left transition hover:bg-muted/50"
+                              onClick={() => onSavedMeal(savedMeal, meal)}
+                            >
+                              <span className="block truncate text-sm font-medium">
+                                {savedMeal.name}
+                              </span>
+                              <span className="mt-1 block text-xs text-muted-foreground">
+                                {savedMeal.kind === "recipe" && savedMeal.servings
+                                  ? `${number(savedMeal.servings)} servings · ${number(totals.caloriesKcal / savedMeal.servings)} kcal each`
+                                  : `${savedMeal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}
+                              </span>
+                            </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-lg"
+                              className="absolute right-0 top-0 size-11"
+                              onClick={() => toggleSavedMealFavourite(savedMeal)}
+                              aria-label={
+                                savedMeal.favourite
+                                  ? `Remove ${savedMeal.name} from favourites`
+                                  : `Add ${savedMeal.name} to favourites`
+                              }
+                              aria-pressed={Boolean(savedMeal.favourite)}
+                            >
+                              <Star
+                                className={`size-4 ${
+                                  savedMeal.favourite
+                                    ? "fill-amber-400 text-amber-500"
+                                    : "text-muted-foreground"
+                                }`}
+                              />
+                            </Button>
+                          </div>
                         );
                       })}
                     </div>

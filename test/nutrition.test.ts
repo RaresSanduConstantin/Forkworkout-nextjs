@@ -54,6 +54,7 @@ import {
   getNutritionSavedMeals,
   saveMealFromEntries,
   saveMealFromItems,
+  setNutritionSavedMealFavourite,
 } from "@/lib/storage/nutrition-meal-storage";
 import {
   MAX_CACHED_BARCODE_PRODUCTS,
@@ -471,6 +472,31 @@ describe("nutrition storage", () => {
     expect(getNutritionEntriesForDay("2026-09-21")).toHaveLength(2);
     expect(deleteNutritionSavedMeal(meal!.id)).toBe(true);
     expect(getNutritionSavedMeals()).toEqual([]);
+  });
+
+  it("keeps starred saved meals first and preserves the preference through edits", () => {
+    const first = saveMealFromItems("First meal", [
+      { ...quickAdd, name: "First food" },
+    ])!;
+    const second = saveMealFromItems("Second meal", [
+      { ...quickAdd, name: "Second food" },
+    ])!;
+
+    expect(setNutritionSavedMealFavourite(first.id, true)?.favourite).toBe(true);
+    expect(getNutritionSavedMeals().map((meal) => meal.id)).toEqual([
+      first.id,
+      second.id,
+    ]);
+
+    const edited = saveMealFromItems("First meal edited", first.items, first.id);
+    expect(edited?.favourite).toBe(true);
+    expect(getNutritionSavedMeals()[0]).toMatchObject({
+      id: first.id,
+      name: "First meal edited",
+      favourite: true,
+    });
+
+    expect(setNutritionSavedMealFavourite(first.id, false)?.favourite).toBeUndefined();
   });
 
   it("creates a reusable meal directly from catalog foods with gram quantities", () => {
