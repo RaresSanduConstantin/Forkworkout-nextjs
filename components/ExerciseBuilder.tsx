@@ -481,6 +481,7 @@ const ExerciseBuilder = ({
           exerciseName={exerciseName}
           open={infoOpen}
           onOpenChange={setInfoOpen}
+          allowVideoEdit
         />
 
         <ReplaceExerciseDialog

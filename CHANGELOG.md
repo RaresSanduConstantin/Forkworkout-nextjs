@@ -91,8 +91,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 - Added multi-stage drop sets to live workouts. Additional weight/reps stages
   remain one completed set, contribute to full reps and volume, persist into
   future sessions, and remain available in history, sharing, and Excel exports.
-- Added in-session YouTube video editing from the exercise How to dialog, with
-  validated links and the existing exercise-management edit flow preserved.
+- Added YouTube video editing from the exercise How to dialog in live sessions,
+  the workout builder, and dashboard workout previews, with validated links and
+  the existing exercise-management edit flow preserved.
 - Added a persistent Make current action in live workouts so users can switch
   exercise or superset focus without changing the workout order.
 - Added drag-and-drop workout ordering inside the program editor.

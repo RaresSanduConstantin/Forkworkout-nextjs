@@ -292,6 +292,8 @@ export function WorkoutPreviewDialog({
         onOpenChange={(open) => {
           if (!open) setInfoExercise(null);
         }}
+        allowVideoEdit
+        onVideoSaved={() => setLibrary(getCachedLibrary())}
       />
     </>
   );

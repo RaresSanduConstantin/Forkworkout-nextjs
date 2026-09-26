@@ -63,14 +63,20 @@ vi.mock("@/components/exercises/ExerciseInfoDialog", () => ({
   ExerciseInfoDialog: ({
     open,
     onOpenChange,
+    allowVideoEdit,
   }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    allowVideoEdit?: boolean;
   }) =>
     open
       ? React.createElement(
           "button",
-          { "data-testid": "close-info", onClick: () => onOpenChange(false) },
+          {
+            "data-testid": "close-info",
+            "data-video-edit": String(Boolean(allowVideoEdit)),
+            onClick: () => onOpenChange(false),
+          },
           "Close info"
         )
       : null,
@@ -161,6 +167,7 @@ describe("WorkoutPreviewDialog scroll restoration", () => {
       '[data-testid="close-info"]'
     );
     expect(closeInfoButton).not.toBeNull();
+    expect(closeInfoButton?.dataset.videoEdit).toBe("true");
 
     await act(async () => {
       closeInfoButton!.click();
