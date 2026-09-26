@@ -22,7 +22,7 @@ export type CustomExercise = {
   category: string;
   custom: true;
   defaultUnit: SetUnit; // kg | bw | time | km
-  videoUrl?: string; // optional YouTube URL for the in-app demo
+  videoUrl?: string; // optional YouTube or public Instagram URL for the in-app demo
   createdAt: string;
   /** Bundled exercise name when this entry is a local, resettable override. */
   sourceName?: string;

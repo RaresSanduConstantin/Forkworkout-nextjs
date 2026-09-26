@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added credential-free embeds for public Instagram Reels and posts as exercise
+  demonstrations, alongside YouTube videos, with strict URL validation and
+  in-app playback across every editable How to flow.
 - Added persistent stars for saved meals and recipes, with favourites shown
   first in quick suggestions and the full saved-meal list.
 - Added optional meal details before food photo capture so dish names,

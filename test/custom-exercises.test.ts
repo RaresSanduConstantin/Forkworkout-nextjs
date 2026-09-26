@@ -150,4 +150,57 @@ describe("exercise video URLs", () => {
     const { getExerciseVideoUrl } = await import("@/lib/exercise-videos");
     expect(getExerciseVideoUrl("Pool sprint")).toBe("https://youtu.be/qIyuxNyZ0NQ");
   });
+
+  it("normalizes public Instagram Reels and posts to safe embed URLs", async () => {
+    const { resolveExerciseVideoUrl } = await import("@/lib/exercise-videos");
+
+    expect(
+      resolveExerciseVideoUrl(
+        "https://www.instagram.com/reel/ABC123xyz/?igsh=tracking"
+      )
+    ).toEqual({
+      provider: "instagram",
+      kind: "reel",
+      shortcode: "ABC123xyz",
+      canonicalUrl: "https://www.instagram.com/reel/ABC123xyz/",
+      embedUrl: "https://www.instagram.com/reel/ABC123xyz/embed/",
+    });
+    expect(
+      resolveExerciseVideoUrl("https://instagram.com/p/POST_12345/")
+    ).toMatchObject({
+      provider: "instagram",
+      kind: "p",
+      canonicalUrl: "https://www.instagram.com/p/POST_12345/",
+      embedUrl: "https://www.instagram.com/p/POST_12345/embed/",
+    });
+  });
+
+  it("rejects unsafe or non-embeddable Instagram URLs", async () => {
+    const { resolveExerciseVideoUrl } = await import("@/lib/exercise-videos");
+
+    expect(resolveExerciseVideoUrl("https://example.com/reel/ABC123xyz/")).toBeNull();
+    expect(resolveExerciseVideoUrl("https://instagram.com/explore/fitness/")).toBeNull();
+    expect(resolveExerciseVideoUrl("https://instagram.com/reel/ABC123xyz/extra")).toBeNull();
+    expect(resolveExerciseVideoUrl("javascript:alert(1)")).toBeNull();
+  });
+
+  it("prefers a saved Instagram exercise video over curated YouTube", async () => {
+    addCustomExercise({
+      name: "Bench Press",
+      sourceName: "Bench Press",
+      defaultUnit: "kg",
+      videoUrl: "https://www.instagram.com/reel/ABC123xyz/",
+    });
+    const { getExerciseVideoEmbed, getExerciseVideoId, getExerciseVideoUrl } =
+      await import("@/lib/exercise-videos");
+
+    expect(getExerciseVideoEmbed("Bench Press")).toMatchObject({
+      provider: "instagram",
+      embedUrl: "https://www.instagram.com/reel/ABC123xyz/embed/",
+    });
+    expect(getExerciseVideoId("Bench Press")).toBeNull();
+    expect(getExerciseVideoUrl("Bench Press")).toBe(
+      "https://www.instagram.com/reel/ABC123xyz/"
+    );
+  });
 });

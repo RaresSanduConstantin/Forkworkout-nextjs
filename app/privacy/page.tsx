@@ -158,6 +158,38 @@ export default function PrivacyPage() {
         </section>
 
         <section>
+          <h2 className="text-lg font-semibold text-foreground">Embedded exercise videos</h2>
+          <p className="mt-2">
+            When you open the Video tab for an exercise, ForkWorkout may load an
+            embedded video directly from YouTube or Instagram. The selected
+            provider receives the technical information required to serve that
+            embed, such as your IP address, browser details and any cookies that
+            provider already stores in your browser. ForkWorkout does not require
+            an Instagram login or send your workout history, body data or
+            nutrition diary with the request. YouTube and Instagram handle the
+            embedded content under their own privacy policies: Google&apos;s{" "}
+            <a
+              href="https://policies.google.com/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              privacy policy
+            </a>{" "}
+            for YouTube and Instagram&apos;s{" "}
+            <a
+              href="https://privacycenter.instagram.com/policy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              privacy policy
+            </a>
+            .
+          </p>
+        </section>
+
+        <section>
           <h2 className="text-lg font-semibold text-foreground">Optional Google Drive backup</h2>
           <p className="mt-2">
             You may optionally connect Google Drive to back up and restore your

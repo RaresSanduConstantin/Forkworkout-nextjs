@@ -33,9 +33,10 @@ import {
   type LibraryExercise,
 } from "@/lib/exercises";
 import {
-  extractYouTubeId,
-  getExerciseVideoId,
+  getExerciseVideoEmbed,
   getExerciseVideoUrl,
+  resolveExerciseVideoUrl,
+  type ExerciseVideoEmbed,
 } from "@/lib/exercise-videos";
 import { upsertCustomExercise } from "@/lib/storage/custom-exercises";
 import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
@@ -73,7 +74,7 @@ export function ExerciseInfoDialog({
   const [library, setLibrary] = React.useState<LibraryExercise[]>(getCachedLibrary());
   const [tab, setTab] = React.useState("how-to");
   const [videoUrl, setVideoUrl] = React.useState("");
-  const [videoId, setVideoId] = React.useState<string | null>(null);
+  const [videoEmbed, setVideoEmbed] = React.useState<ExerciseVideoEmbed | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -90,7 +91,7 @@ export function ExerciseInfoDialog({
     if (open) {
       setTab("how-to");
       setVideoUrl(getExerciseVideoUrl(exerciseName) ?? "");
-      setVideoId(getExerciseVideoId(exerciseName));
+      setVideoEmbed(getExerciseVideoEmbed(exerciseName));
     }
   }, [open, exerciseName]);
 
@@ -105,10 +106,10 @@ export function ExerciseInfoDialog({
   const saveVideo = () => {
     const name = exerciseName.trim();
     const nextUrl = videoUrl.trim();
-    const nextVideoId = extractYouTubeId(nextUrl);
+    const nextVideo = resolveExerciseVideoUrl(nextUrl);
     if (!name) return;
-    if (nextUrl && !nextVideoId) {
-      toast.error("That doesn't look like a valid YouTube link.");
+    if (nextUrl && !nextVideo) {
+      toast.error("Enter a valid YouTube video or public Instagram Reel/post link.");
       return;
     }
 
@@ -126,7 +127,7 @@ export function ExerciseInfoDialog({
       primaryMuscles: exercise?.primaryMuscles,
       secondaryMuscles: exercise?.secondaryMuscles,
       instructions: exercise?.instructions,
-      videoUrl: nextUrl || undefined,
+      videoUrl: nextVideo?.canonicalUrl,
       sourceName:
         exercise?.sourceName ?? (exercise && !exercise.custom ? exercise.name : undefined),
     });
@@ -136,7 +137,7 @@ export function ExerciseInfoDialog({
     }
 
     setVideoUrl(saved.videoUrl ?? "");
-    setVideoId(saved.videoUrl ? extractYouTubeId(saved.videoUrl) : getExerciseVideoId(name));
+    setVideoEmbed(getExerciseVideoEmbed(name));
     setLibrary(getCachedLibrary());
     onVideoSaved?.(saved.name);
     toast.success(nextUrl ? "Exercise video updated." : "Custom video removed.");
@@ -259,18 +260,26 @@ export function ExerciseInfoDialog({
           <TabsContent value="video" className="min-h-0 overflow-y-auto p-6">
             {tab === "video" ? (
               <div className="space-y-3">
-                {videoId ? (
-                <div className="relative mx-auto aspect-video w-full overflow-hidden rounded-lg bg-black">
-                  <iframe
-                    key={`${videoId}-${open}`}
-                    className="absolute inset-0 h-full w-full"
-                    src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1`}
-                    title={`${exerciseName} demonstration video`}
-                    loading="lazy"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                </div>
+                {videoEmbed ? (
+                  <div
+                    className={
+                      videoEmbed.provider === "instagram"
+                        ? "relative mx-auto h-[min(65dvh,42rem)] w-full max-w-[28rem] overflow-hidden rounded-lg bg-white"
+                        : "relative mx-auto aspect-video w-full overflow-hidden rounded-lg bg-black"
+                    }
+                  >
+                    <iframe
+                      key={`${videoEmbed.provider}-${videoEmbed.canonicalUrl}-${open}`}
+                      className="absolute inset-0 h-full w-full"
+                      src={videoEmbed.embedUrl}
+                      title={`${exerciseName} demonstration on ${
+                        videoEmbed.provider === "instagram" ? "Instagram" : "YouTube"
+                      }`}
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
                 ) : (
                   <div className="rounded-lg border bg-muted/40 p-4 text-center">
                     <PlayCircle className="mx-auto size-8 text-muted-foreground" />
@@ -293,7 +302,7 @@ export function ExerciseInfoDialog({
                   Search on YouTube
                   <ExternalLink className="size-4" />
                 </Button>
-                {!videoId && (
+                {!videoEmbed && (
                   <Button
                     className="w-full justify-between bg-neutral-900 text-white hover:bg-neutral-800"
                     onClick={() =>
@@ -310,13 +319,13 @@ export function ExerciseInfoDialog({
                 )}
                 {allowVideoEdit && (
                   <div className="space-y-2 border-t pt-4">
-                    <Label htmlFor="exercise-video-url">YouTube video URL</Label>
+                    <Label htmlFor="exercise-video-url">YouTube or Instagram video URL</Label>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Input
                         id="exercise-video-url"
                         value={videoUrl}
                         onChange={(event) => setVideoUrl(event.target.value)}
-                        placeholder="https://youtube.com/watch?v=..."
+                        placeholder="YouTube video or public Instagram Reel/post"
                         inputMode="url"
                       />
                       <Button type="button" className="shrink-0 gap-1.5" onClick={saveVideo}>
@@ -324,6 +333,10 @@ export function ExerciseInfoDialog({
                         Save video
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Instagram videos must be public and allow embedding. No
+                      Instagram login is required.
+                    </p>
                   </div>
                 )}
               </div>

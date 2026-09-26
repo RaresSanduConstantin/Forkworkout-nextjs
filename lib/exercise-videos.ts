@@ -461,35 +461,115 @@ export function extractYouTubeId(url: string | undefined | null): string | null 
   return m ? m[1] : null;
 }
 
+export type ExerciseVideoEmbed =
+  | {
+      provider: "youtube";
+      id: string;
+      canonicalUrl: string;
+      embedUrl: string;
+    }
+  | {
+      provider: "instagram";
+      kind: "reel" | "p";
+      shortcode: string;
+      canonicalUrl: string;
+      embedUrl: string;
+    };
+
 /**
- * Resolves an exercise name to a YouTube video ID, or null if none is mapped.
- * Custom exercises (with a user-provided video URL) win first; otherwise tries
- * an exact then substring/alias match against the My PT Hub map.
+ * Validates an exercise video link and converts it to a provider-owned embed.
+ * Instagram parsing is deliberately strict so arbitrary iframe origins can
+ * never enter the app through a saved exercise URL.
  */
-export function getExerciseVideoId(name: string | undefined | null): string | null {
-  const n = normalize(name ?? "");
-  if (!n) return null;
-  const custom = getCustomExercises().find((e) => normalize(e.name) === n);
-  if (custom?.videoUrl) {
-    const id = extractYouTubeId(custom.videoUrl);
-    if (id) return id;
+export function resolveExerciseVideoUrl(
+  value: string | undefined | null
+): ExerciseVideoEmbed | null {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return null;
+
+  const youtubeId = extractYouTubeId(trimmed);
+  if (youtubeId) {
+    return {
+      provider: "youtube",
+      id: youtubeId,
+      canonicalUrl: /^[A-Za-z0-9_-]{11}$/.test(trimmed)
+        ? `https://www.youtube.com/watch?v=${youtubeId}`
+        : trimmed,
+      embedUrl: `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&modestbranding=1`,
+    };
   }
-  if (EXERCISE_VIDEOS[n]) return EXERCISE_VIDEOS[n];
+
+  try {
+    const url = new URL(trimmed);
+    const hostname = url.hostname.toLowerCase();
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.port ||
+      (hostname !== "instagram.com" &&
+        hostname !== "www.instagram.com" &&
+        hostname !== "m.instagram.com")
+    ) {
+      return null;
+    }
+    const match = url.pathname.match(
+      /^\/(reel|p)\/([A-Za-z0-9_-]{5,64})(?:\/(?:embed\/?)?)?$/
+    );
+    if (!match) return null;
+    const kind = match[1] as "reel" | "p";
+    const shortcode = match[2];
+    const canonicalUrl = `https://www.instagram.com/${kind}/${shortcode}/`;
+    return {
+      provider: "instagram",
+      kind,
+      shortcode,
+      canonicalUrl,
+      embedUrl: `${canonicalUrl}embed/`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getCuratedYouTubeId(normalizedName: string): string | null {
+  if (EXERCISE_VIDEOS[normalizedName]) return EXERCISE_VIDEOS[normalizedName];
   for (const key of SORTED_KEYS) {
-    if (n.includes(key)) return EXERCISE_VIDEOS[key];
+    if (normalizedName.includes(key)) return EXERCISE_VIDEOS[key];
   }
   return null;
 }
 
+/** Resolves a custom Instagram/YouTube URL, then falls back to curated YouTube. */
+export function getExerciseVideoEmbed(
+  name: string | undefined | null
+): ExerciseVideoEmbed | null {
+  const normalizedName = normalize(name ?? "");
+  if (!normalizedName) return null;
+  const custom = getCustomExercises().find(
+    (exercise) => normalize(exercise.name) === normalizedName
+  );
+  const customEmbed = resolveExerciseVideoUrl(custom?.videoUrl);
+  if (customEmbed) return customEmbed;
+
+  const curatedId = getCuratedYouTubeId(normalizedName);
+  return curatedId ? resolveExerciseVideoUrl(curatedId) : null;
+}
+
 /**
- * Returns an editable YouTube URL for an exercise. Keep a user-entered URL as
- * written; otherwise turn a curated library video ID into a standard watch URL.
+ * Resolves an exercise name to a YouTube video ID, or null when the selected
+ * video is Instagram or none is mapped. Custom videos win over the curated map.
+ */
+export function getExerciseVideoId(name: string | undefined | null): string | null {
+  const embed = getExerciseVideoEmbed(name);
+  return embed?.provider === "youtube" ? embed.id : null;
+}
+
+/**
+ * Returns an editable YouTube or Instagram URL for an exercise. Keep a
+ * user-entered YouTube URL as written, normalize Instagram share parameters
+ * away, and turn curated YouTube IDs into standard watch URLs.
  */
 export function getExerciseVideoUrl(name: string | undefined | null): string | null {
-  const n = normalize(name ?? "");
-  if (!n) return null;
-  const custom = getCustomExercises().find((e) => normalize(e.name) === n);
-  if (custom?.videoUrl && extractYouTubeId(custom.videoUrl)) return custom.videoUrl;
-  const id = getExerciseVideoId(name);
-  return id ? `https://www.youtube.com/watch?v=${id}` : null;
+  return getExerciseVideoEmbed(name)?.canonicalUrl ?? null;
 }

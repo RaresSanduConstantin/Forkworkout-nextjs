@@ -26,7 +26,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SELECTABLE_MUSCLES } from "@/lib/muscle-map";
 import { addCustomExercise, upsertCustomExercise, type CustomExercise } from "@/lib/storage/custom-exercises";
-import { extractYouTubeId, getExerciseVideoUrl } from "@/lib/exercise-videos";
+import { getExerciseVideoUrl, resolveExerciseVideoUrl } from "@/lib/exercise-videos";
 import type { LibraryExercise } from "@/lib/exercises";
 import type { SetUnit } from "@/lib/types";
 
@@ -134,8 +134,9 @@ export function CustomExerciseDialog({
       toast.error("Choose how this exercise should be measured.");
       return;
     }
-    if (videoUrl.trim() && !extractYouTubeId(videoUrl)) {
-      toast.error("That doesn't look like a valid YouTube link.");
+    const resolvedVideo = resolveExerciseVideoUrl(videoUrl);
+    if (videoUrl.trim() && !resolvedVideo) {
+      toast.error("Enter a valid YouTube video or public Instagram Reel/post link.");
       return;
     }
     const payload = {
@@ -154,7 +155,7 @@ export function CustomExerciseDialog({
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean),
-      videoUrl: videoUrl.trim() || undefined,
+      videoUrl: resolvedVideo?.canonicalUrl,
       sourceName,
     };
     const created = editing
@@ -366,14 +367,18 @@ export function CustomExerciseDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cx-video">YouTube video URL (optional)</Label>
+            <Label htmlFor="cx-video">YouTube or Instagram video URL (optional)</Label>
             <Input
               id="cx-video"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://youtube.com/watch?v=…"
+              placeholder="YouTube video or public Instagram Reel/post"
               inputMode="url"
             />
+            <p className="text-xs text-muted-foreground">
+              Instagram videos must be public and allow embedding. No Instagram
+              login is required.
+            </p>
           </div>
         </div>
 
