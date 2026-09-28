@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added live recipe serving-weight estimates from recorded ingredient amounts,
+  with synchronized fractional-serving and weighed-gram logging. An entered
+  final cooked weight remains the more accurate basis when available.
 - Added credential-free embeds for public Instagram Reels and posts as exercise
   demonstrations, alongside YouTube videos, with strict URL validation and
   in-app playback across every editable How to flow.

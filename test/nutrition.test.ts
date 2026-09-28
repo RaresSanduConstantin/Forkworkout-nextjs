@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  estimateRecipeWeightGrams,
   nutrientProgress,
   nutrientsForQuantity,
   sumNutrients,
@@ -124,6 +125,22 @@ describe("nutrition calculations", () => {
     ).toEqual(
       expect.objectContaining({ caloriesKcal: 400, proteinG: 20, carbsG: 50, fatG: 10 })
     );
+  });
+
+  it("estimates a recipe weight only when every ingredient has a measurable amount", () => {
+    expect(
+      estimateRecipeWeightGrams([
+        { quantity: { amount: 350, unit: "g" } },
+        { quantity: { amount: 500, unit: "ml" } },
+      ])
+    ).toBe(850);
+    expect(
+      estimateRecipeWeightGrams([
+        { quantity: { amount: 350, unit: "g" } },
+        { quantity: { amount: 1, unit: "serving" } },
+      ])
+    ).toBeNull();
+    expect(estimateRecipeWeightGrams([{ quantity: undefined }])).toBeNull();
   });
 
   it("clamps displayed progress while retaining over-target totals", () => {

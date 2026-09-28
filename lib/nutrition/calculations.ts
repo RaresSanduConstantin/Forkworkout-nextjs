@@ -1,4 +1,8 @@
-import type { NutritionEntry, NutritionNutrients } from "./types";
+import type {
+  NutritionEntry,
+  NutritionNutrients,
+  NutritionSavedMealItem,
+} from "./types";
 import type { CompletedWorkout } from "@/lib/types";
 import { toDayKey } from "@/lib/date/day-key";
 
@@ -91,4 +95,34 @@ export function nutrientsForQuantity(
     sugarG: optional(perBasis.sugarG, 1),
     sodiumMg: optional(perBasis.sodiumMg, 0),
   };
+}
+
+/**
+ * Estimates a recipe's pre-cooking weight from complete ingredient amounts.
+ *
+ * Millilitres are treated as approximately one gram. Returning `null` when an
+ * amount is missing avoids presenting a partial batch weight as a useful
+ * serving estimate. A user-entered final cooked weight should always take
+ * precedence because cooking can add or remove water.
+ */
+export function estimateRecipeWeightGrams(
+  items: Array<Pick<NutritionSavedMealItem, "quantity">>
+): number | null {
+  if (items.length === 0) return null;
+
+  let total = 0;
+  for (const item of items) {
+    const quantity = item.quantity;
+    if (
+      !quantity ||
+      (quantity.unit !== "g" && quantity.unit !== "ml") ||
+      !Number.isFinite(quantity.amount) ||
+      quantity.amount <= 0
+    ) {
+      return null;
+    }
+    total += quantity.amount;
+  }
+
+  return Number.isFinite(total) && total > 0 ? round(total) : null;
 }

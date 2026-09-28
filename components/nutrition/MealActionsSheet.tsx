@@ -40,7 +40,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FoodPhotoAnalysisSheet } from "@/components/nutrition/FoodPhotoAnalysisSheet";
 import { FoodPickerSheet } from "@/components/nutrition/FoodPickerSheet";
 import { dayKeyToDate, toDayKey } from "@/lib/date/day-key";
-import { nutrientsForQuantity, sumNutrients } from "@/lib/nutrition/calculations";
+import {
+  estimateRecipeWeightGrams,
+  nutrientsForQuantity,
+  sumNutrients,
+} from "@/lib/nutrition/calculations";
 import type {
   NutritionEntry,
   NutritionMeal,
@@ -71,6 +75,12 @@ const MULTIPLIERS = [0.5, 1, 1.5, 2, 3] as const;
 
 const number = (value: number) =>
   new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(value);
+
+const servingNumber = (value: number) =>
+  new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(value);
+
+const inputNumber = (value: number) =>
+  String(Math.round((value + Number.EPSILON) * 100) / 100);
 
 type MealBuilderItem = {
   id: string;
@@ -252,18 +262,6 @@ export function MealActionsSheet({
   const parsedRecipePortions = Number.parseFloat(recipePortions);
   const parsedRecipeGrams = Number.parseFloat(recipeGrams);
   const parsedMealPortions = Number.parseFloat(mealPortions);
-  const effectiveMultiplier =
-    selectedSavedMeal?.kind === "recipe" && selectedSavedMeal.servings
-      ? recipeLogMode === "grams" && selectedSavedMeal.yieldGrams
-        ? Number.isFinite(parsedRecipeGrams) && parsedRecipeGrams > 0
-          ? parsedRecipeGrams / selectedSavedMeal.yieldGrams
-          : 0
-        : Number.isFinite(parsedRecipePortions) && parsedRecipePortions > 0
-          ? parsedRecipePortions / selectedSavedMeal.servings
-          : 0
-      : Number.isFinite(parsedMealPortions) && parsedMealPortions > 0 && parsedMealPortions <= 100
-        ? parsedMealPortions
-        : 0;
 
   const adjustedSelectedItems = React.useMemo(() => {
     if (!selectedSavedMeal) return null;
@@ -289,6 +287,41 @@ export function MealActionsSheet({
     }
     return adjusted;
   }, [selectedItemAmounts, selectedSavedMeal]);
+
+  const selectedEstimatedWeight = adjustedSelectedItems
+    ? estimateRecipeWeightGrams(adjustedSelectedItems)
+    : null;
+  const selectedRecipeWeight =
+    selectedSavedMeal?.kind === "recipe"
+      ? selectedSavedMeal.yieldGrams ?? selectedEstimatedWeight
+      : null;
+  const selectedWeightIsEstimated = Boolean(
+    selectedRecipeWeight && !selectedSavedMeal?.yieldGrams
+  );
+  const selectedServingWeight =
+    selectedRecipeWeight && selectedSavedMeal?.servings
+      ? selectedRecipeWeight / selectedSavedMeal.servings
+      : null;
+  const selectedWeightForServings =
+    selectedServingWeight && Number.isFinite(parsedRecipePortions) && parsedRecipePortions > 0
+      ? selectedServingWeight * parsedRecipePortions
+      : null;
+  const selectedServingsForWeight =
+    selectedServingWeight && Number.isFinite(parsedRecipeGrams) && parsedRecipeGrams > 0
+      ? parsedRecipeGrams / selectedServingWeight
+      : null;
+  const effectiveMultiplier =
+    selectedSavedMeal?.kind === "recipe" && selectedSavedMeal.servings
+      ? recipeLogMode === "grams"
+        ? selectedRecipeWeight && Number.isFinite(parsedRecipeGrams) && parsedRecipeGrams > 0
+          ? parsedRecipeGrams / selectedRecipeWeight
+          : 0
+        : Number.isFinite(parsedRecipePortions) && parsedRecipePortions > 0
+          ? parsedRecipePortions / selectedSavedMeal.servings
+          : 0
+      : Number.isFinite(parsedMealPortions) && parsedMealPortions > 0 && parsedMealPortions <= 100
+        ? parsedMealPortions
+        : 0;
 
   const selectedAmountsChanged = Boolean(
     selectedSavedMeal?.items.some((item, index) => {
@@ -353,6 +386,36 @@ export function MealActionsSheet({
           : current[itemIndex] ?? (item.quantity ? String(item.quantity.amount) : "")
       ) ?? current
     );
+  };
+
+  const updateRecipePortions = (value: string) => {
+    setRecipePortions(value);
+    const portions = Number.parseFloat(value);
+    setRecipeGrams(
+      selectedServingWeight && Number.isFinite(portions) && portions > 0
+        ? inputNumber(selectedServingWeight * portions)
+        : ""
+    );
+  };
+
+  const updateRecipeGrams = (value: string) => {
+    setRecipeGrams(value);
+    const grams = Number.parseFloat(value);
+    setRecipePortions(
+      selectedServingWeight && Number.isFinite(grams) && grams > 0
+        ? inputNumber(grams / selectedServingWeight)
+        : ""
+    );
+  };
+
+  const updateRecipeLogMode = (mode: RecipeLogMode) => {
+    if (mode === "grams" && selectedWeightForServings) {
+      setRecipeGrams(inputNumber(selectedWeightForServings));
+    }
+    if (mode === "servings" && selectedServingsForWeight) {
+      setRecipePortions(inputNumber(selectedServingsForWeight));
+    }
+    setRecipeLogMode(mode);
   };
 
   const reportCopy = (result: NutritionCopyResult, label: string) => {
@@ -612,13 +675,26 @@ export function MealActionsSheet({
     : null;
   const builderTotals = sumNutrients(builtMealItems);
   const parsedBuilderYield = Number.parseFloat(builderYieldGrams);
-  const builderPer100 =
+  const parsedBuilderServings = Number.parseFloat(builderServings);
+  const estimatedBuilderWeight =
+    builtMealItems.length === builderItems.length
+      ? estimateRecipeWeightGrams(builtMealItems)
+      : null;
+  const builderWeight =
     Number.isFinite(parsedBuilderYield) && parsedBuilderYield > 0
-      ? nutrientsForQuantity(builderTotals, 100, parsedBuilderYield)
+      ? parsedBuilderYield
+      : estimatedBuilderWeight;
+  const builderServingWeight =
+    builderWeight && Number.isFinite(parsedBuilderServings) && parsedBuilderServings > 0
+      ? builderWeight / parsedBuilderServings
+      : null;
+  const builderPer100 =
+    builderWeight
+      ? nutrientsForQuantity(builderTotals, 100, builderWeight)
       : null;
   const selectedPer100 =
-    selectedTotals && selectedSavedMeal?.yieldGrams
-      ? nutrientsForQuantity(selectedTotals, 100, selectedSavedMeal.yieldGrams)
+    selectedTotals && selectedRecipeWeight
+      ? nutrientsForQuantity(selectedTotals, 100, selectedRecipeWeight)
       : null;
 
   return (
@@ -658,30 +734,40 @@ export function MealActionsSheet({
                 </div>
                 {selectedSavedMeal.kind === "recipe" && selectedSavedMeal.servings ? (
                   <div className="space-y-3">
-                    {selectedSavedMeal.yieldGrams && (
+                    {selectedRecipeWeight && (
                       <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
-                        <Button type="button" size="sm" variant={recipeLogMode === "servings" ? "default" : "ghost"} onClick={() => setRecipeLogMode("servings")}>
+                        <Button type="button" size="sm" variant={recipeLogMode === "servings" ? "default" : "ghost"} onClick={() => updateRecipeLogMode("servings")}>
                           By servings
                         </Button>
-                        <Button type="button" size="sm" variant={recipeLogMode === "grams" ? "default" : "ghost"} onClick={() => setRecipeLogMode("grams")}>
-                          By cooked weight
+                        <Button type="button" size="sm" variant={recipeLogMode === "grams" ? "default" : "ghost"} onClick={() => updateRecipeLogMode("grams")}>
+                          By weight
                         </Button>
                       </div>
                     )}
-                    {recipeLogMode === "grams" && selectedSavedMeal.yieldGrams ? (
+                    {recipeLogMode === "grams" && selectedRecipeWeight ? (
                       <div className="space-y-1.5">
-                        <Label htmlFor="recipe-grams">Cooked amount eaten (g)</Label>
-                        <NumberInput id="recipe-grams" decimal value={recipeGrams} onChange={(event) => setRecipeGrams(event.target.value)} placeholder="e.g. 420" />
-                        <p className="text-xs text-muted-foreground">
-                          Calculated from the full cooked yield of {number(selectedSavedMeal.yieldGrams)} g.
+                        <Label htmlFor="recipe-grams">Amount eaten (g)</Label>
+                        <NumberInput id="recipe-grams" decimal value={recipeGrams} onChange={(event) => updateRecipeGrams(event.target.value)} placeholder="e.g. 420" />
+                        <p className="text-xs text-muted-foreground" aria-live="polite">
+                          {selectedServingsForWeight
+                            ? `${number(parsedRecipeGrams)} g ${selectedWeightIsEstimated ? "≈" : "="} ${servingNumber(selectedServingsForWeight)} servings. `
+                            : `1 serving ${selectedWeightIsEstimated ? "≈" : "="} ${number(selectedServingWeight ?? 0)} g. `}
+                          {selectedWeightIsEstimated
+                            ? "Estimated from the ingredient amounts (1 ml ≈ 1 g); cooking can change the final weight."
+                            : `Calculated from your ${number(selectedRecipeWeight)} g final cooked weight.`}
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-1.5">
                         <Label htmlFor="recipe-portions">Servings eaten</Label>
-                        <NumberInput id="recipe-portions" decimal value={recipePortions} onChange={(event) => setRecipePortions(event.target.value)} />
-                        <p className="text-xs text-muted-foreground">
-                          The full recipe is divided into {number(selectedSavedMeal.servings)} servings. You can enter a decimal such as 1.5.
+                        <NumberInput id="recipe-portions" decimal value={recipePortions} onChange={(event) => updateRecipePortions(event.target.value)} />
+                        <p className="text-xs text-muted-foreground" aria-live="polite">
+                          {selectedServingWeight && selectedWeightForServings
+                            ? `${servingNumber(parsedRecipePortions)} serving${parsedRecipePortions === 1 ? "" : "s"} ${selectedWeightIsEstimated ? "≈" : "="} ${number(selectedWeightForServings)} g. `
+                            : ""}
+                          {selectedServingWeight
+                            ? `1 serving ${selectedWeightIsEstimated ? "≈" : "="} ${number(selectedServingWeight)} g${selectedWeightIsEstimated ? " from the ingredient amounts; cooking can change the final weight." : " from your final cooked weight."}`
+                            : `The full recipe is divided into ${number(selectedSavedMeal.servings)} servings. You can enter a decimal such as 1.5.`}
                         </p>
                       </div>
                     )}
@@ -717,7 +803,9 @@ export function MealActionsSheet({
                 </div>
                 {selectedPer100 && (
                   <div className="rounded-xl border bg-muted/30 p-3 text-sm">
-                    <p className="font-medium">Cooked recipe per 100 g</p>
+                    <p className="font-medium">
+                      {selectedWeightIsEstimated ? "Estimated recipe" : "Cooked recipe"} per 100 g
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {number(selectedPer100.caloriesKcal)} kcal · P {number(selectedPer100.proteinG)}g · C {number(selectedPer100.carbsG)}g · F {number(selectedPer100.fatG)}g
                     </p>
@@ -817,7 +905,7 @@ export function MealActionsSheet({
                 )}
                 <Button type="button" size="lg" onClick={useSavedMeal} disabled={effectiveMultiplier <= 0 || !adjustedSelectedItems}>
                   {selectedSavedMeal.kind === "recipe"
-                    ? recipeLogMode === "grams" && selectedSavedMeal.yieldGrams
+                    ? recipeLogMode === "grams" && selectedRecipeWeight
                       ? `Add ${recipeGrams || ""} g to ${MEAL_LABELS[destinationMeal]}`
                       : `Add ${recipePortions || ""} serving${parsedRecipePortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`
                     : `Add ${mealPortions || ""} portion${parsedMealPortions === 1 ? "" : "s"} to ${MEAL_LABELS[destinationMeal]}`}
@@ -971,6 +1059,13 @@ export function MealActionsSheet({
                       <Label htmlFor="builder-servings">Servings in full batch</Label>
                       <NumberInput id="builder-servings" decimal value={builderServings} onChange={(event) => setBuilderServings(event.target.value)} />
                       <p className="text-xs text-muted-foreground">For a recipe shared by two people, enter 2. You can log 1.5 servings later if you ate more.</p>
+                      {builderServingWeight && (
+                        <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-foreground" aria-live="polite">
+                          1 serving {Number.isFinite(parsedBuilderYield) && parsedBuilderYield > 0 ? "=" : "≈"} {number(builderServingWeight)} g. {Number.isFinite(parsedBuilderYield) && parsedBuilderYield > 0
+                            ? "Based on the final cooked weight below."
+                            : "Estimated from ingredient amounts (1 ml ≈ 1 g); cooking can change the final weight."}
+                        </p>
+                      )}
                     </div>
                     <div className="col-span-2 space-y-1.5">
                       <Label htmlFor="builder-yield">Final cooked weight (g, optional)</Label>
@@ -978,7 +1073,7 @@ export function MealActionsSheet({
                       <p className="text-xs text-muted-foreground">Weigh the finished batch after cooking to also log this recipe by grams eaten.</p>
                       {builderPer100 && builderItems.length > 0 && (
                         <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-foreground">
-                          Per 100 g: {number(builderPer100.caloriesKcal)} kcal · P {number(builderPer100.proteinG)}g · C {number(builderPer100.carbsG)}g · F {number(builderPer100.fatG)}g
+                          {Number.isFinite(parsedBuilderYield) && parsedBuilderYield > 0 ? "Per" : "Estimated per"} 100 g: {number(builderPer100.caloriesKcal)} kcal · P {number(builderPer100.proteinG)}g · C {number(builderPer100.carbsG)}g · F {number(builderPer100.fatG)}g
                         </p>
                       )}
                     </div>
