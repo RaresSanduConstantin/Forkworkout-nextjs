@@ -91,6 +91,14 @@ export default function PrivacyPage() {
             not sent with this request.
           </p>
           <p className="mt-2">
+            If food search does not provide the right result, you can explicitly
+            request an AI nutrition estimate. ForkWorkout sends the food name,
+            optional descriptive details, and the amount and unit you entered to
+            OpenAI. It does not send your diary, selected meal, body profile, or
+            identity with that request. The returned calories and macros open in
+            the editable custom-food form and are not saved automatically.
+          </p>
+          <p className="mt-2">
             The photo and AI estimate are never added to your local diary
             automatically. You review and edit the estimated foods, weights,
             calories, macros and available detailed nutrients first; only the confirmed nutrition values are
@@ -127,9 +135,10 @@ export default function PrivacyPage() {
           <h2 className="text-lg font-semibold text-foreground">Online food lookup</h2>
           <p className="mt-2">
             When you choose to scan or enter a barcode, that barcode is sent to
-            Open Food Facts. When you explicitly tap Search online after entering
-            a food name, the search phrase is sent through ForkWorkout&apos;s server
-            to both USDA FoodData Central and Open Food Facts. The private USDA API
+            Open Food Facts. After you pause typing a food name that has no local
+            food or saved-recipe match, the search phrase is automatically sent
+            through ForkWorkout&apos;s server to both USDA FoodData Central and Open
+            Food Facts. You can also start that search explicitly. The private USDA API
             key stays on the server. ForkWorkout does not send your nutrition
             diary, quantity, meal, body
             data or identity with that request. Product information is shown for

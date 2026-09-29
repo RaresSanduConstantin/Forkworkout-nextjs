@@ -13,6 +13,12 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added progressive nutrition search that keeps local foods and saved recipes
+  first, automatically suggests USDA and Open Food Facts matches after a local
+  miss, and offers an explicit AI estimate that must be reviewed and edited as
+  a custom food before it can be saved.
+- Added saved recipes and reusable meals to Add Food search results, with
+  accent-insensitive local matching and direct access to portion selection.
 - Added live recipe serving-weight estimates from recorded ingredient amounts,
   with synchronized fractional-serving and weighed-gram logging. An entered
   final cooked weight remains the more accurate basis when available.
@@ -113,6 +119,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Stopped forcing Turbopack for local development because the PWA Webpack
+  wrapper can trigger a repeated macOS Watchpack `EMFILE` watcher failure;
+  Webpack is now the stable default and Turbopack remains available explicitly.
 - Routed mobile barcode product lookups through ForkWorkout's same-origin API,
   preventing browser, installed-PWA, and carrier-network request failures from
   making products already present in Open Food Facts appear unavailable. The

@@ -11,6 +11,7 @@ import {
   Plus,
   ScanSearch,
   Search,
+  Sparkles,
   Star,
   Trash2,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -40,6 +42,11 @@ import {
 } from "@/components/ui/sheet";
 import { nutrientsForQuantity, sumNutrients } from "@/lib/nutrition/calculations";
 import {
+  AI_FOOD_ESTIMATE_DETAILS_MAX_LENGTH,
+  AI_FOOD_ESTIMATE_QUERY_MAX_LENGTH,
+  estimateFoodWithAI,
+} from "@/lib/nutrition/ai-food-estimate";
+import {
   barcodeDraftToFood,
   fetchOpenFoodFactsProduct,
   type BarcodeProductDraft,
@@ -50,6 +57,7 @@ import {
 } from "@/lib/nutrition/usda";
 import {
   filterAndRankNutritionFoods,
+  filterAndRankNutritionSavedMeals,
   loadNutritionFoods,
   refreshNutritionFoods,
 } from "@/lib/nutrition/foods";
@@ -79,6 +87,7 @@ import {
   getNutritionSavedMeals,
   setNutritionSavedMealFavourite,
 } from "@/lib/storage/nutrition-meal-storage";
+import { getAnonymousInstallationId } from "@/lib/storage/anonymous-installation";
 
 const MEAL_LABELS: Record<NutritionMeal, string> = {
   breakfast: "Breakfast",
@@ -90,7 +99,14 @@ const MEAL_LABELS: Record<NutritionMeal, string> = {
 const number = (value: number) =>
   new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(value);
 
-type View = "browse" | "barcode" | "online" | "barcode_edit" | "quantity" | "custom";
+type View =
+  | "browse"
+  | "barcode"
+  | "online"
+  | "ai_estimate"
+  | "barcode_edit"
+  | "quantity"
+  | "custom";
 
 const EMPTY_CUSTOM_FORM = {
   name: "",
@@ -102,6 +118,13 @@ const EMPTY_CUSTOM_FORM = {
   protein: "",
   carbs: "",
   fat: "",
+};
+
+const EMPTY_AI_ESTIMATE_FORM = {
+  query: "",
+  details: "",
+  basisAmount: "100",
+  basisUnit: "g" as "g" | "ml",
 };
 
 type BarcodeForm = {
@@ -190,6 +213,10 @@ export function FoodPickerSheet({
   const [onlineSources, setOnlineSources] =
     React.useState<OnlineFoodSearchSources | null>(null);
   const onlineSearchControllerRef = React.useRef<AbortController | null>(null);
+  const [aiEstimateForm, setAiEstimateForm] = React.useState(EMPTY_AI_ESTIMATE_FORM);
+  const [aiEstimateLoading, setAiEstimateLoading] = React.useState(false);
+  const [aiEstimateError, setAiEstimateError] = React.useState<string | null>(null);
+  const aiEstimateControllerRef = React.useRef<AbortController | null>(null);
 
   const reloadFoods = React.useCallback(async (initial = false) => {
     if (initial) setLoading(true);
@@ -216,9 +243,13 @@ export function FoodPickerSheet({
     setOnlineSearchLoading(false);
     setOnlineSearchError(null);
     setOnlineSources(null);
+    setAiEstimateForm(EMPTY_AI_ESTIMATE_FORM);
+    setAiEstimateLoading(false);
+    setAiEstimateError(null);
     setSavedMeals(getNutritionSavedMeals());
     barcodeLookupControllerRef.current?.abort();
     onlineSearchControllerRef.current?.abort();
+    aiEstimateControllerRef.current?.abort();
     void reloadFoods(true).then((loadedFoods) => {
       if (
         !entry?.foodSnapshot ||
@@ -254,6 +285,7 @@ export function FoodPickerSheet({
     () => () => {
       barcodeLookupControllerRef.current?.abort();
       onlineSearchControllerRef.current?.abort();
+      aiEstimateControllerRef.current?.abort();
     },
     []
   );
@@ -262,6 +294,7 @@ export function FoodPickerSheet({
     if (!open) {
       barcodeLookupControllerRef.current?.abort();
       onlineSearchControllerRef.current?.abort();
+      aiEstimateControllerRef.current?.abort();
     }
   }, [open]);
 
@@ -284,6 +317,20 @@ export function FoodPickerSheet({
           })
           .slice(0, 16)
       : rankedFoods.slice(0, 12);
+  const visibleSavedMeals =
+    mode === "log" ? filterAndRankNutritionSavedMeals(savedMeals, query).slice(0, 12) : [];
+  const currentOnlineResults =
+    onlineSearchQuery === query.trim() ? onlineResults : [];
+  const localResultCount = visibleFoods.length + visibleSavedMeals.length;
+  const visibleResultCount = localResultCount + currentOnlineResults.length;
+  const onlineSearchCompletedForQuery =
+    onlineSearchQuery === query.trim() &&
+    !onlineSearchLoading &&
+    (onlineSources !== null || onlineSearchError !== null);
+  const automaticSearchPending =
+    query.trim().length >= 3 &&
+    localResultCount === 0 &&
+    !onlineSearchCompletedForQuery;
 
   const selectFood = (food: NutritionFood) => {
     setSelectedFood(food);
@@ -340,8 +387,8 @@ export function FoodPickerSheet({
     }
   };
 
-  const searchOnline = async () => {
-    const term = query.trim();
+  const searchOnline = React.useCallback(async (rawTerm: string, showFullView = true) => {
+    const term = rawTerm.trim();
     if (term.length < 2) {
       toast.error("Enter at least two characters to search online.");
       return;
@@ -355,12 +402,14 @@ export function FoodPickerSheet({
     setOnlineSearchError(null);
     setOnlineSources(null);
     setOnlineSearchLoading(true);
-    setView("online");
+    if (showFullView) setView("online");
     try {
       const result = await searchOnlineFoods(term, controller.signal);
+      if (onlineSearchControllerRef.current !== controller) return;
       setOnlineResults(result.foods);
       setOnlineSources(result.sources);
     } catch (reason) {
+      if (onlineSearchControllerRef.current !== controller) return;
       setOnlineSearchError(
         controller.signal.aborted
           ? "The online search took too long. Check your connection and try again."
@@ -375,7 +424,41 @@ export function FoodPickerSheet({
         setOnlineSearchLoading(false);
       }
     }
-  };
+  }, []);
+
+  React.useEffect(() => {
+    const term = query.trim();
+    const shouldAutocomplete =
+      open &&
+      view === "browse" &&
+      !loading &&
+      term.length >= 3 &&
+      localResultCount === 0;
+    if (!shouldAutocomplete) {
+      if (view === "browse") onlineSearchControllerRef.current?.abort();
+      return;
+    }
+    // Do not repeat a request for the same text once it is running or complete.
+    if (
+      onlineSearchQuery === term &&
+      (onlineSearchLoading || onlineSearchError !== null || onlineSources !== null)
+    ) return;
+    const debounce = window.setTimeout(() => {
+      void searchOnline(term, false);
+    }, 450);
+    return () => window.clearTimeout(debounce);
+  }, [
+    loading,
+    localResultCount,
+    onlineSearchError,
+    onlineSearchLoading,
+    onlineSearchQuery,
+    onlineSources,
+    open,
+    query,
+    searchOnline,
+    view,
+  ]);
 
   const chooseOnlineFood = async (food: NutritionFood) => {
     const saved =
@@ -569,6 +652,87 @@ export function FoodPickerSheet({
     toast.success(entry ? "Food entry updated" : `Added to ${MEAL_LABELS[meal].toLowerCase()}`);
   };
 
+  const beginAIEstimate = () => {
+    onlineSearchControllerRef.current?.abort();
+    setAiEstimateForm({
+      ...EMPTY_AI_ESTIMATE_FORM,
+      query: query.trim(),
+    });
+    setAiEstimateError(null);
+    setView("ai_estimate");
+  };
+
+  const generateAIEstimate = async () => {
+    const foodQuery = aiEstimateForm.query.trim();
+    const details = aiEstimateForm.details.trim();
+    const basisAmount = Number.parseFloat(aiEstimateForm.basisAmount);
+    if (foodQuery.length < 2 || foodQuery.length > AI_FOOD_ESTIMATE_QUERY_MAX_LENGTH) {
+      setAiEstimateError(
+        `Enter a food name between 2 and ${AI_FOOD_ESTIMATE_QUERY_MAX_LENGTH} characters.`
+      );
+      return;
+    }
+    if (details.length > AI_FOOD_ESTIMATE_DETAILS_MAX_LENGTH) {
+      setAiEstimateError(
+        `Keep details under ${AI_FOOD_ESTIMATE_DETAILS_MAX_LENGTH} characters.`
+      );
+      return;
+    }
+    if (!Number.isFinite(basisAmount) || basisAmount <= 0 || basisAmount > 10_000) {
+      setAiEstimateError("Enter an amount between 0 and 10,000.");
+      return;
+    }
+
+    aiEstimateControllerRef.current?.abort();
+    const controller = new AbortController();
+    aiEstimateControllerRef.current = controller;
+    setAiEstimateLoading(true);
+    setAiEstimateError(null);
+    try {
+      const anonymousDeviceId = await getAnonymousInstallationId();
+      const estimate = await estimateFoodWithAI(
+        {
+          query: foodQuery,
+          details: details || undefined,
+          basisAmount,
+          basisUnit: aiEstimateForm.basisUnit,
+          anonymousDeviceId,
+        },
+        controller.signal
+      );
+      setEditingCustom(null);
+      setCustomForm({
+        name: estimate.name,
+        aliases:
+          estimate.name.localeCompare(foodQuery, undefined, { sensitivity: "base" }) === 0
+            ? ""
+            : foodQuery,
+        variant: `AI estimate · ${estimate.confidence} confidence`,
+        basisAmount: String(estimate.basisAmount),
+        basisUnit: estimate.basisUnit,
+        calories: String(estimate.nutrients.caloriesKcal),
+        protein: String(estimate.nutrients.proteinG),
+        carbs: String(estimate.nutrients.carbsG),
+        fat: String(estimate.nutrients.fatG),
+      });
+      setView("custom");
+      toast.info("AI estimate ready. Review every value before saving.");
+    } catch (reason) {
+      if (!controller.signal.aborted) {
+        setAiEstimateError(
+          reason instanceof Error
+            ? reason.message
+            : "The food estimate could not be generated right now."
+        );
+      }
+    } finally {
+      if (aiEstimateControllerRef.current === controller) {
+        aiEstimateControllerRef.current = null;
+        setAiEstimateLoading(false);
+      }
+    }
+  };
+
   const openCustomForm = (food?: NutritionFood) => {
     setEditingCustom(food ?? null);
     setCustomForm(
@@ -666,12 +830,12 @@ export function FoodPickerSheet({
                 <SheetTitle>{mode === "ingredient" ? "Add ingredient" : "Add Food"}</SheetTitle>
                 <SheetDescription>
                   {mode === "ingredient"
-                    ? "Search locally or online, scan a barcode, or use a photo."
-                    : "Search the offline catalog or use a recent favourite."}
+                    ? "Search your foods first; online suggestions appear when needed."
+                    : "Search saved recipes and foods; online suggestions appear when needed."}
                 </SheetDescription>
               </SheetHeader>
               <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">
-                {mode === "log" && savedMeals.length > 0 && (
+                {mode === "log" && savedMeals.length > 0 && !query.trim() && (
                   <section className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Saved meals
@@ -731,7 +895,7 @@ export function FoodPickerSheet({
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     className="pl-9"
-                    placeholder="Chicken, rice, ouă, cartofi…"
+                    placeholder="Foods or saved recipes…"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -762,64 +926,194 @@ export function FoodPickerSheet({
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {query.trim() ? "Search results" : hasPersonalFoods ? "Recent & favourites" : "Popular foods"}
                   </p>
-                  {!loading && <span className="text-xs text-muted-foreground">{visibleFoods.length} shown</span>}
+                  {!loading && <span className="text-xs text-muted-foreground">{visibleResultCount} shown</span>}
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border">
                   {loading ? (
                     <div className="flex h-32 items-center justify-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="size-4 animate-spin" /> Loading foods…
                     </div>
-                  ) : visibleFoods.length === 0 ? (
+                  ) : visibleResultCount === 0 ? (
                     <div className="p-8 text-center text-sm text-muted-foreground">
-                      No foods found. Try another name or create a custom food.
+                      {automaticSearchPending || onlineSearchLoading ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="size-4 animate-spin" /> Checking online sources…
+                        </span>
+                      ) : onlineSearchError ? (
+                        onlineSearchError
+                      ) : (
+                        "No matching foods or saved recipes were found."
+                      )}
                     </div>
                   ) : (
-                    <ul className="divide-y">
-                      {visibleFoods.map((food) => {
-                        const key = nutritionFoodKey(food);
-                        const preference = preferences.find((item) => item.foodKey === key);
-                        return (
-                          <li key={key} className="flex items-center gap-1 p-2">
-                            <button
-                              type="button"
-                              className="min-w-0 flex-1 rounded-lg px-2 py-2 text-left transition hover:bg-muted"
-                              onClick={() => selectFood(food)}
-                            >
-                              <span className="block truncate text-sm font-medium">{food.name}</span>
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {food.brand ? `${food.brand} · ` : ""}{food.variant ? `${food.variant} · ` : ""}{number(food.nutrients.caloriesKcal)} kcal / {food.basisAmount}{food.basisUnit}
-                              </span>
-                            </button>
-                            {food.source === "custom" && (
-                              <>
-                                <Button type="button" variant="ghost" size="icon-sm" onClick={() => openCustomForm(food)} aria-label={`Edit ${food.name}`}>
-                                  <Pencil className="size-4" />
-                                </Button>
-                                <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingDelete(food)} aria-label={`Delete ${food.name}`}>
-                                  <Trash2 className="size-4" />
-                                </Button>
-                              </>
-                            )}
-                            {food.source === "barcode" && (
-                              <Button type="button" variant="ghost" size="icon-sm" onClick={() => editBarcodeProduct(food, null)} aria-label={`Edit ${food.name}`}>
-                                <Pencil className="size-4" />
-                              </Button>
-                            )}
-                            <Button type="button" variant="ghost" size="icon-sm" onClick={() => toggleFavourite(food)} aria-label={preference?.favourite ? `Remove ${food.name} from favourites` : `Add ${food.name} to favourites`}>
-                              <Star className={`size-4 ${preference?.favourite ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`} />
-                            </Button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    <div>
+                      {visibleSavedMeals.length > 0 && (
+                        <section>
+                          <p className="border-b bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Saved recipes & meals
+                          </p>
+                          <ul className="divide-y">
+                            {visibleSavedMeals.map((savedMeal) => {
+                              const totals = sumNutrients(savedMeal.items);
+                              const recipeServings =
+                                savedMeal.kind === "recipe" ? savedMeal.servings : undefined;
+                              return (
+                                <li key={`saved:${savedMeal.id}`} className="flex items-center gap-1 p-2">
+                                  <button
+                                    type="button"
+                                    className="min-w-0 flex-1 rounded-lg px-2 py-2 text-left transition hover:bg-muted"
+                                    onClick={() => onSavedMeal(savedMeal, meal)}
+                                  >
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <ChefHat className="size-4 shrink-0 text-primary" />
+                                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                        {savedMeal.name}
+                                      </span>
+                                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                                        {recipeServings ? "Recipe" : "Saved meal"}
+                                      </Badge>
+                                    </span>
+                                    <span className="mt-1 block truncate pl-6 text-xs text-muted-foreground">
+                                      {recipeServings
+                                        ? `${number(recipeServings)} servings · ${number(totals.caloriesKcal / recipeServings)} kcal each`
+                                        : `${savedMeal.items.length} foods · ${number(totals.caloriesKcal)} kcal`}
+                                    </span>
+                                  </button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    onClick={() => toggleSavedMealFavourite(savedMeal)}
+                                    aria-label={savedMeal.favourite ? `Remove ${savedMeal.name} from favourites` : `Add ${savedMeal.name} to favourites`}
+                                    aria-pressed={Boolean(savedMeal.favourite)}
+                                  >
+                                    <Star className={`size-4 ${savedMeal.favourite ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`} />
+                                  </Button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </section>
+                      )}
+                      {visibleFoods.length > 0 && (
+                        <section>
+                          {visibleSavedMeals.length > 0 && (
+                            <p className="border-y bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Foods
+                            </p>
+                          )}
+                          <ul className="divide-y">
+                            {visibleFoods.map((food) => {
+                              const key = nutritionFoodKey(food);
+                              const preference = preferences.find((item) => item.foodKey === key);
+                              return (
+                                <li key={key} className="flex items-center gap-1 p-2">
+                                  <button
+                                    type="button"
+                                    className="min-w-0 flex-1 rounded-lg px-2 py-2 text-left transition hover:bg-muted"
+                                    onClick={() => selectFood(food)}
+                                  >
+                                    <span className="block truncate text-sm font-medium">{food.name}</span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                      {food.brand ? `${food.brand} · ` : ""}{food.variant ? `${food.variant} · ` : ""}{number(food.nutrients.caloriesKcal)} kcal / {food.basisAmount}{food.basisUnit}
+                                    </span>
+                                  </button>
+                                  {food.source === "custom" && (
+                                    <>
+                                      <Button type="button" variant="ghost" size="icon-sm" onClick={() => openCustomForm(food)} aria-label={`Edit ${food.name}`}>
+                                        <Pencil className="size-4" />
+                                      </Button>
+                                      <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => setPendingDelete(food)} aria-label={`Delete ${food.name}`}>
+                                        <Trash2 className="size-4" />
+                                      </Button>
+                                    </>
+                                  )}
+                                  {food.source === "barcode" && (
+                                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => editBarcodeProduct(food, null)} aria-label={`Edit ${food.name}`}>
+                                      <Pencil className="size-4" />
+                                    </Button>
+                                  )}
+                                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => toggleFavourite(food)} aria-label={preference?.favourite ? `Remove ${food.name} from favourites` : `Add ${food.name} to favourites`}>
+                                    <Star className={`size-4 ${preference?.favourite ? "fill-amber-400 text-amber-500" : "text-muted-foreground"}`} />
+                                  </Button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </section>
+                      )}
+                      {currentOnlineResults.length > 0 && (
+                        <section>
+                          <p className="border-y bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Online suggestions
+                          </p>
+                          <ul className="divide-y">
+                            {currentOnlineResults.slice(0, 12).map((food) => (
+                              <li key={`online:${food.source}:${food.id}`}>
+                                <button
+                                  type="button"
+                                  className="w-full px-4 py-3 text-left transition hover:bg-muted/50"
+                                  onClick={() => void chooseOnlineFood(food)}
+                                >
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                      {food.name}
+                                    </span>
+                                    <Badge variant="secondary" className="shrink-0 text-[10px]">
+                                      {food.source === "usda" ? "USDA" : "Open Food Facts"}
+                                    </Badge>
+                                  </span>
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {food.brand ? `${food.brand} · ` : ""}
+                                    {number(food.nutrients.caloriesKcal)} kcal · P {number(food.nutrients.proteinG)} g · C {number(food.nutrients.carbsG)} g · F {number(food.nutrients.fatG)} g / 100 g
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+                    </div>
                   )}
                 </div>
+                {onlineSearchCompletedForQuery && query.trim().length >= 2 && (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/20 p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {currentOnlineResults.length > 0
+                          ? "Still not the right food?"
+                          : "Nothing useful online?"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Ask AI for an editable estimate, then save it locally.
+                      </p>
+                    </div>
+                    <Button type="button" size="sm" variant="secondary" onClick={beginAIEstimate}>
+                      <Sparkles className="size-4" /> Estimate
+                    </Button>
+                  </div>
+                )}
                 {query.trim().length >= 2 && !loading && (
-                  <Button type="button" variant="outline" className="w-full" onClick={() => void searchOnline()}>
-                    <Globe2 className="size-4" /> Search online for “{query.trim().slice(0, 28)}{query.trim().length > 28 ? "…" : ""}”
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={onlineSearchLoading}
+                    onClick={() => {
+                      if (onlineSearchQuery === query.trim() && onlineSources !== null) {
+                        setView("online");
+                      } else {
+                        void searchOnline(query, true);
+                      }
+                    }}
+                  >
+                    {onlineSearchLoading ? <Loader2 className="size-4 animate-spin" /> : <Globe2 className="size-4" />}
+                    {currentOnlineResults.length > 0
+                      ? "View all online results"
+                      : `Search online for “${query.trim().slice(0, 28)}${query.trim().length > 28 ? "…" : ""}”`}
                   </Button>
                 )}
-                <p className="text-center text-[11px] text-muted-foreground">Online search checks USDA FoodData Central and Open Food Facts. Saved results work offline.</p>
+                <p className="text-center text-[11px] text-muted-foreground">After local misses, the search text is sent to USDA and Open Food Facts. Selected results work offline.</p>
               </div>
             </>
           )}
@@ -862,7 +1156,7 @@ export function FoodPickerSheet({
                 {onlineSearchLoading ? (
                   <div className="flex h-36 items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Searching USDA and Open Food Facts…</div>
                 ) : onlineSearchError ? (
-                  <div className="space-y-3 rounded-xl border border-dashed p-6 text-center"><p className="text-sm text-muted-foreground">{onlineSearchError}</p><Button type="button" variant="outline" onClick={() => void searchOnline()}>Try again</Button></div>
+                  <div className="space-y-3 rounded-xl border border-dashed p-6 text-center"><p className="text-sm text-muted-foreground">{onlineSearchError}</p><Button type="button" variant="outline" onClick={() => void searchOnline(onlineSearchQuery, true)}>Try again</Button></div>
                 ) : onlineResults.length === 0 ? (
                   <div className="space-y-3 rounded-xl border border-dashed p-6 text-center"><p className="text-sm text-muted-foreground">No foods found from either source. You can add this as a custom food instead.</p><Button type="button" variant="outline" onClick={() => openCustomForm()}>Create custom food</Button></div>
                 ) : (
@@ -883,6 +1177,17 @@ export function FoodPickerSheet({
                     ))}
                   </ul>
                 )}
+                {!onlineSearchLoading && (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/20 p-3">
+                    <div>
+                      <p className="text-sm font-medium">Can&apos;t find the correct food?</p>
+                      <p className="text-xs text-muted-foreground">Generate an editable AI estimate.</p>
+                    </div>
+                    <Button type="button" size="sm" variant="secondary" onClick={beginAIEstimate}>
+                      <Sparkles className="size-4" /> Estimate
+                    </Button>
+                  </div>
+                )}
                 <p className="mt-3 text-center text-[11px] text-muted-foreground">
                   {onlineSources?.usda === "not_configured"
                     ? "USDA is not configured, so these results are from Open Food Facts. Selecting one saves it for offline use."
@@ -893,6 +1198,105 @@ export function FoodPickerSheet({
                       : "Selecting a result saves it on this device for later offline use."}
                 </p>
               </div>
+            </>
+          )}
+
+          {view === "ai_estimate" && (
+            <>
+              <SheetHeader className="text-left">
+                <button
+                  type="button"
+                  className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground"
+                  onClick={() => setView("browse")}
+                >
+                  <ArrowLeft className="size-4" /> Back to search
+                </button>
+                <SheetTitle>Estimate with AI</SheetTitle>
+                <SheetDescription>
+                  Describe the food and amount. You&apos;ll review every value before it is saved.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-muted-foreground">
+                  AI nutrition is approximate and can be wrong. This uses one request from the shared daily AI nutrition allowance.
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ai-estimate-food">Food name</Label>
+                  <Input
+                    id="ai-estimate-food"
+                    value={aiEstimateForm.query}
+                    maxLength={AI_FOOD_ESTIMATE_QUERY_MAX_LENGTH}
+                    onChange={(event) =>
+                      setAiEstimateForm((form) => ({ ...form, query: event.target.value }))
+                    }
+                    placeholder="e.g. homemade pea soup"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ai-estimate-details">Helpful details (optional)</Label>
+                  <Textarea
+                    id="ai-estimate-details"
+                    value={aiEstimateForm.details}
+                    maxLength={AI_FOOD_ESTIMATE_DETAILS_MAX_LENGTH}
+                    onChange={(event) =>
+                      setAiEstimateForm((form) => ({ ...form, details: event.target.value }))
+                    }
+                    placeholder="Ingredients, cooking method, brand, or anything unusual"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {aiEstimateForm.details.length}/{AI_FOOD_ESTIMATE_DETAILS_MAX_LENGTH}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ai-estimate-basis">Estimate nutrition for</Label>
+                  <div className="grid grid-cols-[1fr_7rem] gap-2">
+                    <NumberInput
+                      id="ai-estimate-basis"
+                      decimal
+                      value={aiEstimateForm.basisAmount}
+                      onChange={(event) =>
+                        setAiEstimateForm((form) => ({
+                          ...form,
+                          basisAmount: event.target.value,
+                        }))
+                      }
+                    />
+                    <Select
+                      value={aiEstimateForm.basisUnit}
+                      onValueChange={(value) =>
+                        setAiEstimateForm((form) => ({
+                          ...form,
+                          basisUnit: value as "g" | "ml",
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full" aria-label="Estimate unit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="g">grams</SelectItem>
+                        <SelectItem value="ml">ml</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {aiEstimateError && (
+                  <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    {aiEstimateError}
+                  </p>
+                )}
+              </div>
+              <SheetFooter>
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={aiEstimateLoading}
+                  onClick={() => void generateAIEstimate()}
+                >
+                  {aiEstimateLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                  {aiEstimateLoading ? "Estimating…" : "Generate estimate"}
+                </Button>
+              </SheetFooter>
             </>
           )}
 
@@ -1045,6 +1449,11 @@ export function FoodPickerSheet({
                 <SheetDescription>Enter nutrition for the serving size you have available.</SheetDescription>
               </SheetHeader>
               <div className="grid grid-cols-2 gap-3 overflow-y-auto px-4">
+                {customForm.variant.startsWith("AI estimate") && (
+                  <div className="col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-muted-foreground">
+                    This is an AI estimate. Check and edit the name, amount, calories, and macros before saving it as a custom food.
+                  </div>
+                )}
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-name">Name</Label><Input id="custom-food-name" value={customForm.name} onChange={(event) => setCustomForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Homemade granola" /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-variant">Variant (optional)</Label><Input id="custom-food-variant" value={customForm.variant} onChange={(event) => setCustomForm((form) => ({ ...form, variant: event.target.value }))} placeholder="e.g. Baked" /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-aliases">Search aliases (optional)</Label><Input id="custom-food-aliases" value={customForm.aliases} onChange={(event) => setCustomForm((form) => ({ ...form, aliases: event.target.value }))} placeholder="Romanian name, another name" /><p className="text-xs text-muted-foreground">Separate aliases with commas.</p></div>

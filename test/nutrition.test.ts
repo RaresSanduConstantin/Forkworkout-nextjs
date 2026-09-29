@@ -28,6 +28,7 @@ import { STORAGE_KEYS } from "@/lib/storage/keys";
 import foodCatalog from "@/public/json/foods.json";
 import {
   filterAndRankNutritionFoods,
+  filterAndRankNutritionSavedMeals,
   normalizeFoodSearchText,
 } from "@/lib/nutrition/foods";
 import {
@@ -694,6 +695,40 @@ describe("nutrition food catalog", () => {
     expect(filterAndRankNutritionFoods(foods, [], "cartofi copti")[0]?.name).toBe(
       "Potato"
     );
+  });
+
+  it("finds saved recipes in food searches without requiring diacritics", () => {
+    const baseMeal = {
+      items: [
+        {
+          name: "Clătite",
+          source: "custom" as const,
+          nutrients: { caloriesKcal: 420, proteinG: 20, carbsG: 55, fatG: 14 },
+          quantity: { amount: 300, unit: "g" as const },
+        },
+      ],
+      createdAt: "2026-09-20T08:00:00.000Z",
+      updatedAt: "2026-09-20T08:00:00.000Z",
+    };
+    const matches = filterAndRankNutritionSavedMeals(
+      [
+        { ...baseMeal, id: "breakfast", name: "Sunday breakfast" },
+        {
+          ...baseMeal,
+          id: "recipe",
+          name: "Clătite proteice",
+          kind: "recipe",
+          servings: 3,
+        },
+        { ...baseMeal, id: "soup", name: "Vegetable soup", items: [] },
+      ],
+      "clatite"
+    );
+
+    expect(matches.map((meal) => meal.name)).toEqual([
+      "Clătite proteice",
+      "Sunday breakfast",
+    ]);
   });
 
   it("creates, updates, favourites, remembers, and deletes a custom food", () => {

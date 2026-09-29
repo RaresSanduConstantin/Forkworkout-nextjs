@@ -1,4 +1,8 @@
-import type { NutritionFood, NutritionFoodPreference } from "./types";
+import type {
+  NutritionFood,
+  NutritionFoodPreference,
+  NutritionSavedMeal,
+} from "./types";
 import {
   getCustomNutritionFoods,
   normalizeNutritionFood,
@@ -101,5 +105,39 @@ export function filterAndRankNutritionFoods(
       return `${left.name} ${left.variant ?? ""}`.localeCompare(
         `${right.name} ${right.variant ?? ""}`
       );
+    });
+}
+
+/** Finds reusable meals and recipes using the same accent-insensitive search as foods. */
+export function filterAndRankNutritionSavedMeals(
+  meals: NutritionSavedMeal[],
+  query: string
+): NutritionSavedMeal[] {
+  const normalizedQuery = normalizeFoodSearchText(query);
+  if (!normalizedQuery) return [];
+  const terms = normalizedQuery.split(" ").filter(Boolean);
+
+  const nameScore = (meal: NutritionSavedMeal): number => {
+    const normalizedName = normalizeFoodSearchText(meal.name);
+    if (normalizedName === normalizedQuery) return 0;
+    if (normalizedName.startsWith(normalizedQuery)) return 1;
+    if (terms.every((term) => normalizedName.includes(term))) return 2;
+    return 3;
+  };
+
+  return meals
+    .filter((meal) => {
+      const searchable = normalizeFoodSearchText(
+        [meal.name, meal.description, ...meal.items.map((item) => item.name)]
+          .filter(Boolean)
+          .join(" ")
+      );
+      return terms.every((term) => searchable.includes(term));
+    })
+    .sort((left, right) => {
+      const relevance = nameScore(left) - nameScore(right);
+      if (relevance !== 0) return relevance;
+      if (left.favourite !== right.favourite) return left.favourite ? -1 : 1;
+      return right.updatedAt.localeCompare(left.updatedAt);
     });
 }
