@@ -486,7 +486,13 @@ export function FoodPhotoAnalysisSheet({
                     ? "Unlimited scans enabled"
                     : `${usage.dailyRemaining} of ${usage.dailyLimit} left today`}
                 </p>
-                {!usage.unlimited && (
+                {usage.unlimited ? (
+                  usage.model ? (
+                    <p className="text-xs text-muted-foreground">
+                      Owner model · {usage.model}
+                    </p>
+                  ) : null
+                ) : (
                   <p className="text-xs text-muted-foreground tabular-nums">
                     {usage.dailyLimit - usage.dailyRemaining} used
                   </p>

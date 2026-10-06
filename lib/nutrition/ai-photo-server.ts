@@ -18,6 +18,7 @@ const DEFAULT_DEVICE_DAILY_LIMIT = 20;
 const DEFAULT_IP_HOURLY_LIMIT = 20;
 const DEFAULT_MAX_IMAGE_SIZE_MB = 4;
 const DEFAULT_MODEL = "gpt-4.1-mini";
+const DEFAULT_OWNER_MODEL = "gpt-5.4-mini";
 const UNLOCK_ATTEMPT_LIMIT = 5;
 const UNLOCK_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
@@ -33,6 +34,7 @@ export type AIPhotoServerConfig = {
   apiKey?: string;
   projectId?: string;
   model: string;
+  ownerModel: string;
   deviceDailyLimit: number;
   ipHourlyLimit: number;
   maxImageBytes: number;
@@ -51,6 +53,7 @@ export function getAIPhotoServerConfig(
     apiKey: env.OPENAI_API_KEY?.trim() || undefined,
     projectId: env.OPENAI_PROJECT_ID?.trim() || undefined,
     model: env.AI_FOOD_MODEL?.trim() || DEFAULT_MODEL,
+    ownerModel: env.AI_OWNER_MODEL?.trim() || DEFAULT_OWNER_MODEL,
     deviceDailyLimit: positiveInteger(
       env.AI_SCAN_DAILY_DEVICE_LIMIT,
       DEFAULT_DEVICE_DAILY_LIMIT,
@@ -72,6 +75,13 @@ export function getAIPhotoServerConfig(
         ? env.AI_SCAN_UNLIMITED_KEY.trim()
         : undefined,
   };
+}
+
+export function getAIRequestModel(
+  config: AIPhotoServerConfig,
+  ownerAccess: boolean
+): string {
+  return ownerAccess ? config.ownerModel : config.model;
 }
 
 export function isAIPhotoConfigured(config: AIPhotoServerConfig): boolean {

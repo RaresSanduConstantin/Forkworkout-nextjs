@@ -39,6 +39,7 @@ export type AIPhotoUsage = {
   dailyRemaining: number;
   dailyResetAt?: number;
   unlimited: boolean;
+  model?: string;
 };
 
 export type AIPhotoErrorCode =
@@ -77,11 +78,16 @@ export async function fetchAIPhotoUsage(
         dailyRemaining?: unknown;
         dailyResetAt?: unknown;
         unlimited?: unknown;
+        model?: unknown;
       }
     | null;
   const dailyLimit = boundedNumber(body?.dailyLimit, 1_000);
   const dailyRemaining = boundedNumber(body?.dailyRemaining, 1_000);
   const unlimited = body?.unlimited === true;
+  const model =
+    unlimited && typeof body?.model === "string" && body.model.trim()
+      ? body.model.trim().slice(0, 120)
+      : undefined;
   if (
     !response.ok ||
     typeof body?.enabled !== "boolean" ||
@@ -99,6 +105,7 @@ export async function fetchAIPhotoUsage(
       : Math.min(dailyLimit, dailyRemaining ?? dailyLimit),
     dailyResetAt: resetAt && resetAt > 0 ? resetAt : undefined,
     unlimited,
+    ...(model ? { model } : {}),
   };
 }
 

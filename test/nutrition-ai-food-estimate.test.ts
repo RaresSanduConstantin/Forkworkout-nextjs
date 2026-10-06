@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/nutrition/estimate-food/route";
+import { POST as UNLOCK } from "@/app/api/nutrition/analyze-photo/unlock/route";
 import { normalizeAIFoodEstimate } from "@/lib/nutrition/ai-food-estimate";
 
 afterEach(() => {
@@ -14,12 +15,13 @@ function enableEstimator() {
   vi.stubEnv("AI_SCAN_REQUIRE_REDIS", "false");
 }
 
-function request(overrides: Record<string, unknown> = {}) {
+function request(overrides: Record<string, unknown> = {}, cookie?: string) {
   return new Request("http://localhost/api/nutrition/estimate-food", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 200) + 1}`,
+      ...(cookie ? { cookie } : {}),
     },
     body: JSON.stringify({
       query: "homemade pea soup",
@@ -29,6 +31,14 @@ function request(overrides: Record<string, unknown> = {}) {
       anonymousDeviceId: crypto.randomUUID(),
       ...overrides,
     }),
+  });
+}
+
+function unlockRequest(deviceId: string, key: string) {
+  return new Request("http://localhost/api/nutrition/analyze-photo/unlock", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-forwarded-for": "203.0.113.99" },
+    body: JSON.stringify({ anonymousDeviceId: deviceId, key }),
   });
 }
 
@@ -135,5 +145,37 @@ describe("AI food estimate API", () => {
       schema: { additionalProperties: false },
     });
     expect(outbound.input[0].content[0].text).toContain("homemade pea soup");
+  });
+
+  it("uses the configured owner model only with a valid owner cookie", async () => {
+    const ownerKey = "owner-only-random-key-that-is-longer-than-32-characters";
+    vi.stubEnv("AI_FOOD_SCANNER_ENABLED", "true");
+    vi.stubEnv("OPENAI_API_KEY", "private-openai-key");
+    vi.stubEnv("AI_SCAN_REQUIRE_REDIS", "false");
+    vi.stubEnv("AI_SCAN_UNLIMITED_KEY", ownerKey);
+    vi.stubEnv("AI_FOOD_MODEL", "gpt-4.1-mini");
+    vi.stubEnv("AI_OWNER_MODEL", "gpt-5.4-mini");
+    const deviceId = crypto.randomUUID();
+    const unlock = await UNLOCK(unlockRequest(deviceId, ownerKey));
+    const cookie = unlock.headers.get("set-cookie")?.split(";")[0];
+    const upstream = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              content: [{ type: "output_text", text: JSON.stringify(modelEstimate) }],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    expect(
+      (await POST(request({ anonymousDeviceId: deviceId }, cookie))).status
+    ).toBe(200);
+    expect(JSON.parse(String(upstream.mock.calls[0][1]?.body)).model).toBe(
+      "gpt-5.4-mini"
+    );
   });
 });

@@ -136,7 +136,9 @@ or reusable meal without adding it directly to the current diary.
    with `AI_MEAL_RECOMMENDATIONS_ENABLED`.
 
 The defaults allow 20 shared photo-scan or text-estimate requests per anonymous installation per day and 20 per IP
-per hour, accept prepared images up to 4 MB, and use `gpt-4.1-mini`. All values
+per hour, accept prepared images up to 4 MB, and use `gpt-4.1-mini`. A device
+with validated owner access uses `AI_OWNER_MODEL` instead, which defaults to
+`gpt-5.4-mini`; the active owner model is shown only to that device. All values
 are configurable. The OpenAI key and optional project ID are server-only; never
 give either variable a `NEXT_PUBLIC_` prefix. Production fails closed when
 Redis is unavailable so a serverless deployment cannot silently bypass the
@@ -153,7 +155,8 @@ bound HttpOnly cookie scoped to the nutrition API; the key is not embedded in
 the client bundle or saved in persistent browser storage. Unlock attempts are
 limited to five per IP per hour. This bypasses only ForkWorkout's photo-scan,
 text-estimate, and meal-idea device/IP limits—it never bypasses the OpenAI project billing or spend
-limit. Rotate the environment value to invalidate every existing owner cookie.
+limit. The same verified cookie selects the server-only owner model for those
+features. Rotate the environment value to invalidate every existing owner cookie.
 
 ## Encrypted short share links (optional)
 

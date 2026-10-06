@@ -74,6 +74,12 @@ import {
 } from "@/lib/storage/performance-feedback";
 import { setExercisePreference } from "@/lib/storage/exercise-preferences";
 import { ROUTES } from "@/lib/routes";
+import {
+  arrangeSupersetExercises,
+  getNextPendingSessionSet,
+  isSameSupersetRound,
+  type SessionSetTarget,
+} from "@/lib/workout-session";
 import type { ActiveSession, CompletedSet, CompletedWorkout, DropSetStage, SessionSet, SetStatus, SetType, SetUnit } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -327,7 +333,7 @@ const StartWorkoutComponent = () => {
 
     const saved = getActiveSessionFor(workoutId);
     if (saved) {
-      setWorkout(saved);
+      setWorkout({ ...saved, exercises: arrangeSupersetExercises(saved.exercises) });
       // Resume a still-running rest countdown (minimized), or drop a stale one.
       if (saved.restTimer && saved.restTimer.endsAt > Date.now()) {
         setRestEndsAt(saved.restTimer.endsAt);
@@ -343,27 +349,29 @@ const StartWorkoutComponent = () => {
         workoutId: found.id,
         title: found.title,
         startedAt: new Date().toISOString(),
-        exercises: found.exercises.map((ex) => ({
-          id: ex.id ?? uuidv4(),
-          name: ex.name,
-          rest: ex.rest,
-          superset: ex.superset,
-          movementPattern: ex.movementPattern,
-          unilateral: ex.unilateral,
-          sets: ex.sets.map((s) => ({
-            id: s.id ?? uuidv4(),
-            reps: s.reps,
-            value: s.value,
-            unit: s.unit ?? inferUnit(s.value),
-            type: s.type,
-            dropStages: s.dropStages?.map((stage) => ({
-              ...stage,
-              id: stage.id ?? uuidv4(),
-              unit: stage.unit ?? s.unit ?? inferUnit(stage.value),
+        exercises: arrangeSupersetExercises(
+          found.exercises.map((ex) => ({
+            id: ex.id ?? uuidv4(),
+            name: ex.name,
+            rest: ex.rest,
+            superset: ex.superset,
+            movementPattern: ex.movementPattern,
+            unilateral: ex.unilateral,
+            sets: ex.sets.map((s) => ({
+              id: s.id ?? uuidv4(),
+              reps: s.reps,
+              value: s.value,
+              unit: s.unit ?? inferUnit(s.value),
+              type: s.type,
+              dropStages: s.dropStages?.map((stage) => ({
+                ...stage,
+                id: stage.id ?? uuidv4(),
+                unit: stage.unit ?? s.unit ?? inferUnit(stage.value),
+              })),
+              status: "pending" as SetStatus,
             })),
-            status: "pending" as SetStatus,
-          })),
-        })),
+          }))
+        ),
       });
     }
     setLoaded(true);
@@ -452,9 +460,10 @@ const StartWorkoutComponent = () => {
   }, [workout]);
 
   // A manually focused pending exercise wins; otherwise use the first exercise
-  // with work left. Supersets stay highlighted as one active block.
+  // with work left. The exact exercise gets the Current badge while its whole
+  // superset shares the active background.
   const currentExercise = useMemo(() => {
-    if (!workout) return { index: -1, superset: null as string | null };
+    if (!workout) return { index: -1 };
     const exerciseKey = (index: number) =>
       workout.exercises[index]?.id ?? `exercise-${index}`;
     let index = workout.exercises.findIndex(
@@ -478,9 +487,7 @@ const StartWorkoutComponent = () => {
     if (index < 0) index = workout.exercises.findIndex((exercise) =>
       exercise.sets.some((set) => set.status === "pending")
     );
-    const superset =
-      index >= 0 ? workout.exercises[index]?.superset?.trim() || null : null;
-    return { index, superset };
+    return { index };
   }, [workout]);
 
   // Estimated total workout time (shared with the generator so they agree).
@@ -626,6 +633,35 @@ const StartWorkoutComponent = () => {
     });
   };
 
+  const focusSessionSet = (target: SessionSetTarget) => {
+    const exercise = workout?.exercises[target.exerciseIndex];
+    if (!exercise) return;
+    const exerciseId = exercise.id ?? `exercise-${target.exerciseIndex}`;
+    setWorkout((previous) => {
+      const nextExercise = previous?.exercises[target.exerciseIndex];
+      if (!previous || !nextExercise) return previous;
+      return {
+        ...previous,
+        currentExerciseId: nextExercise.id ?? `exercise-${target.exerciseIndex}`,
+      };
+    });
+    setCollapsedExerciseIds((current) => {
+      if (!current.has(exerciseId)) return current;
+      const next = new Set(current);
+      next.delete(exerciseId);
+      return next;
+    });
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        document
+          .querySelector(
+            `[data-session-set="${target.exerciseIndex}-${target.setIndex}"]`
+          )
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      })
+    );
+  };
+
   // --- Immutable session mutators ---
   const updateSet = (
     exIdx: number,
@@ -752,24 +788,18 @@ const StartWorkoutComponent = () => {
   // timer's "next up" preview.
   const nextUpLabel = (exIdx: number, setIdx: number): string | null => {
     if (!workout) return null;
-    const ex = workout.exercises[exIdx];
-    let next: { name: string; num: number; total: number; set: SessionSet } | null = null;
-    if (ex && setIdx + 1 < ex.sets.length) {
-      next = { name: ex.name, num: setIdx + 2, total: ex.sets.length, set: ex.sets[setIdx + 1] };
-    } else {
-      for (let j = exIdx + 1; j < workout.exercises.length; j++) {
-        const nx = workout.exercises[j];
-        if (nx.sets.length) {
-          next = { name: nx.name, num: 1, total: nx.sets.length, set: nx.sets[0] };
-          break;
-        }
-      }
-    }
-    if (!next) return null;
-    const u = next.set.unit ?? inferUnit(next.set.value);
-    const target =
-      u === "bw" ? `${next.set.reps} reps` : `${next.set.reps} × ${formatSetValue(next.set.value, u)}`;
-    return `${next.name || "Exercise"} · Set ${next.num}/${next.total} · ${target}`;
+    const nextTarget = getNextPendingSessionSet(workout.exercises, {
+      exerciseIndex: exIdx,
+      setIndex: setIdx,
+    });
+    if (!nextTarget) return null;
+    const exercise = workout.exercises[nextTarget.exerciseIndex];
+    const set = exercise?.sets[nextTarget.setIndex];
+    if (!exercise || !set) return null;
+    const u = set.unit ?? inferUnit(set.value);
+    const setTarget =
+      u === "bw" ? `${set.reps} reps` : `${set.reps} × ${formatSetValue(set.value, u)}`;
+    return `${exercise.name || "Exercise"} · Set ${nextTarget.setIndex + 1}/${exercise.sets.length} · ${setTarget}`;
   };
 
   // Reorder exercises (drag-and-drop modal). Persisted via the save effect.
@@ -788,7 +818,7 @@ const StartWorkoutComponent = () => {
       const next = [...prev.exercises];
       const [moved] = next.splice(from, 1);
       next.splice(to, 0, moved);
-      return { ...prev, exercises: next };
+      return { ...prev, exercises: arrangeSupersetExercises(next) };
     });
   };
 
@@ -859,25 +889,13 @@ const StartWorkoutComponent = () => {
   };
 
   const setExerciseSuperset = (exIdx: number, superset: string | undefined) => {
-    setWorkout((prev) =>
-      prev
-        ? {
-            ...prev,
-            exercises: prev.exercises.map((ex, i) =>
-              i === exIdx ? { ...ex, superset } : ex
-            ),
-          }
-        : prev
-    );
-  };
-
-  // The last exercise of a contiguous superset block (used for combined rest:
-  // in a true superset there's no rest between exercises, only after the round).
-  const isLastInSupersetBlock = (exIdx: number): boolean => {
-    const group = workout?.exercises[exIdx]?.superset;
-    if (!group) return true;
-    const next = workout?.exercises[exIdx + 1]?.superset;
-    return next !== group;
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      const updated = prev.exercises.map((exercise, index) =>
+        index === exIdx ? { ...exercise, superset } : exercise
+      );
+      return { ...prev, exercises: arrangeSupersetExercises(updated) };
+    });
   };
 
   const addExercise = (name = "", suppliedDetails?: LibraryExercise) => {
@@ -1116,12 +1134,29 @@ const StartWorkoutComponent = () => {
       toast.error("Enter reps and a value for every stage before marking this set done.");
       return;
     }
+    const completedTarget = { exerciseIndex: exIdx, setIndex: setIdx };
+    const nextTarget = workout
+      ? getNextPendingSessionSet(workout.exercises, completedTarget)
+      : null;
+    const supersetGroup = workout?.exercises[exIdx]?.superset?.trim();
+    const isSupersetExercise = Boolean(
+      supersetGroup &&
+        (workout?.exercises.filter(
+          (exercise) => exercise.superset?.trim() === supersetGroup
+        ).length ?? 0) > 1
+    );
+    const continuesSupersetRound = workout
+      ? isSameSupersetRound(workout.exercises, completedTarget, nextTarget)
+      : false;
     markSet(exIdx, setIdx, "done");
+    if (isSupersetExercise && nextTarget) focusSessionSet(nextTarget);
 
-    // True superset: don't rest between exercises in a group — only after the
-    // last one. Nudge the user to move straight to the next exercise instead.
-    if (!isLastInSupersetBlock(exIdx)) {
-      const nextName = workout?.exercises[exIdx + 1]?.name;
+    // Rotate through each exercise in a superset round without resting. Once
+    // the round is complete, focus returns to the first pending set and rests.
+    if (continuesSupersetRound) {
+      const nextName = nextTarget
+        ? workout?.exercises[nextTarget.exerciseIndex]?.name
+        : undefined;
       toast(nextName ? `Straight into ${nextName} — no rest` : "Straight to the next exercise — no rest");
       return;
     }
@@ -1426,10 +1461,16 @@ const StartWorkoutComponent = () => {
           const nextGroup = workout.exercises[exIdx + 1]?.superset;
           const inGroup = !!group && (group === prevGroup || group === nextGroup);
           const isGroupStart = inGroup && group !== prevGroup;
-          const isCurrentExercise =
-            exIdx === currentExercise.index ||
-            (!!currentExercise.superset &&
-              exercise.superset?.trim() === currentExercise.superset);
+          const isCurrentExercise = exIdx === currentExercise.index;
+          const currentGroup =
+            currentExercise.index >= 0
+              ? workout.exercises[currentExercise.index]?.superset?.trim()
+              : undefined;
+          const isActiveSupersetMember = Boolean(
+            currentGroup &&
+              inGroup &&
+              exercise.superset?.trim() === currentGroup
+          );
           return (
             <div
               key={exercise.id ?? exIdx}
@@ -1456,8 +1497,10 @@ const StartWorkoutComponent = () => {
                 }
                 className={cn(
                   "rounded-xl border bg-card text-card-foreground shadow-sm",
+                  (isCurrentExercise || isActiveSupersetMember) &&
+                    "border-violet-700 bg-violet-500/[0.04] dark:border-violet-400",
                   isCurrentExercise &&
-                    "border-violet-700 bg-violet-500/[0.04] ring-2 ring-violet-700/25 dark:border-violet-400 dark:ring-violet-400/25",
+                    "ring-2 ring-violet-700/25 dark:ring-violet-400/25",
                   exercise.id === highlightExId &&
                     "ring-2 ring-primary ring-offset-2 transition-shadow"
                 )}
@@ -1474,6 +1517,13 @@ const StartWorkoutComponent = () => {
                             className="min-h-8 shrink-0 border-violet-700/40 bg-violet-700/10 px-2 text-violet-800 dark:border-violet-400/40 dark:text-violet-300"
                           >
                             Current
+                          </Badge>
+                        ) : isActiveSupersetMember ? (
+                          <Badge
+                            variant="outline"
+                            className="min-h-8 shrink-0 border-violet-700/30 bg-violet-700/5 px-2 text-violet-800 dark:border-violet-400/30 dark:text-violet-300"
+                          >
+                            Superset
                           </Badge>
                         ) : !exerciseComplete ? (
                           <Badge
@@ -1635,6 +1685,7 @@ const StartWorkoutComponent = () => {
                       return (
                         <div
                           key={set.id ?? setIdx}
+                          data-session-set={`${exIdx}-${setIdx}`}
                           className={cn("rounded-lg border p-2.5", rowStyle)}
                         >
                           {/* Header: tappable set-type chip + delete */}

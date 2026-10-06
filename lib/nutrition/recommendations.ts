@@ -37,6 +37,7 @@ export type AIRecommendationUsage = {
   dailyRemaining: number;
   dailyResetAt?: number;
   unlimited: boolean;
+  model?: string;
 };
 
 export type GenerateRecommendationInput = {
@@ -215,6 +216,10 @@ export async function fetchAIRecommendationUsage(
   const dailyLimit = boundedNumber(body?.dailyLimit, 1, 1_000);
   const dailyRemaining = boundedNumber(body?.dailyRemaining, 0, 1_000);
   const unlimited = body?.unlimited === true;
+  const model =
+    unlimited && typeof body?.model === "string" && body.model.trim()
+      ? body.model.trim().slice(0, 120)
+      : undefined;
   if (!response.ok || typeof body?.enabled !== "boolean" || dailyLimit === null) {
     throw new Error("Daily recommendation usage is unavailable.");
   }
@@ -228,6 +233,7 @@ export async function fetchAIRecommendationUsage(
     dailyRemaining: unlimited ? dailyLimit : dailyRemaining ?? dailyLimit,
     ...(resetAt === null ? {} : { dailyResetAt: resetAt }),
     unlimited,
+    ...(model ? { model } : {}),
   };
 }
 

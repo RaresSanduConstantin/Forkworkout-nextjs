@@ -8,6 +8,7 @@ import {
   OpenAIPhotoError,
   checkAIPhotoRateLimit,
   getAIPhotoDailyUsage,
+  getAIRequestModel,
   getAIPhotoServerConfig,
   hasAIPhotoUnlimitedAccess,
   isAIPhotoConfigured,
@@ -61,6 +62,7 @@ export async function GET(request: Request) {
       dailyRemaining: dailyUsage?.remaining ?? null,
       dailyResetAt: dailyUsage?.resetAt ?? null,
       unlimited,
+      ...(unlimited ? { model: getAIRequestModel(config, true) } : {}),
     },
     { headers: noStoreHeaders }
   );
@@ -161,7 +163,7 @@ export async function POST(request: Request) {
       weightGrams,
       details,
       anonymousDeviceId,
-      config,
+      config: { ...config, model: getAIRequestModel(config, unlimited) },
       analysisMode,
     });
     return NextResponse.json({ analysis }, { headers: noStoreHeaders });

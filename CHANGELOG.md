@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added owner-only AI model routing for nutrition scans, text estimates, and
+  meal ideas, with a separately configurable higher-capability model and model
+  name disclosure only on devices with validated owner access.
 - Added progressive nutrition search that keeps local foods and saved recipes
   first, automatically suggests USDA and Open Food Facts matches after a local
   miss, and offers an explicit AI estimate that must be reviewed and edited as
@@ -177,6 +180,10 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Changed
 
+- Live workout supersets now keep their exercises adjacent and advance in
+  round-robin order, automatically focusing the partner exercise before
+  returning to the first exercise's next set while the complete active group
+  shares the violet current-state background.
 - Moved the optional known total weight above the food photo controls so users
   can provide the strongest portion clue before taking or choosing a photo.
 - Collapsed local nutrition matches behind an expandable summary so AI meal

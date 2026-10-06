@@ -8,6 +8,7 @@ import {
 import {
   OpenAIPhotoError,
   checkAIPhotoRateLimit,
+  getAIRequestModel,
   getAIPhotoServerConfig,
   hasAIPhotoUnlimitedAccess,
   isAIPhotoConfigured,
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
       basisAmount,
       basisUnit,
       anonymousDeviceId,
-      config,
+      config: { ...config, model: getAIRequestModel(config, unlimited) },
     });
     return NextResponse.json({ estimate }, { headers: noStoreHeaders });
   } catch (error) {

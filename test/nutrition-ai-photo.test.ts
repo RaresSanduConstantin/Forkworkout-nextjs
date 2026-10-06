@@ -241,6 +241,7 @@ describe("AI photo nutrition API", () => {
       "OpenAI-Project": "project-test",
     });
     const outbound = JSON.parse(String(options?.body));
+    expect(outbound.model).toBe("gpt-4.1-mini");
     expect(outbound.store).toBe(false);
     expect(outbound.tools).toBeUndefined();
     expect(outbound.input[0].content[1].image_url).toMatch(/^data:image\/jpeg;base64,/);
@@ -454,6 +455,8 @@ describe("AI photo nutrition API", () => {
       AI_SCAN_DAILY_DEVICE_LIMIT: "1",
       AI_SCAN_HOURLY_IP_LIMIT: "1",
       AI_SCAN_UNLIMITED_KEY: ownerKey,
+      AI_FOOD_MODEL: "gpt-4.1-mini",
+      AI_OWNER_MODEL: "gpt-5.4-mini",
     });
     const deviceId = crypto.randomUUID();
     const unlock = await UNLOCK(unlockRequest(deviceId, ownerKey));
@@ -463,10 +466,11 @@ describe("AI photo nutrition API", () => {
     expect(cookie).toContain("forkworkout-ai-unlimited=");
     await expect((await GET(usageRequest(deviceId, cookie))).json()).resolves.toMatchObject({
       unlimited: true,
+      model: "gpt-5.4-mini",
     });
-    await expect((await GET(usageRequest(crypto.randomUUID(), cookie))).json()).resolves.toMatchObject({
-      unlimited: false,
-    });
+    const nonOwnerUsage = await (await GET(usageRequest(crypto.randomUUID(), cookie))).json();
+    expect(nonOwnerUsage).toMatchObject({ unlimited: false });
+    expect(nonOwnerUsage).not.toHaveProperty("model");
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
@@ -483,6 +487,9 @@ describe("AI photo nutrition API", () => {
     const ip = "203.0.113.11";
     expect((await POST(request({ deviceId, ip, cookie }))).status).toBe(200);
     expect((await POST(request({ deviceId, ip, cookie }))).status).toBe(200);
+    for (const call of vi.mocked(globalThis.fetch).mock.calls) {
+      expect(JSON.parse(String(call[1]?.body)).model).toBe("gpt-5.4-mini");
+    }
   });
 
   it("does not set an owner cookie for an invalid key", async () => {

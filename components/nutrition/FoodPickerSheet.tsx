@@ -46,6 +46,7 @@ import {
   AI_FOOD_ESTIMATE_QUERY_MAX_LENGTH,
   estimateFoodWithAI,
 } from "@/lib/nutrition/ai-food-estimate";
+import { fetchAIPhotoUsage } from "@/lib/nutrition/ai-photo";
 import {
   barcodeDraftToFood,
   fetchOpenFoodFactsProduct,
@@ -216,6 +217,7 @@ export function FoodPickerSheet({
   const [aiEstimateForm, setAiEstimateForm] = React.useState(EMPTY_AI_ESTIMATE_FORM);
   const [aiEstimateLoading, setAiEstimateLoading] = React.useState(false);
   const [aiEstimateError, setAiEstimateError] = React.useState<string | null>(null);
+  const [aiEstimateOwnerModel, setAiEstimateOwnerModel] = React.useState<string | null>(null);
   const aiEstimateControllerRef = React.useRef<AbortController | null>(null);
 
   const reloadFoods = React.useCallback(async (initial = false) => {
@@ -246,6 +248,7 @@ export function FoodPickerSheet({
     setAiEstimateForm(EMPTY_AI_ESTIMATE_FORM);
     setAiEstimateLoading(false);
     setAiEstimateError(null);
+    setAiEstimateOwnerModel(null);
     setSavedMeals(getNutritionSavedMeals());
     barcodeLookupControllerRef.current?.abort();
     onlineSearchControllerRef.current?.abort();
@@ -659,7 +662,16 @@ export function FoodPickerSheet({
       query: query.trim(),
     });
     setAiEstimateError(null);
+    setAiEstimateOwnerModel(null);
     setView("ai_estimate");
+    void getAnonymousInstallationId()
+      .then((anonymousDeviceId) => fetchAIPhotoUsage(anonymousDeviceId))
+      .then((usage) => {
+        if (usage.unlimited && usage.model) setAiEstimateOwnerModel(usage.model);
+      })
+      .catch(() => {
+        // Model disclosure is optional; estimation still reports its own errors.
+      });
   };
 
   const generateAIEstimate = async () => {
@@ -1219,6 +1231,11 @@ export function FoodPickerSheet({
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-muted-foreground">
                   AI nutrition is approximate and can be wrong. This uses one request from the shared daily AI nutrition allowance.
+                  {aiEstimateOwnerModel && (
+                    <span className="mt-1 block font-medium text-foreground">
+                      Owner model · {aiEstimateOwnerModel}
+                    </span>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="ai-estimate-food">Food name</Label>

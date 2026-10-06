@@ -185,6 +185,8 @@ describe("meal recommendation API", () => {
       AI_RECOMMENDATION_DAILY_DEVICE_LIMIT: "1",
       AI_RECOMMENDATION_HOURLY_IP_LIMIT: "1",
       AI_SCAN_UNLIMITED_KEY: ownerKey,
+      AI_FOOD_MODEL: "gpt-4.1-mini",
+      AI_OWNER_MODEL: "gpt-5.4-mini",
     });
     const deviceId = crypto.randomUUID();
     const unlock = await UNLOCK(unlockRequest(deviceId, ownerKey));
@@ -193,10 +195,14 @@ describe("meal recommendation API", () => {
     expect(setCookie).toContain("Path=/api/nutrition");
     await expect((await GET(usageRequest(deviceId, cookie))).json()).resolves.toMatchObject({
       unlimited: true,
+      model: "gpt-5.4-mini",
     });
 
-    mockOpenAI();
+    const upstream = mockOpenAI();
     expect((await POST(recommendationRequest({ deviceId, cookie }))).status).toBe(200);
     expect((await POST(recommendationRequest({ deviceId, cookie }))).status).toBe(200);
+    for (const call of upstream.mock.calls) {
+      expect(JSON.parse(String(call[1]?.body)).model).toBe("gpt-5.4-mini");
+    }
   });
 });

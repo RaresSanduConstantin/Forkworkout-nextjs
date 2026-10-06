@@ -8,7 +8,10 @@ import {
   isAIRecommendationConfigured,
   requestOpenAIRecommendations,
 } from "@/lib/nutrition/ai-recommendations-server";
-import { hasAIPhotoUnlimitedAccess } from "@/lib/nutrition/ai-photo-server";
+import {
+  getAIRequestModel,
+  hasAIPhotoUnlimitedAccess,
+} from "@/lib/nutrition/ai-photo-server";
 import {
   normalizeRecommendationCandidate,
   normalizeRecommendationRemaining,
@@ -72,6 +75,7 @@ export async function GET(request: Request) {
       dailyRemaining: usage?.remaining ?? null,
       dailyResetAt: usage?.resetAt ?? null,
       unlimited,
+      ...(unlimited ? { model: getAIRequestModel(config, true) } : {}),
     },
     { headers: noStoreHeaders }
   );
@@ -157,7 +161,7 @@ export async function POST(request: Request) {
       pantryFoods,
       candidates,
       anonymousDeviceId,
-      config,
+      config: { ...config, model: getAIRequestModel(config, unlimited) },
     });
     return NextResponse.json({ recommendations }, { headers: noStoreHeaders });
   } catch (error) {

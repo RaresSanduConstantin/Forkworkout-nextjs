@@ -691,7 +691,7 @@ export function MealRecommendationsSheet({
                   {usage && (
                     <Badge variant="outline" className="shrink-0">
                       {usage.unlimited
-                        ? "Owner · unlimited"
+                        ? `Owner · ${usage.model ?? "unlimited"}`
                         : `${usage.dailyRemaining}/${usage.dailyLimit} left`}
                     </Badge>
                   )}
