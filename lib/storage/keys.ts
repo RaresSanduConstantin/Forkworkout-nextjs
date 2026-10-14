@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   bodyMetrics: "forkworkout:body-metrics",
   customExercises: "forkworkout:custom-exercises",
   exercisePreferences: "forkworkout:exercise-preferences",
+  exerciseNotes: "forkworkout:exercise-notes",
   performanceFeedback: "forkworkout:performance-feedback",
   dailyTrainingState: "forkworkout:daily-training-state",
   activeSession: "forkworkout:active-session",

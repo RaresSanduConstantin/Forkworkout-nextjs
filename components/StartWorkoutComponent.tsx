@@ -66,6 +66,8 @@ import { AddExerciseByMuscleDialog } from "@/components/exercises/AddExerciseByM
 import { ExercisePreferenceControl } from "@/components/exercises/ExercisePreferenceControl";
 import { ReplaceExerciseDialog } from "@/components/exercises/ReplaceExerciseDialog";
 import { ExerciseInfoDialog } from "@/components/exercises/ExerciseInfoDialog";
+import { ExerciseNotesDialog } from "@/components/exercises/ExerciseNotesDialog";
+import { getExerciseNotes, type ExerciseNote } from "@/lib/storage/exercise-notes";
 import { isBodyweightExercise } from "@/lib/smart-workout/exercise-eligibility";
 import { getMovementPattern } from "@/lib/smart-workout/movement-patterns";
 import {
@@ -192,6 +194,7 @@ const StartWorkoutComponent = () => {
   const completedExerciseIdsRef = useRef<Map<string, boolean>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<CompletedWorkout[]>([]);
+  const [exerciseNotes, setExerciseNotes] = useState<ExerciseNote[]>([]);
 
   const [resting, setResting] = useState(false);
   const [restMinimized, setRestMinimized] = useState(false);
@@ -330,6 +333,7 @@ const StartWorkoutComponent = () => {
     setRestSeconds(found?.rest ? parseInt(found.rest, 10) || 0 : 0);
     // Snapshot history once for the per-exercise "last time / PR" hints.
     setHistory(getCompletedWorkouts());
+    setExerciseNotes(getExerciseNotes());
 
     const saved = getActiveSessionFor(workoutId);
     if (saved) {
@@ -1450,6 +1454,7 @@ const StartWorkoutComponent = () => {
       <div className="mt-6 space-y-4">
         {workout.exercises.map((exercise, exIdx) => {
           const exerciseAccordionId = exercise.id ?? `exercise-${exIdx}`;
+          const stableExerciseId = getExerciseStableIdByName(library, exercise.name);
           const handledSetCount = exercise.sets.filter(
             (set) => set.status !== "pending"
           ).length;
@@ -1605,8 +1610,19 @@ const StartWorkoutComponent = () => {
                   Replace
                 </Button>
                 <ExercisePreferenceControl
-                  exerciseId={getExerciseStableIdByName(library, exercise.name)}
+                  exerciseId={stableExerciseId}
                   exerciseName={exercise.name}
+                />
+                <ExerciseNotesDialog
+                  key={stableExerciseId}
+                  exerciseId={stableExerciseId}
+                  exerciseName={exercise.name}
+                  hasNote={exerciseNotes.some((note) =>
+                    note.exerciseId === stableExerciseId && Boolean(note.text)
+                  )}
+                  onSaved={(note) => setExerciseNotes((current) => [
+                    ...current.filter((entry) => entry.exerciseId !== note.exerciseId), note,
+                  ])}
                 />
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t pt-2">

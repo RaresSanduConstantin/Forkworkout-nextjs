@@ -15,6 +15,7 @@ import {
   type CustomExercise,
 } from "./custom-exercises";
 import { STORAGE_KEYS } from "./keys";
+import { getExerciseNotes, mergeExerciseNotes, type ExerciseNote } from "./exercise-notes";
 import { writeJson } from "./safe-storage";
 import {
   getExercisePreferences,
@@ -88,6 +89,7 @@ export type ExportBundle = {
   bodyMetrics: BodyMetricEntry[];
   customExercises: CustomExercise[];
   exercisePreferences?: ExercisePreference[];
+  exerciseNotes?: ExerciseNote[];
   performanceFeedback?: ExercisePerformanceFeedback[];
   dailyTrainingStates?: DailyTrainingState[];
   bodyProfile?: BodyProfile;
@@ -118,6 +120,7 @@ export function buildExport(): ExportBundle {
     bodyMetrics: getBodyMetrics(),
     customExercises: getCustomExercises(),
     exercisePreferences: getExercisePreferences(),
+    exerciseNotes: getExerciseNotes(),
     performanceFeedback: getPerformanceFeedback(),
     dailyTrainingStates: getDailyTrainingStates(),
     bodyProfile: getBodyProfile(),
@@ -306,6 +309,7 @@ export function mergeImport(
     }
   }
   saveExercisePreferences(Array.from(preferences.values()));
+  if (Array.isArray(bundle.exerciseNotes)) mergeExerciseNotes(bundle.exerciseNotes);
 
   // Performance feedback is event data. The storage writer validates,
   // de-duplicates, sorts, and applies its bounded-history limit.

@@ -32,6 +32,7 @@ export async function clearAllData(options?: { keepCustomExercises?: boolean }):
     STORAGE_KEYS.completedWorkouts,
     STORAGE_KEYS.bodyMetrics,
     STORAGE_KEYS.exercisePreferences,
+    STORAGE_KEYS.exerciseNotes,
     STORAGE_KEYS.performanceFeedback,
     STORAGE_KEYS.dailyTrainingState,
     STORAGE_KEYS.settings,

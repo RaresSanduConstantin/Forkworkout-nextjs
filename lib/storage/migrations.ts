@@ -10,6 +10,7 @@ import { readJson, removeJson, writeJson } from "./safe-storage";
 import { saveWorkouts } from "./workout-storage";
 import { buildExport, type ExportBundle } from "./transfer";
 import { saveProgramState } from "./program-storage";
+import { saveExerciseNotes } from "./exercise-notes";
 
 export const CURRENT_SCHEMA_VERSION = 1;
 export const MIGRATION_BACKUP_RETENTION_DAYS = 30;
@@ -53,6 +54,7 @@ export function migrationSafetyBackupHasData(b: MigrationSafetyBackup | null): b
     (Array.isArray(bodyMetrics) && bodyMetrics.length > 0) ||
     (Array.isArray(b.bundle.customExercises) && b.bundle.customExercises.length > 0) ||
     (Array.isArray(b.bundle.exercisePreferences) && b.bundle.exercisePreferences.length > 0) ||
+    (Array.isArray(b.bundle.exerciseNotes) && b.bundle.exerciseNotes.length > 0) ||
     (Array.isArray(b.bundle.performanceFeedback) && b.bundle.performanceFeedback.length > 0) ||
     (Array.isArray(b.bundle.dailyTrainingStates) && b.bundle.dailyTrainingStates.length > 0) ||
     (Array.isArray(b.bundle.nutritionEntries) && b.bundle.nutritionEntries.length > 0) ||
@@ -142,6 +144,7 @@ export function restoreMigrationSafetyBackup(): boolean {
       data: b.bundle.exercisePreferences,
     });
   }
+  if (Array.isArray(b.bundle.exerciseNotes)) saveExerciseNotes(b.bundle.exerciseNotes);
   if (Array.isArray(b.bundle.performanceFeedback)) {
     writeJson(STORAGE_KEYS.performanceFeedback, {
       version: 1,

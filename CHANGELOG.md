@@ -13,6 +13,9 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added a compact Notes modal to each live-workout exercise for machine settings
+  and reminders, saved across future workouts with a saved-note indicator and
+  included in local backups and recovery.
 - Added owner-only AI model routing for nutrition scans, text estimates, and
   meal ideas, with a separately configurable higher-capability model and model
   name disclosure only on devices with validated owner access.
