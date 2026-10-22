@@ -64,12 +64,21 @@ export function NutritionDateNavigation({ dayKey, loggedDayKeys, onDayChange }: 
                 selected={selectedDate}
                 onSelect={(date) => onDayChange(toDayKey(date))}
                 weekStartsOn={1}
-                className="w-full max-w-sm rounded-xl border [--cell-size:clamp(2rem,10vw,2.75rem)]"
+                className="w-full max-w-sm shrink-0 rounded-xl border [--cell-size:clamp(2rem,10vw,2.75rem)]"
+                // Explicit row heights avoid mobile browsers underestimating a
+                // flex/table grid whose day cells depend on aspect-ratio.
+                classNames={{
+                  month_grid: "w-full shrink-0 table-fixed border-separate border-spacing-x-0 border-spacing-y-1",
+                  weekdays: "table-row",
+                  week: "table-row",
+                  day: "group/day relative p-0 text-center align-middle",
+                  day_button: "h-(--cell-size) min-h-(--cell-size) min-w-0 aspect-auto",
+                }}
                 modifiers={{ logged: (date) => loggedDayKeys.has(toDayKey(date)) }}
                 modifiersClassNames={{ logged: "rounded-md bg-emerald-500/15 font-semibold text-emerald-800 dark:text-emerald-200 [&_button]:font-semibold [&_button]:underline [&_button]:decoration-emerald-500 [&_button]:decoration-2 [&_button]:underline-offset-4" }}
                 labels={{ labelDayButton: (date, modifiers) => `${format(date, "EEEE, MMMM d, yyyy")}${modifiers.selected ? ", selected" : ""}: ${loggedDayKeys.has(toDayKey(date)) ? "food logged" : "no food logged"}` }}
               />
-              <p className="flex items-center gap-2 text-xs text-muted-foreground"><span className="size-3 rounded-sm bg-emerald-500/30" /> Food logged · Choose a day to view its tracking.</p>
+              <p className="flex shrink-0 items-start gap-2 text-xs leading-relaxed text-muted-foreground"><span className="mt-0.5 size-3 shrink-0 rounded-sm bg-emerald-500/30" /><span>Food logged · Choose a day to view its tracking.</span></p>
               {!isToday(selectedDate) && <Button type="button" variant="outline" onClick={() => onDayChange(toDayKey())}>Back to today</Button>}
             </div>
           </AccordionContent>

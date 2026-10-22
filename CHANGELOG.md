@@ -131,6 +131,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Kept the expanded Nutrition calendar's date rows above its legend on mobile
+  browsers by giving the day buttons explicit heights and using native table rows.
 - Preserved brand and optional fiber, sugar, and sodium values when editing
   custom food products, with editable nutrient fields and validation.
 - Stopped forcing Turbopack for local development because the PWA Webpack
