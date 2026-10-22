@@ -111,6 +111,7 @@ type View =
 
 const EMPTY_CUSTOM_FORM = {
   name: "",
+  brand: "",
   aliases: "",
   variant: "",
   basisAmount: "100",
@@ -119,7 +120,28 @@ const EMPTY_CUSTOM_FORM = {
   protein: "",
   carbs: "",
   fat: "",
+  fibre: "",
+  sugar: "",
+  sodium: "",
 };
+
+function foodToCustomForm(food: NutritionFood) {
+  return {
+    name: food.name,
+    brand: food.brand ?? "",
+    aliases: food.aliases.join(", "),
+    variant: food.variant ?? "",
+    basisAmount: String(food.basisAmount),
+    basisUnit: food.basisUnit,
+    calories: String(food.nutrients.caloriesKcal),
+    protein: String(food.nutrients.proteinG),
+    carbs: String(food.nutrients.carbsG),
+    fat: String(food.nutrients.fatG),
+    fibre: food.nutrients.fibreG === undefined ? "" : String(food.nutrients.fibreG),
+    sugar: food.nutrients.sugarG === undefined ? "" : String(food.nutrients.sugarG),
+    sodium: food.nutrients.sodiumMg === undefined ? "" : String(food.nutrients.sodiumMg),
+  };
+}
 
 const EMPTY_AI_ESTIMATE_FORM = {
   query: "",
@@ -173,6 +195,7 @@ export function FoodPickerSheet({
   onSavedMeal,
   onCreateRecipe,
   mode = "log",
+  initialFood,
   onIngredientSelected,
 }: {
   open: boolean;
@@ -184,7 +207,8 @@ export function FoodPickerSheet({
   onPhotoScan: (meal: NutritionMeal) => void;
   onSavedMeal: (savedMeal: NutritionSavedMeal, destinationMeal: NutritionMeal) => void;
   onCreateRecipe?: (meal: NutritionMeal) => void;
-  mode?: "log" | "ingredient";
+  mode?: "log" | "ingredient" | "manage";
+  initialFood?: NutritionFood | null;
   onIngredientSelected?: (item: NutritionSavedMealItem) => void;
 }) {
   const [view, setView] = React.useState<View>("browse");
@@ -231,7 +255,9 @@ export function FoodPickerSheet({
 
   React.useEffect(() => {
     if (!open) return;
-    setView("browse");
+    setView(mode === "manage" ? "custom" : "browse");
+    setEditingCustom(mode === "manage" ? initialFood ?? null : null);
+    setCustomForm(mode === "manage" && initialFood ? foodToCustomForm(initialFood) : EMPTY_CUSTOM_FORM);
     setMeal(entry?.meal ?? initialMeal);
     setQuery("");
     setSelectedFood(null);
@@ -282,7 +308,7 @@ export function FoodPickerSheet({
       setQuantity(String(entry.quantity?.amount ?? food.basisAmount));
       setView("quantity");
     });
-  }, [entry, initialMeal, open, reloadFoods]);
+  }, [entry, initialMeal, initialFood, mode, open, reloadFoods]);
 
   React.useEffect(
     () => () => {
@@ -714,6 +740,7 @@ export function FoodPickerSheet({
       );
       setEditingCustom(null);
       setCustomForm({
+        ...EMPTY_CUSTOM_FORM,
         name: estimate.name,
         aliases:
           estimate.name.localeCompare(foodQuery, undefined, { sensitivity: "base" }) === 0
@@ -748,19 +775,7 @@ export function FoodPickerSheet({
   const openCustomForm = (food?: NutritionFood) => {
     setEditingCustom(food ?? null);
     setCustomForm(
-      food
-        ? {
-            name: food.name,
-            aliases: food.aliases.join(", "),
-            variant: food.variant ?? "",
-            basisAmount: String(food.basisAmount),
-            basisUnit: food.basisUnit,
-            calories: String(food.nutrients.caloriesKcal),
-            protein: String(food.nutrients.proteinG),
-            carbs: String(food.nutrients.carbsG),
-            fat: String(food.nutrients.fatG),
-          }
-        : EMPTY_CUSTOM_FORM
+      food ? foodToCustomForm(food) : EMPTY_CUSTOM_FORM
     );
     setView("custom");
   };
@@ -772,6 +787,9 @@ export function FoodPickerSheet({
       proteinG: Number.parseFloat(customForm.protein),
       carbsG: Number.parseFloat(customForm.carbs),
       fatG: Number.parseFloat(customForm.fat),
+      fibreG: customForm.fibre.trim() ? Number(customForm.fibre) : undefined,
+      sugarG: customForm.sugar.trim() ? Number(customForm.sugar) : undefined,
+      sodiumMg: customForm.sodium.trim() ? Number(customForm.sodium) : undefined,
     };
     if (!customForm.name.trim()) {
       toast.error("Enter a food name.");
@@ -783,31 +801,43 @@ export function FoodPickerSheet({
     }
     if (
       !Number.isFinite(nutrients.caloriesKcal) ||
-      nutrients.caloriesKcal < 0 ||
-      [nutrients.proteinG, nutrients.carbsG, nutrients.fatG].some(
-        (value) => !Number.isFinite(value) || value < 0
+      nutrients.caloriesKcal < 0 || nutrients.caloriesKcal > 100_000 ||
+      [nutrients.proteinG, nutrients.carbsG, nutrients.fatG, nutrients.fibreG, nutrients.sugarG].some(
+        (value) => value !== undefined && (!Number.isFinite(value) || value < 0 || value > 10_000)
+      ) ||
+      (nutrients.sodiumMg !== undefined &&
+        (!Number.isFinite(nutrients.sodiumMg) || nutrients.sodiumMg < 0 || nutrients.sodiumMg > 1_000_000)
       )
     ) {
       toast.error("Enter valid nutrition values of zero or more.");
       return;
     }
-    const saved = upsertCustomNutritionFood(
-      {
-        name: customForm.name.trim(),
-        aliases: customForm.aliases
-          .split(",")
-          .map((alias) => alias.trim())
-          .filter(Boolean),
-        variant: customForm.variant.trim() || undefined,
-        basisAmount,
-        basisUnit: customForm.basisUnit,
-        nutrients,
-        sourceReference: undefined,
-      },
-      editingCustom?.id
-    );
+    const input = {
+      name: customForm.name.trim(),
+      brand: customForm.brand.trim() || undefined,
+      aliases: customForm.aliases
+        .split(",")
+        .map((alias) => alias.trim())
+        .filter(Boolean),
+      variant: customForm.variant.trim() || undefined,
+      basisAmount,
+      basisUnit: customForm.basisUnit,
+      nutrients,
+      sourceReference: editingCustom?.sourceReference,
+    };
+    const saved = editingCustom?.source === "barcode"
+      ? cacheNutritionBarcodeProduct({ ...editingCustom, ...input })
+      : editingCustom?.source === "usda"
+        ? cacheNutritionUsdaFood({ ...editingCustom, ...input })
+        : upsertCustomNutritionFood(input, editingCustom?.source === "custom" ? editingCustom.id : undefined);
     if (!saved) {
       toast.error("Couldn't save that food. Check for a duplicate name and variant.");
+      return;
+    }
+    if (mode === "manage") {
+      onOpenChange(false);
+      onSaved();
+      toast.success(editingCustom?.source === "builtin" ? "Saved as a custom product" : "Product saved");
       return;
     }
     await reloadFoods();
@@ -1459,11 +1489,11 @@ export function FoodPickerSheet({
           {view === "custom" && (
             <>
               <SheetHeader className="text-left">
-                <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setView("browse")}>
+                {mode !== "manage" && <button type="button" className="mb-1 flex w-fit items-center gap-1 text-sm text-muted-foreground" onClick={() => setView("browse")}>
                   <ArrowLeft className="size-4" /> Back to search
-                </button>
-                <SheetTitle>{editingCustom ? "Edit custom food" : "Create custom food"}</SheetTitle>
-                <SheetDescription>Enter nutrition for the serving size you have available.</SheetDescription>
+                </button>}
+                <SheetTitle>{mode === "manage" ? editingCustom?.source === "builtin" ? "Customize product" : editingCustom ? "Edit product" : "New product" : editingCustom ? "Edit custom food" : "Create custom food"}</SheetTitle>
+                <SheetDescription>{editingCustom?.source === "builtin" ? "Save your changes as a custom product for future use. The offline catalog and previous logs stay unchanged." : "Enter nutrition for the serving size you have available. Previously logged foods stay unchanged."}</SheetDescription>
               </SheetHeader>
               <div className="grid grid-cols-2 gap-3 overflow-y-auto px-4">
                 {customForm.variant.startsWith("AI estimate") && (
@@ -1472,6 +1502,7 @@ export function FoodPickerSheet({
                   </div>
                 )}
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-name">Name</Label><Input id="custom-food-name" value={customForm.name} onChange={(event) => setCustomForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Homemade granola" /></div>
+                <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-brand">Brand (optional)</Label><Input id="custom-food-brand" value={customForm.brand} onChange={(event) => setCustomForm((form) => ({ ...form, brand: event.target.value }))} /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-variant">Variant (optional)</Label><Input id="custom-food-variant" value={customForm.variant} onChange={(event) => setCustomForm((form) => ({ ...form, variant: event.target.value }))} placeholder="e.g. Baked" /></div>
                 <div className="col-span-2 space-y-1.5"><Label htmlFor="custom-food-aliases">Search aliases (optional)</Label><Input id="custom-food-aliases" value={customForm.aliases} onChange={(event) => setCustomForm((form) => ({ ...form, aliases: event.target.value }))} placeholder="Romanian name, another name" /><p className="text-xs text-muted-foreground">Separate aliases with commas.</p></div>
                 <div className="col-span-2 space-y-1.5">
@@ -1490,6 +1521,9 @@ export function FoodPickerSheet({
                   ["protein", "Protein (g)"],
                   ["carbs", "Carbs (g)"],
                   ["fat", "Fat (g)"],
+                  ["fibre", "Fiber (g, optional)"],
+                  ["sugar", "Sugar (g, optional)"],
+                  ["sodium", "Sodium (mg, optional)"],
                 ] as const).map(([field, label]) => (
                   <div key={field} className="space-y-1.5"><Label htmlFor={`custom-food-${field}`}>{label}</Label><NumberInput id={`custom-food-${field}`} decimal value={customForm[field]} onChange={(event) => setCustomForm((form) => ({ ...form, [field]: event.target.value }))} placeholder="0" /></div>
                 ))}
@@ -1515,7 +1549,7 @@ export function FoodPickerSheet({
                   );
                 })()}
               </div>
-              <SheetFooter><Button type="button" size="lg" onClick={() => void saveCustomFood()}>{editingCustom ? "Save and continue" : "Create and continue"}</Button></SheetFooter>
+              <SheetFooter><Button type="button" size="lg" onClick={() => void saveCustomFood()}>{mode === "manage" ? editingCustom?.source === "builtin" ? "Save as custom product" : "Save product" : editingCustom ? "Save and continue" : "Create and continue"}</Button></SheetFooter>
             </>
           )}
         </SheetContent>

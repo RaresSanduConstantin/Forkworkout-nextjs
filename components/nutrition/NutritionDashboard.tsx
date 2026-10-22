@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { format, isToday } from "date-fns";
+import { format } from "date-fns";
 import {
   Apple,
   BookmarkPlus,
   Camera,
-  Check,
-  ChevronLeft,
   ChevronRight,
   Copy,
   Cookie,
@@ -42,6 +40,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NutritionDateNavigation } from "./NutritionDateNavigation";
+import { NutritionLibrary, type NutritionLibraryTab } from "./NutritionLibrary";
 import { Progress } from "@/components/ui/progress";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -63,7 +64,7 @@ import { MealRecommendationsSheet } from "./MealRecommendationsSheet";
 import { MealShareDialog } from "./MealShareDialog";
 import { NutritionTargetsDialog } from "./NutritionTargetsDialog";
 import { NutritionProgressCard } from "./NutritionProgressCard";
-import { dayKeyToDate, toDayKey, weekDayKeys } from "@/lib/date/day-key";
+import { dayKeyToDate, toDayKey } from "@/lib/date/day-key";
 import { cn } from "@/lib/utils";
 import {
   nutrientProgress,
@@ -74,6 +75,7 @@ import { resolveNutritionTargetsForDay } from "@/lib/nutrition/target-plans";
 import {
   NUTRITION_MEALS,
   type NutritionEntry,
+  type NutritionFood,
   type NutritionMeal,
   type NutritionSavedMeal,
   type NutritionTargetHistoryEntry,
@@ -196,6 +198,11 @@ function MacroCard({
 
 export function NutritionDashboard() {
   const [dayKey, setDayKey] = React.useState(() => toDayKey());
+  const [tab, setTab] = React.useState("daily");
+  const [libraryRevision, setLibraryRevision] = React.useState(0);
+  const [productEditorOpen, setProductEditorOpen] = React.useState(false);
+  const [editingProduct, setEditingProduct] = React.useState<NutritionFood | null>(null);
+  const [mealActionStartEditing, setMealActionStartEditing] = React.useState(false);
   const [entries, setEntries] = React.useState<NutritionEntry[]>([]);
   const [targets, setTargets] = React.useState<NutritionTargets | null>(null);
   const [targetHistory, setTargetHistory] = React.useState<NutritionTargetHistoryEntry[]>([]);
@@ -231,6 +238,7 @@ export function NutritionDashboard() {
 
   const refresh = React.useCallback(() => {
     setEntries(getNutritionEntries());
+    setLibraryRevision((revision) => revision + 1);
     setTargets(getNutritionTargets());
     setTargetHistory(getNutritionTargetHistory());
     setBodyMetrics(getBodyMetrics());
@@ -266,10 +274,6 @@ export function NutritionDashboard() {
   }, []);
 
   const selectedDate = dayKeyToDate(dayKey);
-  const visibleWeek = React.useMemo(
-    () => weekDayKeys(dayKeyToDate(dayKey)),
-    [dayKey]
-  );
   const loggedDayKeys = React.useMemo(
     () => new Set(entries.map((entry) => entry.dayKey)),
     [entries]
@@ -311,12 +315,6 @@ export function NutritionDashboard() {
   const workoutCaloriesIncluded = workoutAdjustmentDays.includes(dayKey);
   const netCalories = totals.caloriesKcal - workoutCalories;
 
-  const moveDay = (delta: number) => {
-    const next = dayKeyToDate(dayKey);
-    next.setDate(next.getDate() + delta);
-    setDayKey(toDayKey(next));
-  };
-
   const openQuickAdd = (meal: NutritionMeal, entry: NutritionEntry | null = null) => {
     setQuickMeal(meal);
     setEditingEntry(entry);
@@ -352,12 +350,14 @@ export function NutritionDashboard() {
     meal: NutritionMeal,
     startSaving = false,
     savedMeal?: NutritionSavedMeal,
-    startRecipe = false
+    startRecipe = false,
+    startEditing = false
   ) => {
     setQuickMeal(meal);
     setMealActionStartSaving(startSaving);
     setMealActionInitialSavedMealId(savedMeal?.id ?? null);
     setMealActionStartRecipe(startRecipe);
+    setMealActionStartEditing(startEditing);
     setMealActionsOpen(true);
   };
 
@@ -519,73 +519,15 @@ export function NutritionDashboard() {
         }
       />
 
-      <div className="mb-4 rounded-xl border bg-card p-2">
-        <div className="flex items-center justify-between">
-          <Button type="button" variant="ghost" size="icon" onClick={() => moveDay(-1)} aria-label="Previous day">
-            <ChevronLeft className="size-5" />
-          </Button>
-          <button
-            type="button"
-            className="min-w-0 px-3 text-center"
-            onClick={() => setDayKey(toDayKey())}
-            aria-label="Return to today"
-          >
-            <p className="truncate text-sm font-semibold">
-              {isToday(selectedDate) ? "Today" : format(selectedDate, "EEEE")}
-            </p>
-            <p className="text-xs text-muted-foreground">{format(selectedDate, "MMMM d, yyyy")}</p>
-          </button>
-          <Button type="button" variant="ghost" size="icon" onClick={() => moveDay(1)} aria-label="Next day">
-            <ChevronRight className="size-5" />
-          </Button>
-        </div>
-
-        <div
-          className="mt-2 grid grid-cols-7 gap-1 border-t px-1 pt-2"
-          aria-label="Nutrition logs for this week"
-        >
-          {visibleWeek.map((weekDayKey) => {
-            const date = dayKeyToDate(weekDayKey);
-            const hasLogs = loggedDayKeys.has(weekDayKey);
-            const isSelected = weekDayKey === dayKey;
-            return (
-              <button
-                key={weekDayKey}
-                type="button"
-                className={cn(
-                  "flex min-w-0 flex-col items-center gap-1 rounded-lg py-1 text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  isSelected && "bg-muted"
-                )}
-                onClick={() => setDayKey(weekDayKey)}
-                aria-label={`${format(date, "EEEE, MMMM d")}: ${hasLogs ? "food logged" : "no food logged"}`}
-                aria-current={isSelected ? "date" : undefined}
-              >
-                <span
-                  className={cn(
-                    "font-medium text-muted-foreground",
-                    isSelected && "text-foreground"
-                  )}
-                  aria-hidden="true"
-                >
-                  {format(date, "EEEEE")}
-                </span>
-                <span
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-full border-2 transition-colors",
-                    hasLogs
-                      ? "border-emerald-500 bg-emerald-500 text-white"
-                      : "border-muted-foreground/35 text-muted-foreground",
-                    isSelected && "ring-2 ring-primary/30 ring-offset-2 ring-offset-card"
-                  )}
-                  aria-hidden="true"
-                >
-                  {hasLogs ? <Check className="size-4" strokeWidth={3} /> : null}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <Tabs value={tab} onValueChange={setTab} className="gap-4">
+        <TabsList className="grid h-12 w-full grid-cols-4" aria-label="Nutrition sections">
+          <TabsTrigger value="daily" className="min-w-0 px-1 text-xs sm:text-sm">Daily log</TabsTrigger>
+          <TabsTrigger value="recipes" className="min-w-0 px-1 text-xs sm:text-sm">Recipes</TabsTrigger>
+          <TabsTrigger value="products" className="min-w-0 px-1 text-xs sm:text-sm">Products</TabsTrigger>
+          <TabsTrigger value="favourites" className="min-w-0 px-1 text-xs sm:text-sm">Favourites</TabsTrigger>
+        </TabsList>
+        <TabsContent value="daily">
+          <NutritionDateNavigation dayKey={dayKey} loggedDayKeys={loggedDayKeys} onDayChange={setDayKey} />
 
       <Card
         className={`relative overflow-hidden transition-colors duration-500 ${
@@ -950,6 +892,34 @@ export function NutritionDashboard() {
         trainingDayKeys={trainingDayKeys}
       />
 
+        </TabsContent>
+        {(["recipes", "products", "favourites"] as NutritionLibraryTab[]).map((libraryTab) => (
+          <TabsContent key={libraryTab} value={libraryTab}>
+            <NutritionLibrary
+              tab={libraryTab}
+              entries={entries}
+              revision={libraryRevision}
+              onEditMeal={(meal) => openMealActions(defaultMeal(), false, meal, false, true)}
+              onEditFood={(food) => { setEditingProduct(food); setProductEditorOpen(true); }}
+              onCreateRecipe={() => openMealActions(defaultMeal(), false, undefined, true)}
+              onCreateFood={() => { setEditingProduct(null); setProductEditorOpen(true); }}
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      <FoodPickerSheet
+        open={productEditorOpen}
+        onOpenChange={setProductEditorOpen}
+        dayKey={dayKey}
+        initialMeal={quickMeal}
+        mode="manage"
+        initialFood={editingProduct}
+        onSaved={refresh}
+        onPhotoScan={openFoodPhoto}
+        onSavedMeal={(meal, destination) => openMealActions(destination, false, meal)}
+      />
+
       <MealRecommendationsSheet
         open={recommendationsOpen}
         onOpenChange={setRecommendationsOpen}
@@ -1012,9 +982,11 @@ export function NutritionDashboard() {
         open={mealActionsOpen}
         onOpenChange={(open) => {
           setMealActionsOpen(open);
+          if (!open) refresh();
           if (!open) {
             setMealActionStartSaving(false);
             setMealActionStartRecipe(false);
+            setMealActionStartEditing(false);
             setMealActionInitialSavedMealId(null);
           }
         }}
@@ -1023,6 +995,7 @@ export function NutritionDashboard() {
         initialSavedMealId={mealActionInitialSavedMealId}
         startSaving={mealActionStartSaving}
         startRecipe={mealActionStartRecipe}
+        startEditing={mealActionStartEditing}
         entries={entries}
         onSaved={refresh}
       />

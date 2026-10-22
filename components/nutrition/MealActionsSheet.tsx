@@ -131,6 +131,7 @@ export function MealActionsSheet({
   initialSavedMealId = null,
   startSaving = false,
   startRecipe = false,
+  startEditing = false,
   entries,
   onSaved,
 }: {
@@ -141,6 +142,7 @@ export function MealActionsSheet({
   initialSavedMealId?: string | null;
   startSaving?: boolean;
   startRecipe?: boolean;
+  startEditing?: boolean;
   entries: NutritionEntry[];
   onSaved: () => void;
 }) {
@@ -183,7 +185,8 @@ export function MealActionsSheet({
     const initialSavedMeal = initialSavedMealId
       ? loadedMeals.find((meal) => meal.id === initialSavedMealId) ?? null
       : null;
-    setSelectedSavedMeal(initialSavedMeal);
+    const editingMeal = startEditing ? initialSavedMeal : null;
+    setSelectedSavedMeal(editingMeal ? null : initialSavedMeal);
     setSelectedItemAmounts(
       initialSavedMeal?.items.map((item) =>
         item.quantity ? String(item.quantity.amount) : ""
@@ -193,7 +196,7 @@ export function MealActionsSheet({
     setRecipePortions("1");
     setRecipeGrams("");
     setRecipeLogMode("servings");
-    setTab(startRecipe ? "create" : "meals");
+    setTab(startRecipe || editingMeal ? "create" : "meals");
     setSavingCurrent(startSaving);
     setSavedMealName("");
     setSelectedCurrentEntryIds(
@@ -203,12 +206,12 @@ export function MealActionsSheet({
           .map((entry) => entry.id)
       )
     );
-    setBuilderName("");
-    setBuilderServings("2");
-    setBuilderYieldGrams("");
+    setBuilderName(editingMeal?.name ?? "");
+    setBuilderServings(String(editingMeal ? editingMeal.servings ?? 1 : 2));
+    setBuilderYieldGrams(editingMeal?.yieldGrams ? String(editingMeal.yieldGrams) : "");
     setRecipeSaveDestination("saved_only");
-    setBuilderItems([]);
-    setEditingRecipeId(null);
+    setBuilderItems(editingMeal?.items.map(toMealBuilderItem) ?? []);
+    setEditingRecipeId(editingMeal?.id ?? null);
     setIngredientPickerOpen(false);
     setIngredientPhotoOpen(false);
   }, [
@@ -220,6 +223,7 @@ export function MealActionsSheet({
     refreshSavedMeals,
     startSaving,
     startRecipe,
+    startEditing,
   ]);
 
   const builtMealItems = React.useMemo(
@@ -360,7 +364,6 @@ export function MealActionsSheet({
     meal: NutritionSavedMeal,
     items: NutritionSavedMealItem[] = meal.items
   ) => {
-    if (meal.kind !== "recipe") return;
     setBuilderName(meal.name);
     setBuilderServings(String(meal.servings ?? 1));
     setBuilderYieldGrams(meal.yieldGrams ? String(meal.yieldGrams) : "");
@@ -587,9 +590,9 @@ export function MealActionsSheet({
     }
     const originalRecipe = savedMeals.find((meal) => meal.id === editingRecipeId);
     const saved = saveMealFromItems(builderName, builtMealItems, editingRecipeId ?? undefined, {
-      kind: "recipe",
-      servings,
-      yieldGrams,
+      kind: originalRecipe ? originalRecipe.kind : "recipe",
+      servings: originalRecipe && originalRecipe.kind !== "recipe" ? undefined : servings,
+      yieldGrams: originalRecipe && originalRecipe.kind !== "recipe" ? undefined : yieldGrams,
       description: originalRecipe?.description,
       instructions: originalRecipe?.instructions,
       prepMinutes: originalRecipe?.prepMinutes,
@@ -605,6 +608,11 @@ export function MealActionsSheet({
     setBuilderYieldGrams("");
     setEditingRecipeId(null);
     if (wasEditing) {
+      if (startEditing) {
+        onOpenChange(false);
+        toast.success(`${saved.name} updated`);
+        return;
+      }
       setTab("meals");
       selectSavedMeal(saved);
       toast.success(`${saved.name} updated`);
@@ -696,6 +704,8 @@ export function MealActionsSheet({
     selectedTotals && selectedRecipeWeight
       ? nutrientsForQuantity(selectedTotals, 100, selectedRecipeWeight)
       : null;
+  const editingSavedMeal = savedMeals.find((meal) => meal.id === editingRecipeId);
+  const editingRegularMeal = Boolean(editingSavedMeal && editingSavedMeal.kind !== "recipe");
 
   return (
     <>
@@ -887,17 +897,15 @@ export function MealActionsSheet({
                 </section>
               </div>
               <SheetFooter className="gap-2">
-                {selectedSavedMeal.kind === "recipe" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => beginEditingRecipe(selectedSavedMeal, adjustedSelectedItems ?? selectedSavedMeal.items)}
-                    disabled={!adjustedSelectedItems}
-                  >
-                    <Pencil className="size-4" />
-                    Edit recipe ingredients
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => beginEditingRecipe(selectedSavedMeal, adjustedSelectedItems ?? selectedSavedMeal.items)}
+                  disabled={!adjustedSelectedItems}
+                >
+                  <Pencil className="size-4" />
+                  Edit {selectedSavedMeal.kind === "recipe" ? "recipe" : "meal"} ingredients
+                </Button>
                 {selectedAmountsChanged && (
                   <Button type="button" variant="outline" onClick={saveSelectedMealQuantityChanges} disabled={!adjustedSelectedItems}>
                     Save quantity changes
@@ -1034,11 +1042,11 @@ export function MealActionsSheet({
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><ChefHat className="size-4" /></span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium">
-                          {editingRecipeId ? "Edit the full cooked batch" : "Build the full cooked batch"}
+                          {editingRegularMeal ? "Edit saved meal" : editingRecipeId ? "Edit the full cooked batch" : "Build the full cooked batch"}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {editingRecipeId
-                            ? "Add, remove, or adjust ingredients, then update the saved recipe."
+                            ? "Edit the name, add or remove ingredients, and adjust amounts. Previous food logs stay unchanged."
                             : "Add every ingredient you used and divide the full batch into servings. Saving it does not have to log anything today."}
                         </p>
                       </div>
@@ -1052,10 +1060,10 @@ export function MealActionsSheet({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2 space-y-1.5">
-                      <Label htmlFor="builder-meal-name">Recipe name</Label>
+                      <Label htmlFor="builder-meal-name">{editingRegularMeal ? "Meal name" : "Recipe name"}</Label>
                       <Input id="builder-meal-name" value={builderName} onChange={(event) => setBuilderName(event.target.value)} placeholder="e.g. Pasta bolognese" maxLength={120} />
                     </div>
-                    <div className="col-span-2 space-y-1.5">
+                    {!editingRegularMeal && <div className="col-span-2 space-y-1.5">
                       <Label htmlFor="builder-servings">Servings in full batch</Label>
                       <NumberInput id="builder-servings" decimal value={builderServings} onChange={(event) => setBuilderServings(event.target.value)} />
                       <p className="text-xs text-muted-foreground">For a recipe shared by two people, enter 2. You can log 1.5 servings later if you ate more.</p>
@@ -1066,8 +1074,8 @@ export function MealActionsSheet({
                             : "Estimated from ingredient amounts (1 ml ≈ 1 g); cooking can change the final weight."}
                         </p>
                       )}
-                    </div>
-                    <div className="col-span-2 space-y-1.5">
+                    </div>}
+                    {!editingRegularMeal && <div className="col-span-2 space-y-1.5">
                       <Label htmlFor="builder-yield">Final cooked weight (g, optional)</Label>
                       <NumberInput id="builder-yield" decimal value={builderYieldGrams} onChange={(event) => setBuilderYieldGrams(event.target.value)} placeholder="e.g. 1650" />
                       <p className="text-xs text-muted-foreground">Weigh the finished batch after cooking to also log this recipe by grams eaten.</p>
@@ -1076,7 +1084,7 @@ export function MealActionsSheet({
                           {Number.isFinite(parsedBuilderYield) && parsedBuilderYield > 0 ? "Per" : "Estimated per"} 100 g: {number(builderPer100.caloriesKcal)} kcal · P {number(builderPer100.proteinG)}g · C {number(builderPer100.carbsG)}g · F {number(builderPer100.fatG)}g
                         </p>
                       )}
-                    </div>
+                    </div>}
                     {!editingRecipeId && (
                       <div className="col-span-2 space-y-1.5">
                         <Label htmlFor="builder-destination">After saving</Label>
@@ -1159,7 +1167,7 @@ export function MealActionsSheet({
                     onClick={saveBuiltMeal}
                   >
                     {editingRecipeId
-                      ? "Update recipe"
+                      ? editingRegularMeal ? "Update meal" : "Update recipe"
                       : recipeSaveDestination === "saved_only"
                         ? "Save recipe"
                         : "Save recipe & add 1 serving"}

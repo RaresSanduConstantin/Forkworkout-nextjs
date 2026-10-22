@@ -13,6 +13,12 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Added
 
+- Added Nutrition tabs for daily tracking, saved recipes and meals, previously
+  used food products, and favourites, with search, direct editing, and persistent
+  stars. Product edits preserve earlier logs; catalog customizations save as a
+  reusable custom product.
+- Added an expandable Nutrition calendar with logged-day highlights, month
+  navigation, and day selection synchronized with the weekly strip and daily log.
 - Added a compact Notes modal to each live-workout exercise for machine settings
   and reminders, saved across future workouts with a saved-note indicator and
   included in local backups and recovery.
@@ -125,6 +131,8 @@ using `Added`, `Changed`, `Fixed`, `Removed`, and `Security` where appropriate.
 
 ### Fixed
 
+- Preserved brand and optional fiber, sugar, and sodium values when editing
+  custom food products, with editable nutrient fields and validation.
 - Stopped forcing Turbopack for local development because the PWA Webpack
   wrapper can trigger a repeated macOS Watchpack `EMFILE` watcher failure;
   Webpack is now the stable default and Turbopack remains available explicitly.
